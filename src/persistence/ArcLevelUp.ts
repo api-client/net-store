@@ -10,7 +10,7 @@ import {
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
   RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind,
 } from '@advanced-rest-client/core';
-import { IListOptions, IListResponse, StorePersistance } from './StorePersistance.js';
+import { IListOptions, IListResponse, StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
@@ -42,9 +42,9 @@ export interface IBinDataItem {
 }
 
 /**
- * The persistance layer that uses LevelUp to store data in the local file system.
+ * The persistence layer that uses LevelUp to store data in the local file system.
  */
-export class ArcLevelUp extends StorePersistance {
+export class ArcLevelUp extends StorePersistence {
   dbPath: string;
   db?: LevelUp<LevelDown, LevelDownIterator>;
   /**

@@ -2,7 +2,7 @@
 import jwt from 'jsonwebtoken';
 import { UUID } from '@advanced-rest-client/core';
 import { ISessionConfiguration } from '../definitions.js';
-import { StorePersistance } from '../persistance/StorePersistance.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
 
 export interface ITokenContents {
   /**
@@ -60,7 +60,7 @@ class GlobalSession {
    */
   expiresIn: string | number = '7d';
 
-  protected store?: StorePersistance;
+  protected store?: StorePersistence;
 
   /**
    * Applies the configuration passed to the server.
@@ -74,7 +74,7 @@ class GlobalSession {
     }
   }
 
-  setStore(store: StorePersistance): void {
+  setStore(store: StorePersistence): void {
     this.store = store;
   }
 

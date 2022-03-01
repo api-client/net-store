@@ -60,7 +60,7 @@ export interface IListState {
  * An abstract class that creates an interface to implement any storage layer
  * for ARC data.
  */
-export abstract class StorePersistance {
+export abstract class StorePersistence {
   /**
    * The default limit of items returned by the list operation.
    */

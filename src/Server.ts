@@ -14,7 +14,7 @@ import { platform } from 'os';
 import { Duplex } from 'stream'
 import { ApiRoutes } from './ApiRoutes.js';
 import { SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState } from './definitions.js'
-import { StorePersistance } from './persistance/StorePersistance.js';
+import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication } from './authentication/Authentication.js';
 import storeInfo from './BackendInfo.js';
 import session from './session/GlobalSession.js';
@@ -60,13 +60,13 @@ export class Server {
   router: Router<IApplicationState, DefaultContext>;
   opts: IServerConfiguration;
   protected apiHandler?: ApiRoutes;
-  protected store: StorePersistance;
+  protected store: StorePersistence;
   protected auth?: Authentication;
 
   /**
    * @param opts Optional server configuration options.
    */
-  constructor(store: StorePersistance, opts: IServerConfiguration={}) {
+  constructor(store: StorePersistence, opts: IServerConfiguration={}) {
     this.opts = opts;
     this.store = store;
     if (opts.authentication) {
@@ -138,7 +138,7 @@ export class Server {
    */
   protected async initializeCustomAuth(): Promise<void> {
     const { opts, router, store } = this;
-    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistance) => Authentication;
+    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) => Authentication;
     const factory = new ctr(router, store);
     await factory.initialize();
     this.auth = factory;

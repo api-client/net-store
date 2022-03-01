@@ -2,7 +2,7 @@ import http from 'http';
 import { DefaultContext } from 'koa';
 import Router from '@koa/router';
 import { IApplicationState } from '../definitions.js';
-import { StorePersistance } from '../persistance/StorePersistance.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
 /**
  * A base class for all authentication methods.
  */
@@ -11,9 +11,9 @@ export abstract class Authentication {
    * The man application router.
    */
   protected router: Router<IApplicationState, DefaultContext>;
-  protected store: StorePersistance;
+  protected store: StorePersistence;
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistance) {
+  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) {
     this.router = router;
     this.store = store;
   }

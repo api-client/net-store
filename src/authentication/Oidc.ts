@@ -13,7 +13,7 @@ import session, { ITokenContents, IAuthenticatedSession } from '../session/Globa
 import { IApiError } from '../routes/BaseRoute.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
-import { StorePersistance } from '../persistance/StorePersistance.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 
 export interface OpenIdProviderMetadata {
@@ -210,7 +210,7 @@ export class Oidc extends Authentication {
    */
   protected meta?: OpenIdProviderMetadata;
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistance, config: IOidcConfiguration) {
+  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, config: IOidcConfiguration) {
     super(router, store);
     this.config = config;
     this.router = router;

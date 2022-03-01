@@ -16,19 +16,19 @@ import { AuthWsRoute } from './routes/AuthWsRoute.js';
 import { BackendHttpRoute } from './routes/BackendHttpRoute.js';
 import { SessionHttpRoute } from './routes/SessionHttpRoute.js';
 import { UsersHttpRoute } from './routes/UsersHttpRoute.js';
-import { StorePersistance } from './persistance/StorePersistance.js';
+import { StorePersistence } from './persistence/StorePersistence.js';
 
 export class ApiRoutes {
   protected opts: IServerConfiguration;
   protected router: Router<IApplicationState, DefaultContext>;
   protected routes: BaseRoute[] = [];
-  protected store: StorePersistance;
+  protected store: StorePersistence;
   protected wsRoutes: SocketRoute[] = []
 
   /**
    * @param opts Optional server configuration options.
    */
-  constructor(store: StorePersistance, router: Router<IApplicationState, DefaultContext>, opts: IServerConfiguration = {}) {
+  constructor(store: StorePersistence, router: Router<IApplicationState, DefaultContext>, opts: IServerConfiguration = {}) {
     this.opts = opts;
     this.store = store;
     this.router = router;
