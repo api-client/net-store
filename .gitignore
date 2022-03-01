@@ -60,4 +60,3 @@ build
 .nyc_output
 test/express.lock
 develop
-scripts/secrets.ts
