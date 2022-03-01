@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "API Client",
+  "compilerOptions": {
+    "lib": ["ES2021", "DOM"],
+    "target": "ES2021",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmitOnError": true,
+    "strict": true,
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "alwaysStrict": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "declaration": true,
+    "outDir": "./build",
+    "baseUrl": ".",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "importHelpers": false,
+    "allowJs": true
+  },
+  "include": [
+    "src/**/*",
+    "scripts/dev.ts",
+    "scripts/dev-auth.ts",
+    "index.ts"
+  ]
+}

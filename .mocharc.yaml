@@ -1,0 +1,14 @@
+extension:
+  - ts
+spec: 
+  - test/**/*.test.ts
+require: 
+  - ts-node/register
+  - source-map-support/register.js
+loader: ts-node/esm
+watch-files:
+  - src
+  - test
+watch-ignore:
+  - test/playground
+timeout: 5000

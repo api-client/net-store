@@ -1,0 +1,13 @@
+.*
+coverage/
+docs/
+scripts/
+src/
+test/
+cli.md
+commitlint.config.cjs
+tsconfig.json
+tsconfig-tests.json
+develop
+build/scripts/
+scripts/secrets.ts
