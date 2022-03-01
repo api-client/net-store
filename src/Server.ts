@@ -18,6 +18,7 @@ import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication } from './authentication/Authentication.js';
 import storeInfo from './BackendInfo.js';
 import session from './session/GlobalSession.js';
+import projectsCache from './cache/ProjectsCache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -88,6 +89,7 @@ export class Server {
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
+    projectsCache.cleanup();
     if (!this.apiHandler) {
       return;
     }
@@ -103,32 +105,21 @@ export class Server {
     if (opts.session) {
       session.applyConfig(opts.session);
     }
+    projectsCache.initialize();
     if (opts.cors && opts.cors.enabled) {
       const config = opts.cors.cors || this.defaultCorsConfig();
       this.app.use(cors(config));
     }
     this.app.use(views(join(__dirname, 'views'), { extension: 'ejs' }));
     if (storeInfo.hasAuthentication) {
+      let factory: Authentication;
       if (typeof storeInfo.hasAuthentication === 'function') {
-        await this.initializeCustomAuth();
+        factory = await this.initializeCustomAuth();
       } else {
-        await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
+        factory = await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
       }
-      this.app.use(async (ctx, next) => {
-        const factory = this.auth as Authentication;
-        const sessionId = await factory.getSessionId(ctx.req);
-        ctx.state.sid = sessionId;
-        if (sessionId) {
-          const sessionValue = await session.get(sessionId);
-          if (!sessionValue) {
-            throw new Error(`Session not established.`);
-          }
-          if (sessionValue.authenticated) {
-            ctx.state.user = await this.store.readSystemUser(sessionValue.uid);
-          }
-        }
-        return next();
-      });
+      this.auth = factory;
+      this.app.use(factory.middleware);
     }
     await this.setupRoutes();
   }
@@ -136,20 +127,20 @@ export class Server {
   /**
    * Initializes a custom authentication function provided by the configuration.
    */
-  protected async initializeCustomAuth(): Promise<void> {
+  protected async initializeCustomAuth(): Promise<Authentication> {
     const { opts, router, store } = this;
     const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) => Authentication;
     const factory = new ctr(router, store);
     await factory.initialize();
-    this.auth = factory;
+    return factory;
   }
 
   /**
    * Initializes one of the pre-defined authentication schemes.
    */
-  protected async initializeAuthentication(options: IAuthenticationConfiguration): Promise<void> {
+  protected async initializeAuthentication(options: IAuthenticationConfiguration): Promise<Authentication> {
     switch (options.type) {
-      case 'oidc': await this.initializeOidc(options.config as IOidcConfiguration); break;
+      case 'oidc': return this.initializeOidc(options.config as IOidcConfiguration);
       default: throw new Error(`Unknown authentication scheme: ${options.type}`);
     }
   }
@@ -158,14 +149,14 @@ export class Server {
    * Initializes the OIDC authentication scheme.
    * Note, the import is dynamic to save on unnecessary imports at startup.
    */
-  protected async initializeOidc(config: IOidcConfiguration): Promise<void> {
+  protected async initializeOidc(config: IOidcConfiguration): Promise<Authentication> {
     const { Oidc } = await import('./authentication/Oidc.js');
     if (!config || !config.issuerUri) {
       throw new Error(`OpenID Connect configuration error.`);
     }
     const factory = new Oidc(this.router, this.store, config);
     await factory.initialize();
-    this.auth = factory;
+    return factory;
   }
 
   /**

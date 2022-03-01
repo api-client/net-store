@@ -85,7 +85,7 @@ export abstract class BaseRoute {
   }
 
   protected collectListingParameters(ctx: ParameterizedContext): IListOptions {
-    const { cursor, limit } = ctx.query;
+    const { cursor, limit, query, queryField } = ctx.query;
     const options: IListOptions = {};
     if (typeof cursor === 'string' && cursor) {
       options.cursor = cursor;
@@ -96,6 +96,18 @@ export abstract class BaseRoute {
         throw new ApiError('The "limit" parameter is not a number', 400);
       }
       options.limit = value;
+    }
+    if (Array.isArray(query)) {
+      throw new ApiError(`The "query" parameter cannot be an array`, 400);
+    }
+    if (typeof query === 'string') {
+      options.query = query;
+    }
+    if (queryField && !Array.isArray(queryField)) {
+      throw new ApiError(`The "queryField" parameter must be an array`, 400);
+    }
+    if (queryField) {
+      options.queryField = queryField as string[];
     }
     return options;
   }

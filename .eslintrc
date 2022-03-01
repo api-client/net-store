@@ -64,5 +64,8 @@
         "extensions": [".js", ".jsx", ".ts", ".tsx"]
       }
     }
+  },
+  "globals": {
+    "NodeJS": true
   }
 }

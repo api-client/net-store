@@ -5,21 +5,7 @@ import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
-
-interface ProjectState {
-  /**
-   * The project object
-   */
-  data: IHttpProject;
-  /**
-   * The key of the space
-   */
-  space: string;
-  /**
-   * The key of the project
-   */
-  project: string;
-}
+import projectsCache from '../cache/ProjectsCache.js';
 
 /**
  * An HTTP route for the server that serves the information about 
@@ -36,12 +22,6 @@ interface ProjectState {
  * when we would like to run the store in a separate process.
  */
 export class ProjectHttpRoute extends BaseRoute {
-  /**
-   * The key is the id of the project.
-   * Even though a project is related to a space, it always has a unique id.
-   */
-  projects: Map<string, ProjectState> = new Map();
-
   async setup(): Promise<void> {
     const { router } = this;
     const basePath = RouteBuilder.buildSpaceProjectRoute(':space', ':project');
@@ -132,19 +112,15 @@ export class ProjectHttpRoute extends BaseRoute {
    * @returns The project information. It throws when project is not found.
    */
   protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
-    const cached = this.projects.get(project);
+    const cached = projectsCache.get(project);
     if (cached) {
       return cached.data;
     }
     const result = await this.store.readSpaceProject(space, project, user);
     if (!result) {
-      throw new ApiError('Not found.', 404);
+      throw new ApiError('Project not found.', 404);
     }
-    this.projects.set(project, {
-      data: result,
-      project,
-      space,
-    });
+    projectsCache.set(space, project, result);
     return result;
   }
 

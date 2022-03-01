@@ -15,13 +15,21 @@ export interface IListOptions {
    */
   limit?: number;
   /**
-   * The start key to use.
+   * Supported by some endpoints. When set it performs a query on the data store.
    */
-  start?: string;
+  query?: string;
   /**
-   * The last key to use.
+   * Only with the `query` property. Tells the system in which fields to search for the query term.
    */
-  end?: string;
+  queryField?: string[];
+  // /**
+  //  * The start key to use.
+  //  */
+  // start?: string;
+  // /**
+  //  * The last key to use.
+  //  */
+  // end?: string;
 }
 
 export interface IListResponse {
@@ -54,6 +62,14 @@ export interface IListState {
    * The last key to use.
    */
   end?: string;
+  /**
+   * Supported by some endpoints. When set it performs a query on the data store.
+   */
+  query?: string;
+  /**
+   * Only with the `query` property. Tells the system in which fields to search for the query term.
+   */
+  queryField?: string[];
 }
 
 /**
@@ -129,12 +145,18 @@ export abstract class StorePersistence {
       } else {
         state.limit = this.defaultLimit;
       }
-      if (options.start) {
-        state.start = options.start;
+      if (options.query) {
+        state.query = options.query;
       }
-      if (options.end) {
-        state.end = options.end;
+      if (Array.isArray(options.queryField) && options.queryField.length) {
+        state.queryField = options.queryField;
       }
+      // if (options.start) {
+      //   state.start = options.start;
+      // }
+      // if (options.end) {
+      //   state.end = options.end;
+      // }
     }
     return state;
   }
@@ -155,7 +177,7 @@ export abstract class StorePersistence {
    * @param lastKey The last read key from the store.
    * @returns Encoded cursor.
    */
-   encodeCursor(state: IListState = {}, lastKey?: string): string {
+  encodeCursor(state: IListState = {}, lastKey?: string): string {
     const copy: IListState = { ...state };
     if (!copy.limit) {
       copy.limit = this.defaultLimit;
@@ -198,6 +220,12 @@ export abstract class StorePersistence {
     }
     if (data.end) {
       result.end = data.end;
+    }
+    if (data.query) {
+      result.query = data.query;
+    }
+    if (Array.isArray(data.queryField) && data.queryField.length) {
+      result.queryField = data.queryField;
     }
     return result;
   }
@@ -326,6 +354,21 @@ export abstract class StorePersistence {
    * @param userKey The user key.
    */
   abstract readSystemUser(userKey: string): Promise<IUser | undefined>;
+  /**
+   * Reads multiple system users with one query. Typically used when the UI asks for
+   * user data to render "user pills" in the access control list.
+   * 
+   * @param userKeys The list of user keys.
+   * @returns Ordered list of users defined by the `userKeys` order.
+   * Note, when the user is not found an `undefined` is set at the position.
+   */
+  abstract readSystemUsers(userKeys: string[]): Promise<IListResponse>;
+  /**
+   * Lists the registered users.
+   * The final list won't contain the current user.
+   * The user can query for a specific data utilizing the `query` filed.
+   */
+  abstract listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse>;
   /**
    * Permanently stores session data in the data store.
    * 

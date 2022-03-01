@@ -4,7 +4,7 @@ import http from 'http';
 import { URL, URLSearchParams } from 'url';
 import Router from '@koa/router';
 import { randomBytes } from 'crypto';
-import { DefaultContext, ParameterizedContext } from 'koa';
+import { DefaultContext, ParameterizedContext, Next } from 'koa';
 import { IUser } from '@advanced-rest-client/core'
 import jwt from 'jsonwebtoken';
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
@@ -184,14 +184,11 @@ function camel(name: string): string | undefined {
   let i = 0;
   let l;
   let changed = false;
-  // eslint-disable-next-line no-cond-assign
   while ((l = name[i])) {
     if ((l === '_' || l === '-') && i + 1 < name.length) {
-      // eslint-disable-next-line no-param-reassign
       name = name.substring(0, i) + name[i + 1].toUpperCase() + name.substring(i + 2);
       changed = true;
     }
-    // eslint-disable-next-line no-plusplus
     i++;
   }
   return changed ? name : undefined;
@@ -284,6 +281,48 @@ export class Oidc extends Authentication {
       token = auth.substring(7);
     }
     return this.readTokenSessionId(token);
+  }
+
+  /**
+   * Processes the request and returns the user object.
+   * @param request The client request. Note, it is not a Koa request as this is also used by the web sockets.
+   * @returns The user object or undefined when not found.
+   */
+  async getSessionUser(request: http.IncomingMessage): Promise<IUser | undefined> {
+    const sid = await this.getSessionId(request);
+    if (sid) {
+      const sessionValue = await session.get(sid);
+      if (!sessionValue) {
+        throw new Error(`Invalid state. Session does not exist.`);
+      }
+      if (sessionValue.authenticated) {
+        return this.store.readSystemUser(sessionValue.uid);
+      }
+    }
+  }
+
+  /**
+   * The middleware to register on the main application.
+   * The middleware should setup the `sid` and `user` on the `ctx.state` object of the Koa context.
+   * It should only throw when credentials are invalid, corrupted, or expired. It should not throw
+   * when there's no session, user credentials, or the user.
+   * 
+   * @param ctx The Koa context object.
+   * @param next The next function to call.
+   */
+  async middleware(ctx: ParameterizedContext, next: Next): Promise<void> { 
+    const sid = await this.getSessionId(ctx.req);
+    ctx.state.sid = sid;
+    if (sid) {
+      const data = await session.get(sid);
+      if (!data) {
+        throw new Error(`Invalid state. Session does not exist.`);
+      }
+      if (data.authenticated) {
+        ctx.state.user = await this.store.readSystemUser(data.uid);
+      }
+    }
+    return next();
   }
 
   /**

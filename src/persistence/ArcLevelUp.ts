@@ -850,7 +850,7 @@ export class ArcLevelUp extends StorePersistence {
     const state = this.readListState(options);
     const itOpts: AbstractIteratorOptions = {
       gte: `project~${projectKey}~`,
-      lte: `project~${projectKey}~~`
+      lte: `project~${projectKey}~~`,
     };
     const iterator = projectRevisions.iterator(itOpts);
     if (state.lastKey) {
@@ -915,6 +915,77 @@ export class ArcLevelUp extends StorePersistence {
     }
     const data = this.decodeDocument(raw) as IUser;
     return data;
+  }
+
+  /**
+   * Reads multiple system users with one query. Typically used when the UI asks for
+   * user data to render "user pills" in the access control list.
+   * 
+   * @param userKeys The list of user keys.
+   * @returns Ordered list of users defined by the `userKeys` order.
+   * Note, when the user is not found an `undefined` is set at the position.
+   */
+  async readSystemUsers(userKeys: string[]): Promise<IListResponse> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const items = await users.getMany(userKeys);
+    const data: (IUser|undefined)[] = items.map((raw) => {
+      if (!raw) {
+        return undefined;
+      }
+      return this.decodeDocument(raw) as IUser;
+    });
+    const result: IListResponse = {
+      data,
+      cursor: '',
+    };
+    return result;
+  }
+
+  /**
+   * Lists the registered users.
+   * The final list won't contain the current user.
+   * The user can query for a specific data utilizing the `query` filed.
+   */
+  async listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const state = this.readListState(options);
+    const userKey = user && user.key;
+    const iterator = users.iterator();
+    if (state.lastKey) {
+      iterator.seek(state.lastKey);
+    }
+    let lastKey: string | undefined;
+    const data: IUser[] = [];
+    let remaining = state.limit as number;
+    try {
+      // @ts-ignore
+      for await (const [key, value] of iterator) {
+        if (userKey && key === userKey) {
+          continue;
+        }
+        const item = this.decodeDocument(value) as IUser;
+        data.push(item);
+        lastKey = key;
+        remaining -= 1;
+        if (!remaining) {
+          break;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const cursor = this.encodeCursor(state, lastKey);
+    const result: IListResponse = {
+      data,
+      cursor,
+    };
+    return result;
   }
 
   /**

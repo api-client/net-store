@@ -66,8 +66,9 @@ export class ApiRoutes {
    * @returns The created route or undefined when the route is not found
    */
   getOrCreateWs(url: string): SocketRoute | undefined {
+    const { store } = this;
     if (url.startsWith('/auth/login')) {
-      const route = new AuthWsRoute();
+      const route = new AuthWsRoute(store);
       this.addWsRoute(route, url);
       return route;
     }
@@ -82,23 +83,23 @@ export class ApiRoutes {
     }
     
     if (url === spacesRoute) {
-      const route = new SpacesWsRoute();
+      const route = new SpacesWsRoute(store);
       this.addWsRoute(route, url);
       return route;
     }
     const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}';
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceRoute(v4reg)).test(url)) {
-      const route = new SpaceWsRoute();
+      const route = new SpaceWsRoute(store);
       this.addWsRoute(route, url);
       return route;
     }
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceProjectsRoute(v4reg)).test(url)) {
-      const route = new ProjectsWsRoute();
+      const route = new ProjectsWsRoute(store);
       this.addWsRoute(route, url);
       return route;
     }
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceProjectRoute(v4reg, v4reg)).test(url)) {
-      const route = new ProjectWsRoute();
+      const route = new ProjectWsRoute(store);
       this.addWsRoute(route, url);
       return route;
     }

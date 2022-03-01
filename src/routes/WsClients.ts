@@ -61,22 +61,23 @@ class WsClients {
   }
 
   /**
-   * Closes connections to clients connected to a specific URL.
-   * @param url The URL to search for.
+   * Finds clients by the route URL.
+   * 
+   * @param url The route path.
+   * @returns List of clients associated with the route path.
    */
-  closeByUrl(url: string): void {
-    const list = this.clients.filter(i => i.url === url);
-    list.forEach((info) => {
-      if (info.socket.readyState === info.socket.OPEN) {
-        info.socket.close();
-      }
-    });
+  findByUrl(url: string): IClientInfo[] {
+    return this.clients.filter(i => i.url === url);
   }
 
-  notify(message: unknown, filter: IClientFilterOptions={}): void {
-    const list = this.clients.filter(i => {
+  /**
+   * Finds clients for the filter query.
+   * @param filter The clients filter.
+   * @returns The filtered clients. Returns all when no filter.
+   */
+  filter(filter: IClientFilterOptions={}): IClientInfo[] {
+    return this.clients.filter(i => {
       const { url, users, sids } = filter;
-      
       if (url && i.url !== url) {
         return false;
       }
@@ -94,7 +95,32 @@ class WsClients {
       }
       return true;
     });
-    
+  }
+
+  /**
+   * Finds the client for the given channel and returns associated user information.
+   * @param ws The channel object
+   */
+  getUserByChannel(ws: WebSocket): IUser | undefined {
+    const info = this.clients.find(i => i.socket === ws);
+    return info?.user;
+  }
+
+  /**
+   * Closes connections to clients connected to a specific URL.
+   * @param url The URL to search for.
+   */
+  closeByUrl(url: string): void {
+    const list = this.findByUrl(url);
+    list.forEach((info) => {
+      if (info.socket.readyState === info.socket.OPEN) {
+        info.socket.close();
+      }
+    });
+  }
+
+  notify(message: unknown, filter: IClientFilterOptions={}): void {
+    const list = this.filter(filter);
     const typed = typeof message === 'string' ? message : JSON.stringify(message);
     list.forEach((info) => {
       if (info.socket.readyState === WebSocket.OPEN) {

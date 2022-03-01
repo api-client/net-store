@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import http from 'http';
 import { IUser } from '@advanced-rest-client/core';
 import Clients from './WsClients.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
 
 export interface ClientInfo {
   /**
@@ -38,8 +39,11 @@ export abstract class SocketRoute extends EventEmitter {
    */
   routeUrl = '/';
 
-  constructor() {
+  protected store: StorePersistence;
+
+  constructor(store: StorePersistence) {
     super();
+    this.store = store;
     this._connectionHandler = this._connectionHandler.bind(this);
     this._closeHandler = this._closeHandler.bind(this);
   }
@@ -88,6 +92,14 @@ export abstract class SocketRoute extends EventEmitter {
     });
   }
 
+  /**
+   * Finds the client for the given channel and returns associated user information.
+   * @param ws The channel object
+   */
+  getUserInfo(ws: WebSocket): IUser | undefined {
+    return Clients.getUserByChannel(ws);
+  }
+
   protected abstract _connectionHandler(ws: WebSocket, req: http.IncomingMessage, user?: IUser, sid?: string): void;
   
   protected _closeHandler(): void {
@@ -114,11 +126,12 @@ export abstract class SocketRoute extends EventEmitter {
     return result;
   }
 
-  sendError(ws: WebSocket, cause: string): void {
+  sendError(ws: WebSocket, cause: string, path = this.routeUrl): void {
     const message = JSON.stringify({
       error: true,
       cause: `Unable to process spaces query: ${cause}`,
       time: Date.now(),
+      path,
     });
     ws.send(message);
   }
