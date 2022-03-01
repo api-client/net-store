@@ -36,12 +36,34 @@ export interface IAuthenticatedSession {
 }
 
 /**
- * A class that stores in-memory user session data.
+ * A class that stores user session data.
+ * 
+ * At glance, the application generates a session from the `POST /sessions` operation.
+ * During this operation a session id (sid) is generated and packed into a JWT.
+ * The sid is used with this class to store session data. The application is not aware
+ * which sid belongs to which client. The client application has the JWT with the session key encoded in it.
+ * 
+ * When the client makes a request and presents the token to the backend this token is decoded and the request can
+ * be associated with the session data.
+ * 
+ * A special case is the authentication. OAuth session is started by the browser which has no knowledge about the application token.
+ * Therefore clients are required to initialize authentication session (`POST /auth/login`) and use the path returned in the `location`
+ * header to start the authentication flow. The returned path has the state parameter that is used to associate the session with 
+ * the browser session. After returning from the OAuth 2 server the same state is used to recognize the session object and to update
+ * the session with user id.
+ * 
+ * The session is persistent in the store. It is safe to close the store and run it again. Eventually all data is restored.
+ * For performance, this class has a cache object that holds all used session information. Mutations are committed to the store.
+ * If the cached value is missing then the service requests the data from the store.
+ * 
+ * TODO:
+ * - Currently the cache never clears the data. We should have some periodical scanner that clears stale sessions from the cache.
+ * - The same probably should be applied to the store. We could read session data that weren't touched for x time and delete them. Clients would need to re-authenticate with the provider.
  */
 class GlobalSession {
   /**
    * The session store.
-   * The keys are unique identifiers 
+   * The keys are unique identifiers of the session stored on the client side packed with a JWT.
    */
   protected cache = new Map<string, IUnauthenticatedSession | IAuthenticatedSession>();
   /**
@@ -51,10 +73,10 @@ class GlobalSession {
   protected auth = new Map<string, string>();
 
   /**
-   * This MUST be replaces by a secret that doesn't change at the initialization time.
+   * This MUST be replaces by a secret that wont't change at the initialization time.
    * This is a part of the authorization initialization.
    */
-  secret = 'PmNjbkh2K3';
+  secret = '';
   /**
    * Token expiration date.
    */
@@ -93,6 +115,12 @@ class GlobalSession {
     return token;
   }
 
+  /**
+   * Creates and stores a session for an authenticated client.
+   * @param sid The session id.
+   * @param uid The user id.
+   * @returns The JWT to be returned to the client.
+   */
   async generateAuthenticatedSession(sid: string, uid: string): Promise<string> {
     const info: ITokenContents = {
       sid,
@@ -122,7 +150,7 @@ class GlobalSession {
   }
   
   /**
-   * A helper function to reads the session from the OAuth2 state parameter.
+   * A helper function to read session data from the OAuth2 state parameter.
    * 
    * @param state The OAuth2 state parameter
    */
@@ -138,6 +166,11 @@ class GlobalSession {
     return info as IUnauthenticatedSession;
   }
 
+  /**
+   * A helper function to read session id from the OAuth2 state parameter.
+   * 
+   * @param state The OAuth2 state parameter
+   */
   async getOAuthSessionId(state: string): Promise<string> {
     const id = this.auth.get(state);
     if (!id) {
@@ -146,10 +179,18 @@ class GlobalSession {
     return id;
   }
 
+  /**
+   * Clears the auth session data after the authorization completes.
+   * 
+   * @param state The OAuth2 state parameter
+   */
   async deleteOauthSession(state: string): Promise<void> {
     this.auth.delete(state);
   }
 
+  /**
+   * @returns JWT signing options.
+   */
   protected getSignOptions(): jwt.SignOptions {
     const result: jwt.SignOptions = {
       expiresIn: this.expiresIn,
@@ -160,7 +201,7 @@ class GlobalSession {
   }
 
   /**
-   * Reads the session data from the cache. When cache does not have the session info
+   * Reads the session data from the cache. When the cache does not have the session info
    * then it reads the data from the storage and updates the cache.
    * 
    * @param sid The session key.
