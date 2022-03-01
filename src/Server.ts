@@ -90,6 +90,7 @@ export class Server {
    */
   async cleanup(): Promise<void> {
     projectsCache.cleanup();
+    session.cleanup();
     if (!this.apiHandler) {
       return;
     }
@@ -101,10 +102,7 @@ export class Server {
    */
   async initialize(): Promise<void> {
     const { opts } = this;
-    session.setStore(this.store);
-    if (opts.session) {
-      session.applyConfig(opts.session);
-    }
+    session.initialize(this.store, opts.session || {});
     projectsCache.initialize();
     if (opts.cors && opts.cors.enabled) {
       const config = opts.cors.cors || this.defaultCorsConfig();

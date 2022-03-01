@@ -421,7 +421,6 @@ export class ArcLevelUp extends StorePersistence {
       url: RouteBuilder.buildSpaceRoute(key),
     };
     Clients.notify(event, filter);
-    // TODO: Notify user about the change in their spaces list.
   }
 
   /**
@@ -570,8 +569,18 @@ export class ArcLevelUp extends StorePersistence {
       throw new ApiError(`User is not authorized to write to this space.`, 403);
     }
     const finalKey = `~${spaceKey}~${projectKey}~`;
-    // TODO: probably we should check whether a project with the key already exists
-    // If so, throw an error. Project changes are only allowed through `PATCH`.
+    
+    // Project changes are only allowed through `PATCH`.
+    let exists = false;
+    try {
+      await projectsIndex.get(finalKey);
+      exists = true;
+    } catch (e) {
+      // OK
+    }
+    if (exists) {
+      throw new ApiError(`A project with the identifier ${projectKey} already exists`, 400);
+    }
 
     // first handle the project data store
     // Note, at this point there's no one to notify about the project so we skip client notification.

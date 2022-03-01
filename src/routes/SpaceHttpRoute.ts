@@ -66,7 +66,6 @@ export class SpaceHttpRoute extends BaseRoute {
       }
       const result = ooPatch.apply(space, patch, { reversible: true });
       await this.store.updateUserSpace(spaceKey, result.doc as IWorkspace, patch, user);
-      // TODO: Create spaces revision history
       ctx.body = {
         status: 'OK',
         revert: result.revert,

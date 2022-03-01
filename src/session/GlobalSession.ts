@@ -35,6 +35,14 @@ export interface IAuthenticatedSession {
   uid: string;
 }
 
+interface ICachedSession {
+  data: IUnauthenticatedSession | IAuthenticatedSession;
+  /**
+   * The timestamp when the project data was last accessed.
+   */
+  lastAccess: number;
+}
+
 /**
  * A class that stores user session data.
  * 
@@ -55,17 +63,13 @@ export interface IAuthenticatedSession {
  * The session is persistent in the store. It is safe to close the store and run it again. Eventually all data is restored.
  * For performance, this class has a cache object that holds all used session information. Mutations are committed to the store.
  * If the cached value is missing then the service requests the data from the store.
- * 
- * TODO:
- * - Currently the cache never clears the data. We should have some periodical scanner that clears stale sessions from the cache.
- * - The same probably should be applied to the store. We could read session data that weren't touched for x time and delete them. Clients would need to re-authenticate with the provider.
  */
 class GlobalSession {
   /**
    * The session store.
    * The keys are unique identifiers of the session stored on the client side packed with a JWT.
    */
-  protected cache = new Map<string, IUnauthenticatedSession | IAuthenticatedSession>();
+  protected cache = new Map<string, ICachedSession>();
   /**
    * Special store to handle authorization.
    * The key is the `state` parameter and the value if the key of the session.
@@ -81,23 +85,39 @@ class GlobalSession {
    * Token expiration date.
    */
   expiresIn: string | number = '7d';
+  /**
+   * Cache life time. Default it is one hour.
+   */
+  ttl = 60 * 60 * 1000;
 
   protected store?: StorePersistence;
 
+  protected gcTimer?: NodeJS.Timer;
+
   /**
-   * Applies the configuration passed to the server.
+   * Initializes the GC process and sets the configuration
    */
-  applyConfig(config: ISessionConfiguration): void {
+  initialize(store: StorePersistence, config: ISessionConfiguration): void {
     if (config.secret) {
       this.secret = config.secret;
     }
     if (config.expiresIn) {
       this.expiresIn = config.expiresIn;
     }
+    this.store = store;
+    this.gcTimer = setInterval(this._gc.bind(this), 10 * 60 * 1000);
   }
 
-  setStore(store: StorePersistence): void {
-    this.store = store;
+  /**
+   * Clears the list of projects ans the GC.
+   */
+  cleanup(): void {
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = undefined;
+    }
+    this.cache.clear();
+    this.auth.clear();
   }
 
   /**
@@ -110,7 +130,11 @@ class GlobalSession {
     };
     const options = this.getSignOptions();
     const token = jwt.sign(info, this.secret, options);
-    this.cache.set(sid, { authenticated: false });
+    const data:ICachedSession = {
+      lastAccess: Date.now(),
+      data: { authenticated: false },
+    }
+    this.cache.set(sid, data);
     await this.commit(sid);
     return token;
   }
@@ -127,7 +151,11 @@ class GlobalSession {
     };
     const options = this.getSignOptions();
     const token = jwt.sign(info, this.secret, options);
-    this.cache.set(sid, { authenticated: true, uid });
+    const data:ICachedSession = {
+      lastAccess: Date.now(),
+      data: { authenticated: true, uid },
+    }
+    this.cache.set(sid, data);
     await this.commit(sid);
     return token;
   }
@@ -210,11 +238,15 @@ class GlobalSession {
   async get(sid: string): Promise<IUnauthenticatedSession | IAuthenticatedSession | undefined> {
     const cached = this.cache.get(sid);
     if (cached) {
-      return cached;
+      cached.lastAccess = Date.now();
+      return cached.data;
     }
     const dbData = await this.read(sid) as IUnauthenticatedSession | IAuthenticatedSession | undefined;
     if (dbData) {
-      this.cache.set(sid, dbData)
+      this.cache.set(sid, {
+        data: dbData,
+        lastAccess: Date.now(),
+      });
     }
     return dbData;
   }
@@ -226,7 +258,10 @@ class GlobalSession {
    * @param value The value to set.
    */
   async set(sid: string, value: IUnauthenticatedSession | IAuthenticatedSession): Promise<void> {
-    this.cache.set(sid, value);
+    this.cache.set(sid, {
+      data: value,
+      lastAccess: Date.now(),
+    });
     await this.commit(sid);
   }
 
@@ -255,6 +290,26 @@ class GlobalSession {
       // ...
     }
     return result;
+  }
+
+  /**
+   * Removes from cache projects that were accessed longer than its last access time + the set TTL.
+   */
+  protected _gc(): void {
+    const { ttl, cache } = this;
+    if (!cache.size) {
+      return;
+    }
+    const now = Date.now();
+    const stale: string[] = [];
+    cache.forEach((state, key) => {
+      if (state.lastAccess + ttl <= now) {
+        stale.push(key);
+      }
+    });
+    stale.forEach((key) => {
+      cache.delete(key);
+    });
   }
 }
 
