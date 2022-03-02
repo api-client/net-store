@@ -23,7 +23,7 @@ interface ProjectState {
  * A cache for projects data.
  * To enable GC call the `initialize()` first. You should also call the `cleanup()` when exiting.
  */
-class ProjectsCache {
+export class ProjectsCache {
   /**
    * Cache life time. Default it is one hour.
    */
@@ -104,6 +104,3 @@ class ProjectsCache {
     });
   }
 }
-
-const instance = new ProjectsCache();
-export default instance;

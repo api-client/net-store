@@ -13,12 +13,11 @@ import { dir } from 'tmp-promise';
 import { platform } from 'os';
 import { Duplex } from 'stream'
 import { ApiRoutes } from './ApiRoutes.js';
-import { SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState } from './definitions.js'
+import { SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication } from './authentication/Authentication.js';
-import storeInfo from './BackendInfo.js';
-import session from './session/GlobalSession.js';
-import projectsCache from './cache/ProjectsCache.js';
+import { BackendInfo } from './BackendInfo.js';
+import { AppSession } from './session/AppSession.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -63,6 +62,8 @@ export class Server {
   protected apiHandler?: ApiRoutes;
   protected store: StorePersistence;
   protected auth?: Authentication;
+  protected info: BackendInfo;
+  protected session: AppSession;
 
   /**
    * @param opts Optional server configuration options.
@@ -70,27 +71,38 @@ export class Server {
   constructor(store: StorePersistence, opts: IServerConfiguration={}) {
     this.opts = opts;
     this.store = store;
+    const info = new BackendInfo();
+    this.info = info;
+    this.session = new AppSession(this.store, opts.session || {});
+
     if (opts.authentication) {
       if (typeof opts.authentication === 'function') {
-        storeInfo.hasAuthentication = true;
+        info.hasAuthentication = true;
       } else {
         const config = opts.authentication as IAuthenticationConfiguration;
-        storeInfo.hasAuthentication = config.enabled === true;
+        info.hasAuthentication = config.enabled === true;
       }
+    } else {
+      info.hasAuthentication = false;
     }
     const routerOptions: RouterOptions = {};
     if (opts.router && opts.router.prefix) {
       routerOptions.prefix = opts.router.prefix;
     }
     this.router = new Router(routerOptions);
+
+    // API testing
+    const typed = opts as ITestingServerConfiguration;
+    if (typed.testing === true) {
+      this.info.testing = true;
+    }
   }
 
   /**
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
-    projectsCache.cleanup();
-    session.cleanup();
+    this.session.cleanup();
     if (!this.apiHandler) {
       return;
     }
@@ -102,16 +114,15 @@ export class Server {
    */
   async initialize(): Promise<void> {
     const { opts } = this;
-    session.initialize(this.store, opts.session || {});
-    projectsCache.initialize();
+    this.session.initialize();
     if (opts.cors && opts.cors.enabled) {
       const config = opts.cors.cors || this.defaultCorsConfig();
       this.app.use(cors(config));
     }
     this.app.use(views(join(__dirname, 'views'), { extension: 'ejs' }));
-    if (storeInfo.hasAuthentication) {
+    if (this.info.hasAuthentication) {
       let factory: Authentication;
-      if (typeof storeInfo.hasAuthentication === 'function') {
+      if (typeof opts.authentication === 'function') {
         factory = await this.initializeCustomAuth();
       } else {
         factory = await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
@@ -127,8 +138,8 @@ export class Server {
    */
   protected async initializeCustomAuth(): Promise<Authentication> {
     const { opts, router, store } = this;
-    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) => Authentication;
-    const factory = new ctr(router, store);
+    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession) => Authentication;
+    const factory = new ctr(router, store, this.session);
     await factory.initialize();
     return factory;
   }
@@ -152,7 +163,7 @@ export class Server {
     if (!config || !config.issuerUri) {
       throw new Error(`OpenID Connect configuration error.`);
     }
-    const factory = new Oidc(this.router, this.store, config);
+    const factory = new Oidc(this.router, this.store, this.session, config);
     await factory.initialize();
     return factory;
   }
@@ -164,7 +175,7 @@ export class Server {
    */
   protected async setupRoutes(): Promise<void> {
     const { opts, router } = this;
-    const handler = new ApiRoutes(this.store, router, opts);
+    const handler = new ApiRoutes(this.store, router, this.session, this.info, opts);
     await handler.setup();
 
     this.app.use(router.routes());
@@ -278,7 +289,7 @@ export class Server {
     
     let user: IUser | undefined;
     let sessionId: string | undefined;
-    if (storeInfo.hasAuthentication) {
+    if (this.info.hasAuthentication) {
       const factory = this.auth as Authentication;
       try {
         sessionId = await factory.getSessionId(request);
@@ -298,7 +309,7 @@ export class Server {
         if (!sessionId) {
           throw new Error(`No authorization header.`);
         }
-        const sessionValue = await session.get(sessionId);
+        const sessionValue = await this.session.get(sessionId);
         if (!sessionValue) {
           throw new Error(`Session not established.`);
         }

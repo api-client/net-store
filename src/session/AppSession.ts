@@ -64,7 +64,7 @@ interface ICachedSession {
  * For performance, this class has a cache object that holds all used session information. Mutations are committed to the store.
  * If the cached value is missing then the service requests the data from the store.
  */
-class GlobalSession {
+export class AppSession {
   /**
    * The session store.
    * The keys are unique identifiers of the session stored on the client side packed with a JWT.
@@ -90,14 +90,11 @@ class GlobalSession {
    */
   ttl = 60 * 60 * 1000;
 
-  protected store?: StorePersistence;
+  protected store: StorePersistence;
 
   protected gcTimer?: NodeJS.Timer;
 
-  /**
-   * Initializes the GC process and sets the configuration
-   */
-  initialize(store: StorePersistence, config: ISessionConfiguration): void {
+  constructor(store: StorePersistence, config: ISessionConfiguration = {}) {
     if (config.secret) {
       this.secret = config.secret;
     }
@@ -105,6 +102,12 @@ class GlobalSession {
       this.expiresIn = config.expiresIn;
     }
     this.store = store;
+  }
+
+  /**
+   * Initializes the GC process and sets the configuration
+   */
+  initialize(): void {
     this.gcTimer = setInterval(this._gc.bind(this), 10 * 60 * 1000);
   }
 
@@ -141,22 +144,21 @@ class GlobalSession {
 
   /**
    * Creates and stores a session for an authenticated client.
+   * Note, this also regenerates the session id.
+   * 
    * @param sid The session id.
    * @param uid The user id.
    * @returns The JWT to be returned to the client.
    */
   async generateAuthenticatedSession(sid: string, uid: string): Promise<string> {
+    const newSid = UUID.default();
     const info: ITokenContents = {
-      sid,
+      sid: newSid,
     };
     const options = this.getSignOptions();
     const token = jwt.sign(info, this.secret, options);
-    const data:ICachedSession = {
-      lastAccess: Date.now(),
-      data: { authenticated: true, uid },
-    }
-    this.cache.set(sid, data);
-    await this.commit(sid);
+    await this.delete(sid);
+    await this.set(newSid, { authenticated: true, uid });
     return token;
   }
 
@@ -265,6 +267,15 @@ class GlobalSession {
     await this.commit(sid);
   }
 
+  /**
+   * Deletes a session data.
+   * @param sid The session id.
+   */
+  async delete(sid: string): Promise<void> {
+    this.cache.delete(sid);
+    await this.commit(sid);
+  }
+
   protected async commit(sid: string): Promise<void> {
     const { store } = this;
     if (!store) {
@@ -312,6 +323,3 @@ class GlobalSession {
     });
   }
 }
-
-const instance = new GlobalSession();
-export default instance;

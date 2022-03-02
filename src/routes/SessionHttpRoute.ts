@@ -2,7 +2,6 @@ import { ParameterizedContext } from 'koa';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
-import session from '../session/GlobalSession.js';
 import { IApplicationState } from '../definitions.js';
 
 /**
@@ -28,7 +27,7 @@ export class SessionHttpRoute extends BaseRoute {
    */
   protected async handleSessionCreate(ctx: ParameterizedContext): Promise<void> {
     try {
-      const token = await session.generateUnauthenticatedSession();
+      const token = await this.session.generateUnauthenticatedSession();
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;
@@ -45,13 +44,10 @@ export class SessionHttpRoute extends BaseRoute {
    */
   protected async handleSessionRenew(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
     try {
-      if (!ctx.state.sid) {
-        throw new ApiError('Session not initialized', 400);
+      if (!ctx.state.sid || !ctx.state.user) {
+        throw new ApiError('Not authorized', 401);
       }
-      if (!ctx.state.user) {
-        throw new ApiError('Not authorized', 400);
-      }
-      const token = await session.generateAuthenticatedSession(ctx.state.sid, ctx.state.user.key);
+      const token = await this.session.generateAuthenticatedSession(ctx.state.sid, ctx.state.user.key);
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;

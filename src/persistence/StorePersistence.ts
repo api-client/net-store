@@ -1,4 +1,4 @@
-import { IUser, IWorkspace, UUID, IUserWorkspace, AccessControlLevel, IHttpProject } from '@advanced-rest-client/core';
+import { IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject } from '@advanced-rest-client/core';
 import { JsonPatch } from 'json8-patch';
 
 export interface IListOptions {
@@ -82,9 +82,13 @@ export abstract class StorePersistence {
    */
   defaultLimit = 35;
   /**
-   * Initializes the data store. IE, opens the connection, creates a filesystem, etc.
+   * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.
    */
   abstract initialize(): Promise<void>;
+  /**
+   * Cleans up before closing the server.
+   */
+  abstract cleanup(): Promise<void>;
 
   /**
    * Creates a default space for the user. This is called when the user has no spaces created.
@@ -92,14 +96,9 @@ export abstract class StorePersistence {
    * @param owner The owning user. When not set the `default` is set for the single-user environment.
    * @returns The workspace to create for the user.
    */
-  defaultSpace(owner = 'default'): IWorkspace {
-    const info: IWorkspace = {
-      key: UUID.default(),
-      name: 'Default',
-      owner,
-      projects: [],
-    };
-    return info;
+  defaultSpace(owner?: string): IWorkspace {
+    const workspace = Workspace.fromName('Drafts', owner);
+    return workspace.toJSON();
   }
 
   /**

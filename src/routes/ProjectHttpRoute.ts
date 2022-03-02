@@ -2,10 +2,14 @@
 import { ParameterizedContext } from 'koa';
 import { IHttpProject, IUser } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
+import Router from '@koa/router';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
-import projectsCache from '../cache/ProjectsCache.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
+import { ProjectsCache } from '../cache/ProjectsCache.js';
+import { BackendInfo } from '../BackendInfo.js';
+import { AppSession } from '../session/AppSession.js';
 
 /**
  * An HTTP route for the server that serves the information about 
@@ -22,6 +26,16 @@ import projectsCache from '../cache/ProjectsCache.js';
  * when we would like to run the store in a separate process.
  */
 export class ProjectHttpRoute extends BaseRoute {
+  protected projectsCache: ProjectsCache;
+  /**
+   * @param router The Koa router instance to append paths to.
+   * @param store The instance of the storage layer for the routes.
+   */
+  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession, projectsCache: ProjectsCache) {
+    super(router, store, info, session);
+    this.projectsCache = projectsCache;
+  }
+
   async setup(): Promise<void> {
     const { router } = this;
     const basePath = RouteBuilder.buildSpaceProjectRoute(':space', ':project');
@@ -112,7 +126,7 @@ export class ProjectHttpRoute extends BaseRoute {
    * @returns The project information. It throws when project is not found.
    */
   protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
-    const cached = projectsCache.get(project);
+    const cached = this.projectsCache.get(project);
     if (cached) {
       return cached.data;
     }
@@ -120,7 +134,7 @@ export class ProjectHttpRoute extends BaseRoute {
     if (!result) {
       throw new ApiError('Project not found.', 404);
     }
-    projectsCache.set(space, project, result);
+    this.projectsCache.set(space, project, result);
     return result;
   }
 

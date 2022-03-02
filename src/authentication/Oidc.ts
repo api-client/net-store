@@ -9,7 +9,7 @@ import { IUser } from '@advanced-rest-client/core'
 import jwt from 'jsonwebtoken';
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication } from './Authentication.js';
-import session, { ITokenContents, IAuthenticatedSession } from '../session/GlobalSession.js';
+import { AppSession, ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
 import { IApiError } from '../routes/BaseRoute.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
@@ -207,10 +207,10 @@ export class Oidc extends Authentication {
    */
   protected meta?: OpenIdProviderMetadata;
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, config: IOidcConfiguration) {
-    super(router, store);
+  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession, config: IOidcConfiguration) {
+    super(router, store, session);
     this.config = config;
-    this.router = router;
+    this.middleware = this.middleware.bind(this);
   }
 
   async initialize(): Promise<void> {
@@ -291,7 +291,7 @@ export class Oidc extends Authentication {
   async getSessionUser(request: http.IncomingMessage): Promise<IUser | undefined> {
     const sid = await this.getSessionId(request);
     if (sid) {
-      const sessionValue = await session.get(sid);
+      const sessionValue = await this.session.get(sid);
       if (!sessionValue) {
         throw new Error(`Invalid state. Session does not exist.`);
       }
@@ -314,7 +314,7 @@ export class Oidc extends Authentication {
     const sid = await this.getSessionId(ctx.req);
     ctx.state.sid = sid;
     if (sid) {
-      const data = await session.get(sid);
+      const data = await this.session.get(sid);
       if (!data) {
         throw new Error(`Invalid state. Session does not exist.`);
       }
@@ -331,7 +331,7 @@ export class Oidc extends Authentication {
    * @param token The token received from the client.
    */
   readTokenSessionId(token: string): string {
-    const contents = jwt.verify(token, session.secret) as ITokenContents;
+    const contents = jwt.verify(token, this.session.secret) as ITokenContents;
     if (!contents) {
       throw new Error(`Invalid token.`);
     }
@@ -355,7 +355,11 @@ export class Oidc extends Authentication {
 
   protected discover(url: string): Promise<OpenIdProviderMetadata> {
     return new Promise((resolve, reject) => {
-      https.get(url, (res) => {
+      const request = https.request(url, {
+        method: 'GET',
+        rejectUnauthorized: this.config.ignoreCertErrors === true ? false : true,
+      });
+      request.on('response', (res) => {
         if (!res.statusCode) {
           reject(new Error(`Invalid response.`));
           return;
@@ -388,10 +392,9 @@ export class Oidc extends Authentication {
           }
           resolve(result);
         });
-      })
-      .on('error', (e) => {
-        reject(e);
       });
+      request.on('error', (error) => reject(error));
+      request.end();
     });
   }
 
@@ -405,7 +408,7 @@ export class Oidc extends Authentication {
       }
       const nonce = randomBytes(16).toString('hex');
       const state = randomBytes(16).toString('hex');
-      session.addOAuthSession(ctx.state.sid, state, nonce);
+      await this.session.addOAuthSession(ctx.state.sid, state, nonce);
       ctx.status = 204;
       ctx.set('location', `${this.getAuthLocation()}?state=${state}`);
     } catch (cause) {
@@ -442,7 +445,7 @@ export class Oidc extends Authentication {
       if (Array.isArray(state)) {
         throw new Error(`Invalid state parameter. Array is not accepted here.`);
       }
-      const info = await session.getOAuthSession(state);
+      const info = await this.session.getOAuthSession(state);
       if (!info.nonce) {
         throw new Error(`The session was not correctly initialized.`);
       }
@@ -468,15 +471,15 @@ export class Oidc extends Authentication {
     }
     let sid;
     try {
-      sid = await session.getOAuthSessionId(state as string);
-      await session.deleteOauthSession(state as string);
+      sid = await this.session.getOAuthSessionId(state as string);
+      await this.session.deleteOauthSession(state as string);
       const tokenInfo = await this.exchangeCode(code);
       const user = await this.getUserInfo(tokenInfo.accessToken);
       const newSession: IAuthenticatedSession = {
         authenticated: true,
         uid: user.key,
       };
-      await session.set(sid, newSession);
+      await this.session.set(sid, newSession);
       const provider: IOidcProviderInfo = {};
       if (tokenInfo.refreshToken) {
         provider.refreshToken = tokenInfo.refreshToken;
@@ -647,6 +650,7 @@ export class Oidc extends Authentication {
       const request = https.request(url, {
         method: 'POST',
         headers,
+        rejectUnauthorized: this.config.ignoreCertErrors === true ? false : true,
       });
       request.on('response', (response) => {
         const ro: FetchResponse = {
@@ -751,6 +755,7 @@ export class Oidc extends Authentication {
         headers: {
           'authorization': `Bearer ${accessToken}`,
         },
+        rejectUnauthorized: this.config.ignoreCertErrors === true ? false : true,
       });
       request.on('response', (response) => {
         let data = '';

@@ -44,6 +44,13 @@ export interface IServerConfiguration {
   session?: ISessionConfiguration;
 }
 
+export interface ITestingServerConfiguration extends IServerConfiguration {
+  /**
+   * This is for API testing in the CI only
+   */
+  testing: true;
+}
+
 export interface ISessionConfiguration {
   /**
    * The secret used to encrypt session data.
@@ -113,6 +120,13 @@ export interface IOidcConfiguration {
    * The redirect URI must point back to the same domain, port, and base URI as this server.
    */
   redirectBaseUri: string;
+  /**
+   * You want to use it ONLY when you have a local OAuth server
+   * that has a self-signed certificate. This will suppress errors related 
+   * to invalid certificates.
+   * **Do not set this for public OAuth providers!**
+   */
+  ignoreCertErrors?: boolean;
 }
 
 export interface IRouterConfiguration {

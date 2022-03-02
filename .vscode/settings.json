@@ -3,5 +3,15 @@
     "leveldown",
     "subleveldown",
     "userinfo"
+  ],
+  "mocha.files.glob": "test/**/*.test.ts",
+  "mocha.requires": [
+    "ts-node/register",
+    "source-map-support/register.js",
+    "test/tests-global-fixture.js"
+  ],
+  "mocha.options": [
+    "--loader ts-node/esm",
+    "--extensions ts"
   ]
 }

@@ -17,32 +17,46 @@ import { BackendHttpRoute } from './routes/BackendHttpRoute.js';
 import { SessionHttpRoute } from './routes/SessionHttpRoute.js';
 import { UsersHttpRoute } from './routes/UsersHttpRoute.js';
 import { StorePersistence } from './persistence/StorePersistence.js';
+import { AppSession } from './session/AppSession.js';
+import { BackendInfo } from './BackendInfo.js';
+import { ProjectsCache } from './cache/ProjectsCache.js';
 
 export class ApiRoutes {
-  protected opts: IServerConfiguration;
-  protected router: Router<IApplicationState, DefaultContext>;
   protected routes: BaseRoute[] = [];
-  protected store: StorePersistence;
-  protected wsRoutes: SocketRoute[] = []
-
+  protected wsRoutes: SocketRoute[] = [];
+  protected projectsCache = new ProjectsCache();
   /**
    * @param opts Optional server configuration options.
    */
-  constructor(store: StorePersistence, router: Router<IApplicationState, DefaultContext>, opts: IServerConfiguration = {}) {
+  constructor(
+      protected store: StorePersistence, 
+      protected router: Router<IApplicationState, DefaultContext>, 
+      protected session: AppSession,
+      protected info: BackendInfo,
+      protected opts: IServerConfiguration = {}
+    ) {
     this.opts = opts;
     this.store = store;
     this.router = router;
+    this.session = session;
   }
 
   async setup(): Promise<void> {
+    this.projectsCache.initialize();
     // static HTTP routes. WS routes are created on demand.
-    this.routes.push(new SessionHttpRoute(this.router, this.store));
-    this.routes.push(new BackendHttpRoute(this.router, this.store));
-    this.routes.push(new SpacesHttpRoute(this.router, this.store));
-    this.routes.push(new SpaceHttpRoute(this.router, this.store));
-    this.routes.push(new ProjectsHttpRoute(this.router, this.store));
-    this.routes.push(new ProjectHttpRoute(this.router, this.store));
-    this.routes.push(new UsersHttpRoute(this.router, this.store));
+    this.routes.push(new SessionHttpRoute(this.router, this.store, this.info, this.session));
+    this.routes.push(new BackendHttpRoute(this.router, this.store, this.info, this.session));
+    this.routes.push(new SpacesHttpRoute(this.router, this.store, this.info, this.session));
+    this.routes.push(new SpaceHttpRoute(this.router, this.store, this.info, this.session));
+    this.routes.push(new ProjectsHttpRoute(this.router, this.store, this.info, this.session));
+    this.routes.push(new ProjectHttpRoute(this.router, this.store, this.info, this.session, this.projectsCache));
+    this.routes.push(new UsersHttpRoute(this.router, this.store, this.info, this.session));
+    if (this.info.testing) {
+      // Note, the following is only for testing the application in CI.
+      // This should never be available via the API.
+      const { TestsHttpRoute } = await import('./routes/TestsHttpRoute.js');
+      this.routes.push(new TestsHttpRoute(this.router, this.store, this.info, this.session));
+    }
     for (const item of this.routes) {
       await item.setup();
     }
@@ -52,6 +66,7 @@ export class ApiRoutes {
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
+    this.projectsCache.cleanup();
     for (const item of this.routes) {
       await item.cleanup();
     }
@@ -99,7 +114,7 @@ export class ApiRoutes {
       return route;
     }
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceProjectRoute(v4reg, v4reg)).test(url)) {
-      const route = new ProjectWsRoute(store);
+      const route = new ProjectWsRoute(store, this.projectsCache);
       this.addWsRoute(route, url);
       return route;
     }

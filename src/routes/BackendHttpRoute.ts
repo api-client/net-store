@@ -1,7 +1,6 @@
 import { ParameterizedContext } from 'koa';
 import { BaseRoute } from './BaseRoute.js';
 import { RouteBuilder } from './RouteBuilder.js';
-import storeInfo from '../BackendInfo.js';
 
 /**
  * An HTTP route to read information about the backend configuration that is relevant
@@ -15,7 +14,7 @@ export class BackendHttpRoute extends BaseRoute {
   }
 
   protected async handleStoreInfo(ctx: ParameterizedContext): Promise<void> {
-    const info = storeInfo.toJSON();
+    const info = this.info.toJSON();
     ctx.body = info;
     ctx.type = 'application/json';
     ctx.status = 200;

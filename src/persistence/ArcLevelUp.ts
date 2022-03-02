@@ -116,6 +116,22 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
+   * Cleans up before closing the server.
+   */
+  async cleanup(): Promise<void> {
+    await this.db?.close();
+    await this.spaces?.close();
+    await this.userSpaces?.close();
+    await this.projects?.close();
+    await this.projectsIndex?.close();
+    await this.projectsData?.close();
+    await this.projectRevisions?.close();
+    await this.trashBin?.close();
+    await this.users?.close();
+    await this.sessions?.close();
+  }
+
+  /**
    * Reads the `IUserSpaces` from the document that keeps track of which spaces the user has access to.
    * 
    * @param userKey Not required in the single-user environment. The user id to get the info from.
@@ -196,6 +212,8 @@ export class ArcLevelUp extends StorePersistence {
     const iterator = spaces.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     try {
       // @ts-ignore
@@ -224,7 +242,7 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       console.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -514,6 +532,8 @@ export class ArcLevelUp extends StorePersistence {
     const iterator = projectsIndex.iterator(itOpts);
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     let lastKey: string | undefined;
     const data: IHttpProjectListItem[] = [];
@@ -533,7 +553,7 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       console.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -864,6 +884,8 @@ export class ArcLevelUp extends StorePersistence {
     const iterator = projectRevisions.iterator(itOpts);
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     let lastKey: string | undefined;
     const data: IRevisionInfo[] = [];
@@ -883,7 +905,7 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       console.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -968,6 +990,8 @@ export class ArcLevelUp extends StorePersistence {
     const iterator = users.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     let lastKey: string | undefined;
     const data: IUser[] = [];
@@ -989,7 +1013,7 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       console.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,

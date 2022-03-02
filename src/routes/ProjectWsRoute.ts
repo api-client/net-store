@@ -4,7 +4,8 @@ import { WebSocket } from 'ws';
 import { IUser, IBackendCommand, IHttpProject } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { SocketRoute } from './SocketRoute.js';
-import projectsCache from '../cache/ProjectsCache.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
+import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 /**
  * A route for the web socket server that serves the information about 
@@ -16,6 +17,13 @@ import projectsCache from '../cache/ProjectsCache.js';
  * - delete a project (note, this will close the connection to the server)
  */
 export class ProjectWsRoute extends SocketRoute {
+  protected projectsCache: ProjectsCache;
+
+  constructor(store: StorePersistence, projectsCache: ProjectsCache) {
+    super(store);
+    this.projectsCache = projectsCache;
+  }
+
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: IUser, sid?: string): void {
     this.registerClient(ws, user, sid);
     ws.on('message', this._messageHandler.bind(this, ws))
@@ -78,7 +86,7 @@ export class ProjectWsRoute extends SocketRoute {
    * @returns The project information. It throws when project is not found.
    */
   protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
-    const cached = projectsCache.get(project);
+    const cached = this.projectsCache.get(project);
     if (cached) {
       return cached.data;
     }
@@ -86,7 +94,7 @@ export class ProjectWsRoute extends SocketRoute {
     if (!result) {
       throw new Error('Project not found.');
     }
-    projectsCache.set(space, project, result);
+    this.projectsCache.set(space, project, result);
     return result;
   }
 }

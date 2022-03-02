@@ -2,8 +2,9 @@ import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
 import { IUser } from '@advanced-rest-client/core';
 import { StorePersistence, IListOptions } from '../persistence/StorePersistence.js';
+import { AppSession } from '../session/AppSession.js';
 import { ApiError } from '../ApiError.js';
-import backend from '../BackendInfo.js';
+import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
 
 export interface IApiError {
@@ -16,14 +17,18 @@ export interface IApiError {
 export abstract class BaseRoute {
   protected router: Router;
   protected store: StorePersistence;
+  protected info: BackendInfo;
+  protected session: AppSession;
 
   /**
    * @param router The Koa router instance to append paths to.
    * @param store The instance of the storage layer for the routes.
    */
-  constructor(router: Router, store: StorePersistence) {
+  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession) {
     this.router = router;
     this.store = store;
+    this.info = info;
+    this.session = session;
   }
 
   abstract setup(): Promise<void>;
@@ -40,7 +45,7 @@ export abstract class BaseRoute {
    * Checks whether the server is configured to support user authentication.
    */
   get isMultiUser(): boolean {
-    return !!backend.hasAuthentication;
+    return !!this.info.hasAuthentication;
   }
 
   wrapError(cause: Error, code = 500, detail?: string): IApiError {

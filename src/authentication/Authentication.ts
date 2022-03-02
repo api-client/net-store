@@ -4,6 +4,8 @@ import Router from '@koa/router';
 import { IUser } from '@advanced-rest-client/core';
 import { IApplicationState } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
+import { AppSession } from '../session/AppSession.js';
+
 /**
  * A base class for all authentication methods.
  * 
@@ -16,10 +18,12 @@ export abstract class Authentication {
    */
   protected router: Router<IApplicationState, DefaultContext>;
   protected store: StorePersistence;
+  protected session: AppSession;
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) {
+  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession) {
     this.router = router;
     this.store = store;
+    this.session = session;
   }
   /** 
    * Initializes the authentication, eg, sets up routes, checks configuration, etc.
