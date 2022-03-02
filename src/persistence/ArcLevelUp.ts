@@ -328,7 +328,7 @@ export class ArcLevelUp extends StorePersistence {
     const userKey = user && user.key;
     const access  = await this.readUserSpaceAccess(key, userKey);
     if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
+      throw new ApiError(`Not found`, 404);
     }
     let raw: Bytes;
     try {

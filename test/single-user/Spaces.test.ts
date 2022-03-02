@@ -18,7 +18,7 @@ describe('Single user', () => {
     });
 
     describe('POST /spaces', () => {
-      before(async () => {
+      after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
       });
 
@@ -56,10 +56,12 @@ describe('Single user', () => {
     });
 
     describe('GET /spaces', () => {
-
       before(async () => {
-        await http.delete(`${baseUri}/test/reset/spaces`);
         await http.post(`${baseUri}/test/generate/spaces?size=40`);
+      });
+
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/spaces`);
       });
 
       it('returns results and the page token', async () => {

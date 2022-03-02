@@ -1,4 +1,4 @@
-import { Workspace, IUserSpaces, IAccessControl } from '@advanced-rest-client/core';
+import { Workspace, IUserSpaces, IAccessControl, IWorkspace } from '@advanced-rest-client/core';
 import { DataMock } from '@pawel-up/data-mock';
 import { PutBatch } from 'abstract-leveldown';
 import { ArcLevelUp } from '../../index.js';
@@ -30,16 +30,18 @@ export class TestStore extends ArcLevelUp {
     }
   }
 
-  async generateSpaces(size=25, owner?: string): Promise<void> {
+  async generateSpaces(size=25, owner?: string): Promise<IWorkspace[]> {
     const { spaces, userSpaces } = this;
     if (!spaces || !userSpaces) {
       throw new Error('generateSpaces');
     }
     const data: PutBatch[] = [];
+    const result: IWorkspace[] = [];
     const spacesMap:Record<string, IUserSpaces> = {};
     for (let i = 0; i < size; i++) {
       const name = this.mock.lorem.word();
       const workspace = Workspace.fromName(name, owner);
+      result.push(workspace.toJSON());
       data.push({
         type: 'put',
         key: workspace.key,
@@ -69,5 +71,6 @@ export class TestStore extends ArcLevelUp {
       });
     });
     await userSpaces.batch(accessData);
+    return result;
   }
 }

@@ -38,6 +38,9 @@ export class SpaceHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const result = await this.store.readUserSpace(space, user);
+      if (!result) {
+        throw new ApiError(`Not found`, 404);
+      }
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;
@@ -56,21 +59,24 @@ export class SpaceHttpRoute extends BaseRoute {
     const { space: spaceKey } = ctx.params;
     try {
       const user = this.getUserOrThrow(ctx);
-      const userSpace = await this.store.readUserSpace(spaceKey, user) as any;
-      delete userSpace.access;
-      const space = userSpace as IWorkspace;
       const patch = await this.readJsonBody(ctx.request) as JsonPatch;
       const isValid = ooPatch.valid(patch);
       if (!isValid) {
-        throw new Error(`Invalid patch information.`);
+        throw new ApiError(`Malformed patch information.`, 400);
       }
+      const userSpace = await this.store.readUserSpace(spaceKey, user) as any;
+      if (!userSpace) {
+        throw new ApiError(`Not found`, 404);
+      }
+      delete userSpace.access;
+      const space = userSpace as IWorkspace;
       const result = ooPatch.apply(space, patch, { reversible: true });
       await this.store.updateUserSpace(spaceKey, result.doc as IWorkspace, patch, user);
       ctx.body = {
         status: 'OK',
         revert: result.revert,
       };
-      ctx.status = 201;
+      ctx.status = 200;
       ctx.type = 'application/json';
     } catch (cause) {
       const e = cause as ApiError;

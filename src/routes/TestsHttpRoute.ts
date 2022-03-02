@@ -68,8 +68,10 @@ export class TestsHttpRoute extends BaseRoute {
       }
     }
     try {
-      await this.testStore.generateSpaces(sizeParam, ownerParam as string | undefined);
-      ctx.status = 204;
+      const generated = await this.testStore.generateSpaces(sizeParam, ownerParam as string | undefined);
+      ctx.status = 200;
+      ctx.type = 'json';
+      ctx.body = generated;
     } catch (cause) {
       const e = cause as ApiError;
       const error = new ApiError(e.message || 'Unknown error', e.code || 400);
