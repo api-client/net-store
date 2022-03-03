@@ -1,4 +1,4 @@
-import { IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject } from '@advanced-rest-client/core';
+import { IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, UserAccessOperation } from '@advanced-rest-client/core';
 import { JsonPatch } from 'json8-patch';
 
 export interface IListOptions {
@@ -30,18 +30,6 @@ export interface IListOptions {
   //  * The last key to use.
   //  */
   // end?: string;
-}
-
-export interface IListResponse {
-  /**
-   * The cursor to use with the next query.
-   * Not set when no more results.
-   */
-  cursor?: string;
-  /**
-   * The list of objects returned from the store.
-   */
-  data: unknown[];
 }
 
 export interface IListState {
@@ -262,23 +250,14 @@ export abstract class StorePersistence {
    */
   abstract updateUserSpace(key: string, space: IWorkspace, patch: JsonPatch, user?: IUser): Promise<void>;
   /**
-   * Adds a user to the space.
+   * Adds or removes users to/from the space.
    * Only available in a multi-user environment.
    * 
    * @param key The key of the space to update
-   * @param newUser The key of the user to add.
+   * @param patch The list of patch operations to perform on user access to the space.
    * @param user The user that triggered the change.
    */
-  abstract addSpaceUser(key: string, newUser: string, newAccess: AccessControlLevel, user: IUser): Promise<void>;
-  /**
-   * The opposite to the `addSpaceUser()`. Removes the user from the list of users that can access the space.
-   * Only available in a multi-user environment.
-   * 
-   * @param key The key of the space to update
-   * @param removedUser The key of the user to remove from the space.
-   * @param user The user that triggered the change.
-   */
-  abstract removeSpaceUser(key: string, removedUser: string, user: IUser): Promise<void>;
+  abstract patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
   /**
    * Lists projects that are embedded in a space.
    * 

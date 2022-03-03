@@ -1,10 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IWorkspace } from '@advanced-rest-client/core';
+import { IWorkspace, IListResponse } from '@advanced-rest-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
-import { IListResponse } from '../../index.js';
 
 describe('Single user', () => {
   describe('/spaces/space', () => {

@@ -1,6 +1,6 @@
 import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, UserAccessOperation } from '@advanced-rest-client/core';
 import { StorePersistence, IListOptions } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 import { ApiError } from '../ApiError.js';
@@ -58,6 +58,18 @@ export abstract class BaseRoute {
   }
 
   /**
+   * Takes an Error object (preferably the ApiError) and response with an error.
+   * @param ctx 
+   * @param cause 
+   */
+  errorResponse(ctx: ParameterizedContext, cause: any): void {
+    const e = cause as ApiError;
+    const error = new ApiError(e.message || 'Unknown error', e.code || 400);
+    ctx.body = this.wrapError(error, error.code);
+    ctx.status = error.code;
+  }
+
+  /**
    * Reads the request body and parses it as a JSON value.
    * @throws an error when no body or invalid JSON value.
    */
@@ -77,11 +89,15 @@ export abstract class BaseRoute {
         }
       });
       request.req.on('end', () => {
+        if (!message) {
+          reject(new Error(`Invalid request body. Expected a message.`));
+          return;
+        }
         let data: unknown | undefined;
         try {
           data = JSON.parse(message.toString('utf8'));
         } catch (e) {
-          reject(e as Error);
+          reject(new Error(`Invalid request body. Expected JSON value.`));
           return;
         }
         resolve(data);
@@ -133,5 +149,24 @@ export abstract class BaseRoute {
       throw new ApiError(`The client is not authorized to access this resource.`, 401);
     }
     return user;
+  }
+
+  /**
+   * Verifies the user access records.
+   */
+  verifyUserAccessRecords(records: UserAccessOperation[]): void {
+    records.forEach((info, index) => {
+      const { op, uid } = info;
+      if (!uid) {
+        throw new ApiError(`Invalid access definition. Missing "uid" at position: ${index}.`, 400);
+      }
+      if (op === 'add') {
+        if (!info.value) {
+          throw new ApiError(`Invalid access definition. Missing "value" at position: ${index}.`, 400);
+        }
+      } else if (op !== 'remove') {
+        throw new ApiError(`Invalid access definition. Invalid "op" value at position: ${index}.`, 400);
+      }
+    });
   }
 }

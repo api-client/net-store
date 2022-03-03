@@ -48,7 +48,8 @@
       "files": ["*.ts", "*.tsx"],
       "rules": {
         "no-redeclare": "off",
-        "@typescript-eslint/explicit-function-return-type": ["error"]
+        "@typescript-eslint/explicit-function-return-type": ["error"],
+        "no-dupe-class-members": "off"
       }
     }
   ],

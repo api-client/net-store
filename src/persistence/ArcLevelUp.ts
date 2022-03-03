@@ -3,14 +3,15 @@ import fs from 'fs/promises';
 import levelUp, { LevelUp } from 'levelup';
 import leveldown, { LevelDownIterator, LevelDown, Bytes } from 'leveldown';
 import sub from 'subleveldown';
-import { AbstractLevelDOWN, AbstractIteratorOptions } from 'abstract-leveldown';
-import { JsonPatch } from 'json8-patch';
+import { AbstractLevelDOWN, AbstractIteratorOptions, PutBatch } from 'abstract-leveldown';
+import { JsonPatch, diff } from 'json8-patch';
 import { 
   IUser, IWorkspace, IUserWorkspace, IHttpProjectListItem, IHttpProject, IUserSpaces, 
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
-  RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind,
+  RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
+  IUserAccessAddOperation, IUserAccessRemoveOperation,
 } from '@advanced-rest-client/core';
-import { IListOptions, IListResponse, StorePersistence } from './StorePersistence.js';
+import { IListOptions, StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
@@ -149,6 +150,47 @@ export class ArcLevelUp extends StorePersistence {
       return;
     }
     return this.decodeDocument(raw) as IUserSpaces;
+  }
+
+  /**
+   * Reads user spaces information for multiple users.
+   * 
+   * @param users The list of user keys.
+   * @returns The ordered list of user spaces. When the user does not exist it returns `undefined` at that index.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty: false): Promise<(IUserSpaces | undefined)[]>;
+  /**
+   * Reads user spaces information for multiple users.
+   * 
+   * @param users The list of user keys.
+   * @returns The ordered list of user spaces. When the user does not exist it creates a new record at that index.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty: true): Promise<IUserSpaces[]>;
+
+  /**
+   * Reads user spaces information for multiple users.
+   * @param users The list of user keys.
+   * @param fillEmpty When set it creates an empty object when does not exist.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty = false): Promise<(IUserSpaces | undefined)[]> {
+    const { userSpaces } = this;
+    if (!userSpaces) {
+      throw new Error(`Store not initialized.`);
+    }
+    const raw = await userSpaces.getMany(users);
+    const result: (IUserSpaces | undefined)[] = raw.map((item, index) => {
+      if (!item) {
+        if (fillEmpty) {
+          return {
+            user: users[index],
+            spaces: [],
+          };
+        }
+        return;
+      }
+      return this.decodeDocument(item) as IUserSpaces;
+    });
+    return result;
   }
 
   /**
@@ -342,6 +384,35 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
+   * This method throws when the passed user has no access to the space with the corresponding message.
+   * 
+   * @param key Space key.
+   * @param userRequired Whether the user is required. When false it passes when the user is not provided.
+   * @param user The current user object
+   */
+  protected async checkSpaceWriteAccess(key: string, userRequired: boolean, user?: IUser): Promise<void> {
+    const { spaces } = this;
+    if (!spaces) {
+      throw new Error(`Store not initialized.`);
+    }
+    if (!user && !userRequired) {
+      return;
+    }
+    if (!user && userRequired) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    const userKey = user && user.key || 'default';
+    const access  = await this.readUserSpaceAccess(key, userKey);
+    if (!access) {
+      throw new ApiError(`Not authorized to read this space.`, 403);
+    }
+    const canWrite = this.canWrite(access);
+    if (!canWrite) {
+      throw new ApiError(`Not authorized to write to this space.`, 403);
+    }
+  }
+
+  /**
    * Writes to the user space.
    * 
    * @param space The updated space object.
@@ -354,15 +425,7 @@ export class ArcLevelUp extends StorePersistence {
     if (!spaces) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user && user.key || 'default';
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
+    await this.checkSpaceWriteAccess(key, false, user);
     const value = this.encodeDocument(space);
     await spaces.put(key, value);
     const event: IBackendEvent = {
@@ -379,127 +442,145 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
+   * Adds or removes users to/from the space.
    * Only available in a multi-user environment.
-   * Adds a user to the space.
    * 
    * @param key The key of the space to update
-   * @param newUser The key of the user to add.
+   * @param patch The list of patch operations to perform on user access to the space.
    * @param user The user that triggered the change.
    */
-  async addSpaceUser(key: string, newUser: string, newAccess: AccessControlLevel, user: IUser): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
+  async patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void> {
+    const { spaces, userSpaces, users } = this;
+    if (!spaces || !userSpaces || !users) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user.key;
-    if (!userKey) {
-      throw new Error(`Not allowed in the single-user environment.`);
-    }
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
+    await this.checkSpaceWriteAccess(key, true, user);
     let raw: Bytes;
     try {
       raw = await spaces.get(key);
     } catch (e) {
-      return;
+      // technically won't happen because checking for write permission does that
+      throw new ApiError(`Not found.`, 404);
     }
+
+    const adding: IUserAccessAddOperation[] = [];
+    const removing: IUserAccessRemoveOperation[] = [];
+
+    patch.forEach((item) => {
+      if (item.op === 'remove') {
+        removing.push(item);
+      } else if (item.op === 'add') {
+        adding.push(item);
+      }
+    });
+
+    const addingIds = adding.map(i => i.uid);
+    const removingIds = removing.map(i => i.uid);
+    const allIds = Array.from(new Set(addingIds.concat(removingIds)));
+
+    // check whether all adding users are in the data store (removing is OK).
+    if (adding.length) {
+      const missingUsers = await this.listMissingUsers(addingIds);
+      if (missingUsers.length) {
+        throw new ApiError(`Some users not found in the system: ${missingUsers.join(', ')}.`, 400);
+      }
+    }
+
     const space = this.decodeDocument(raw) as IWorkspace;
+    // the copy is to generate the patch to the listeners.
+    const copy = this.decodeDocument(raw) as IWorkspace;
     if (!space.users) {
       space.users = [];
     }
-    space.users.push(newUser);
-    let userSpacesInfo = await this.readUserSpaces(newUser);
-    if (!userSpacesInfo) {
-      userSpacesInfo = {
-        user: newUser,
-        spaces: [],
-      };
-    }
-    userSpacesInfo.spaces.push({
-      key: key,
-      level: newAccess,
-    });
-    await spaces.put(key, this.encodeDocument(space));
-    await userSpaces.put(newUser, this.encodeDocument(userSpacesInfo));
+    const { users: uList } = space;
 
-    const event: IBackendEvent = {
+    const spacesList = await this.readUsersSpaces(allIds, true);
+    const putList: PutBatch[] = [];
+
+    // update the space's user list. We gonna do this on the main patch array to preserve order of operations.
+    patch.forEach((item) => {
+      const index = uList.indexOf(item.uid);
+      // I am casting this to the IUserSpaces interface as this must be here after calling `readUsersSpaces(.., true)`.
+      const spaceInfo = spacesList.find(i => i.user === item.uid) as IUserSpaces;
+      if (item.op === 'remove') {
+        if (index >= 0) {
+          uList.splice(index, 1);
+        }
+        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
+        if (spaceIndex >= 0) {
+          spaceInfo.spaces.splice(spaceIndex, 1);
+        }
+        putList.push({
+          key: item.uid,
+          type: 'put',
+          value: this.encodeDocument(spaceInfo),
+        });
+      } else if (item.op === 'add') {
+        if (index < 0) {
+          uList.push(item.uid);
+        }
+        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
+        if (spaceIndex >= 0) {
+          // the client requested to update user's access level
+          spaceInfo.spaces[spaceIndex].level = item.value;
+        } else {
+          // we are adding access level
+          // Note, from the client notification perspective, whether we are updating or adding permissions, the client need to pull changes
+          // to the space from the server anyway.
+          spaceInfo.spaces.push({
+            level: item.value,
+            key,
+          });
+        }
+        putList.push({
+          key: item.uid,
+          type: 'put',
+          value: this.encodeDocument(spaceInfo),
+        });
+      }
+    });
+
+    // Now store the data
+    await spaces.put(key, this.encodeDocument(space));
+    await userSpaces.batch(putList);
+    
+    // JSON-patch library takes care of the difference to the object.
+    const diffPatch = diff(copy, space);
+    // we inform about the space change only when there was an actual change (may not be when updating permissions only).
+    if (diffPatch.length) {
+      const event: IBackendEvent = {
+        type: 'event',
+        operation: 'updated',
+        data: diffPatch,
+        kind: WorkspaceKind,
+        id: key,
+      };
+      const filter: IClientFilterOptions = {
+        url: RouteBuilder.buildSpaceRoute(key),
+      };
+      Clients.notify(event, filter);
+    }
+
+    // we need to separately notify clients about adding and removing the access.
+    // we do this iterating over the original patch to preserve the order of operations
+    const removeEvent: IBackendEvent = {
       type: 'event',
-      operation: 'updated',
-      data: space,
+      operation: 'access-removed',
       kind: WorkspaceKind,
       id: key,
     };
-    const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(key),
+    const addEvent: IBackendEvent = { ...removeEvent, operation: 'access-granted' };
+    const baseFilter: IClientFilterOptions = {
+      url: RouteBuilder.buildSpacesRoute(),
     };
-    Clients.notify(event, filter);
-  }
-
-  /**
-   * The opposite to the `addSpaceUser()`. Removes the user from the list of users that can access the space.
-   * Only available in a multi-user environment.
-   * 
-   * @param key The key of the space to update
-   * @param removedUser The key of the user to remove from the space.
-   * @param user The user that triggered the change.
-   */
-  async removeSpaceUser(key: string, removedUser: string, user: IUser): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    const userKey = user.key;
-    if (!userKey) {
-      throw new Error(`Not allowed in the single-user environment.`);
-    }
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
-    let raw: Bytes;
-    try {
-      raw = await spaces.get(key);
-    } catch (e) {
-      return;
-    }
-    const space = this.decodeDocument(raw) as IWorkspace;
-    if (space.users) {
-      const index = space.users.indexOf(removedUser);
-      if (index >= 0) {
-        space.users.splice(index, 1);
-        await spaces.put(key, this.encodeDocument(space));
-        const event: IBackendEvent = {
-          type: 'event',
-          operation: 'updated',
-          data: space,
-          kind: WorkspaceKind,
-          id: key,
-        };
-        const filter: IClientFilterOptions = {
-          url: RouteBuilder.buildSpaceRoute(key),
-        };
-        Clients.notify(event, filter);
+    patch.forEach((item) => {
+      const f = { ...baseFilter, users: [item.uid], };
+      if (item.op === 'remove') {
+        Clients.notify(removeEvent, f);
+      } else if (item.op === 'add') {
+        Clients.notify(addEvent, f);
       }
-    }
-    const userSpacesInfo = await this.readUserSpaces(removedUser);
-    if (userSpacesInfo && userSpacesInfo.spaces) {
-      const index = userSpacesInfo.spaces.findIndex(i => i.key === key);
-      if (index >= 0) {
-        userSpacesInfo.spaces.splice(index, 1);
-        await userSpaces.put(removedUser, this.encodeDocument(userSpacesInfo));
-        // TODO: Notify the user about the change.
-      }
-    }
+    });
   }
 
   /**
@@ -996,6 +1077,7 @@ export class ArcLevelUp extends StorePersistence {
     let lastKey: string | undefined;
     const data: IUser[] = [];
     let remaining = state.limit as number;
+    const lowerQuery = state.query ? state.query.toLowerCase() : undefined;
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
@@ -1003,6 +1085,9 @@ export class ArcLevelUp extends StorePersistence {
           continue;
         }
         const item = this.decodeDocument(value) as IUser;
+        if (lowerQuery && !this.isUserInQuery(item, lowerQuery)) {
+          continue;
+        }
         data.push(item);
         lastKey = key;
         remaining -= 1;
@@ -1019,6 +1104,27 @@ export class ArcLevelUp extends StorePersistence {
       cursor,
     };
     return result;
+  }
+
+  /**
+   * Checks whether user data contains the `query`.
+   * 
+   * @param user The user object
+   * @param lowerQuery The lowercase query
+   * @returns True when the `query` is in the user name or email.
+   */
+  protected isUserInQuery(user: IUser, lowerQuery: string): boolean {
+    const { name='', email } = user;
+    if (name.toLocaleLowerCase().includes(lowerQuery)) {
+      return true;
+    }
+    if (Array.isArray(email)) {
+      const hasEmail = email.some(i => (i.email || '').toLowerCase().includes(lowerQuery));
+      if (hasEmail) {
+        return hasEmail;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1070,5 +1176,25 @@ export class ArcLevelUp extends StorePersistence {
     }
     const data = this.decodeDocument(raw);
     return data;
+  }
+
+  /**
+   * Lists users that do not exist in the system
+   * @param keys The list of user keys to test.
+   * @returns If empty list then all users are set in the store. Returned is the list of keys of missing records.
+   */
+  protected async listMissingUsers(keys: string[]): Promise<string[]> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const data = await users.getMany(keys);
+    const result: string[] = [];
+    data.forEach((item, index) => {
+      if (!item) {
+        result.push(keys[index]);
+      }
+    });
+    return result;
   }
 }

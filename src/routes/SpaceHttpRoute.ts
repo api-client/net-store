@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IWorkspace } from '@advanced-rest-client/core';
+import { IWorkspace, UserAccessOperation } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
@@ -26,8 +26,7 @@ export class SpaceHttpRoute extends BaseRoute {
     router.patch(mainPath, this.handleSpacePatch.bind(this));
     router.delete(mainPath, this.handleSpaceDelete.bind(this));
     const usersPath = RouteBuilder.buildSpaceUsersRoute(':space');
-    router.post(usersPath, this.handleSpaceAddUser.bind(this));
-    router.delete(usersPath, this.handleSpaceDeleteUser.bind(this));
+    router.patch(usersPath, this.handleSpacePatchUser.bind(this));
   }
 
   /**
@@ -45,10 +44,7 @@ export class SpaceHttpRoute extends BaseRoute {
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -79,10 +75,7 @@ export class SpaceHttpRoute extends BaseRoute {
       ctx.status = 200;
       ctx.type = 'application/json';
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -97,16 +90,25 @@ export class SpaceHttpRoute extends BaseRoute {
   /**
    * Handler for adding a user to a space
    */
-  protected async handleSpaceAddUser(ctx: ParameterizedContext): Promise<void> {
-    throw new Error(`Not yet implemented.`);
-    // const { space } = ctx.params;
-  }
-
-  /**
-   * Handler for adding a user to a space
-   */
-  protected async handleSpaceDeleteUser(ctx: ParameterizedContext): Promise<void> {
-    throw new Error(`Not yet implemented.`);
-    // const { space } = ctx.params;
+  protected async handleSpacePatchUser(ctx: ParameterizedContext): Promise<void> {
+    const { space: spaceKey } = ctx.params;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      if (!user) {
+        throw new ApiError(`Operation not allowed in a single-user mode.`, 400);
+      }
+      // Note, this is not the semantics of JSON patch. This is done so we can support PATCH on the users
+      // resource to add / remove users. Normally this would be POST and DELETE but DELETE requests cannot 
+      // have body: https://github.com/httpwg/http-core/issues/258
+      const patches = await this.readJsonBody(ctx.request) as UserAccessOperation;
+      if (!Array.isArray(patches)) {
+        throw new ApiError(`Expected array with patch in the body.`, 400);
+      }
+      this.verifyUserAccessRecords(patches);
+      await this.store.patchSpaceUsers(spaceKey, patches, user);
+      ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
   }
 }

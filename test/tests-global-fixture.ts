@@ -4,7 +4,8 @@
 import fs from 'fs/promises';
 import getPort from './helpers/getPort.js';
 import path from 'path';
-import { OAuth2Server } from 'oauth2-mock-server';
+import { OAuth2Server, MutableResponse } from 'oauth2-mock-server';
+import { DataMock } from '@pawel-up/data-mock';
 import { Server } from '../index.js';
 import { TestStore } from './helpers/TestStore.js';
 import { SetupConfig } from './helpers/interfaces.js';
@@ -30,6 +31,26 @@ async function deletePlayground(): Promise<void> {
   await fs.rm(playgroundPath, { recursive: true, force: true });
 }
 
+const mock = new DataMock();
+
+function beforeUserinfo(userInfoResponse: MutableResponse): void {
+  const fName = mock.person.firstName();
+  const sName = mock.person.lastName();
+  const picture = mock.internet.avatar();
+  const email = mock.internet.email();
+  userInfoResponse.body = {
+    sub: mock.types.uuid(),
+    given_name: fName,
+    family_name: sName,
+    name: `${fName} ${sName}`,
+    picture,
+    email,
+    email_verified: mock.types.boolean(),
+    locale: mock.random.pickOne(['pl', 'en', 'pt', 'de', 'ja']),
+  };
+}
+oauthServer.service.on('beforeUserinfo', beforeUserinfo);
+
 export const mochaGlobalSetup = async () => {
   await createPlayground();
 
@@ -39,6 +60,8 @@ export const mochaGlobalSetup = async () => {
   const oauthPort = await getPort();
   const singleUserBaseUri = `http://localhost:${singleUserPort}${prefix}`;
   const multiUserBaseUri = `http://localhost:${multiUserPort}${prefix}`;
+  const singleUserWsBaseUri = `ws://localhost:${singleUserPort}${prefix}`;
+  const multiUserWsBaseUri = `ws://localhost:${multiUserPort}${prefix}`;
 
   // OpenId server
   await oauthServer.issuer.keys.generate('RS256');
@@ -90,6 +113,8 @@ export const mochaGlobalSetup = async () => {
     multiUserPort,
     oauthPort,
     prefix,
+    singleUserWsBaseUri,
+    multiUserWsBaseUri,
   };
   await fs.writeFile(lockFile, JSON.stringify(info));
 };

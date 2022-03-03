@@ -255,13 +255,34 @@ Note, this operation triggers a web socket event on the `/spaces` endpoint.
 
 ## /spaces/{space}/users
 
-Status: Not yet implemented.
-
 An endpoint to manage space users.
 
-### POST /spaces/{space}/users
+### PATCH /spaces/{space}/users
 
-### DELETE /spaces/{space}/users/{UserId}
+The message body is the list of patches to apply to the users. The server supports two PATCH operations: "add" and "remove". Note, these are not the same patched as defined in JSON Patch specification.
+
+```http
+PATCH /spaces/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1/users HTTP 1/1
+Host: ...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+[
+  {
+    "op": "remove",
+    "uid": "user key 1"
+  },
+  {
+    "op": "remove",
+    "uid": "user key 2"
+  },
+  {
+    "op": "add",
+    "uid": "user key 3",
+    "value": "read"
+  },
+]
+
+```
 
 ## /spaces/{space}/projects
 

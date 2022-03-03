@@ -307,7 +307,7 @@ export class Server {
           return;
         }
         if (!sessionId) {
-          throw new Error(`No authorization header.`);
+          throw new Error(`No authorization info.`);
         }
         const sessionValue = await this.session.get(sessionId);
         if (!sessionValue) {
@@ -333,7 +333,13 @@ export class Server {
       socket.destroy();
       return;
     }
-    const url = request.url.substring(prefix.length);
+    let url = request.url.substring(prefix.length);
+
+    if (url.includes('?')) {
+      // clears the URL from any query parameters. Authentication uses QP to set session.
+      const index = url.indexOf('?');
+      url = url.substring(0, index);
+    }
     const route = this.apiHandler.getOrCreateWs(url);
     if (!route || !route.server) {
       console.error('Route not found.');
