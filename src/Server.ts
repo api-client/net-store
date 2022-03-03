@@ -5,7 +5,7 @@ import http from 'http';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, Logger, DefaultLogger } from '@advanced-rest-client/core';
 import cors, { Options as CorsOptions } from '@koa/cors';
 import Router, { RouterOptions } from '@koa/router';
 import views from 'koa-views';
@@ -13,11 +13,14 @@ import { dir } from 'tmp-promise';
 import { platform } from 'os';
 import { Duplex } from 'stream'
 import { ApiRoutes } from './ApiRoutes.js';
-import { SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState, ITestingServerConfiguration } from './definitions.js'
+import { 
+  SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, 
+  IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication } from './authentication/Authentication.js';
 import { BackendInfo } from './BackendInfo.js';
 import { AppSession } from './session/AppSession.js';
+import { BaseRoute } from './routes/BaseRoute.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +62,7 @@ export class Server {
   app = new Koa();
   router: Router<IApplicationState, DefaultContext>;
   opts: IServerConfiguration;
+  logger: Logger;
   protected apiHandler?: ApiRoutes;
   protected store: StorePersistence;
   protected auth?: Authentication;
@@ -74,6 +78,7 @@ export class Server {
     const info = new BackendInfo();
     this.info = info;
     this.session = new AppSession(this.store, opts.session || {});
+    this.logger = this.setupLogger(opts);
 
     if (opts.authentication) {
       if (typeof opts.authentication === 'function') {
@@ -99,6 +104,16 @@ export class Server {
   }
 
   /**
+   * Creates a logger object to log debug output.
+   */
+  setupLogger(opts: IServerConfiguration = {}): Logger {
+    if (opts.logger) {
+      return opts.logger;
+    }
+    return new DefaultLogger();
+  }
+
+  /**
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
@@ -111,8 +126,9 @@ export class Server {
 
   /**
    * Depending on the configuration initializes required libraries.
+   * @param customRoutes Any custom routes to initialize.
    */
-  async initialize(): Promise<void> {
+  async initialize(...customRoutes: typeof BaseRoute[]): Promise<void> {
     const { opts } = this;
     this.session.initialize();
     if (opts.cors && opts.cors.enabled) {
@@ -130,7 +146,7 @@ export class Server {
       this.auth = factory;
       this.app.use(factory.middleware);
     }
-    await this.setupRoutes();
+    await this.setupRoutes(...customRoutes);
   }
 
   /**
@@ -138,8 +154,8 @@ export class Server {
    */
   protected async initializeCustomAuth(): Promise<Authentication> {
     const { opts, router, store } = this;
-    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession) => Authentication;
-    const factory = new ctr(router, store, this.session);
+    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession, logger: Logger) => Authentication;
+    const factory = new ctr(router, store, this.session, this.logger);
     await factory.initialize();
     return factory;
   }
@@ -163,7 +179,7 @@ export class Server {
     if (!config || !config.issuerUri) {
       throw new Error(`OpenID Connect configuration error.`);
     }
-    const factory = new Oidc(this.router, this.store, this.session, config);
+    const factory = new Oidc(this.router, this.store, this.session, this.logger, config);
     await factory.initialize();
     return factory;
   }
@@ -171,12 +187,11 @@ export class Server {
   /**
    * Called when initializing the server class.
    * Sets up the API routes.
-   * 
    */
-  protected async setupRoutes(): Promise<void> {
-    const { opts, router } = this;
-    const handler = new ApiRoutes(this.store, router, this.session, this.info, opts);
-    await handler.setup();
+  protected async setupRoutes(...customRoutes: typeof BaseRoute[]): Promise<void> {
+    const { router } = this;
+    const handler = new ApiRoutes(this.store, router, this.session, this.info, this.logger, this.opts);
+    await handler.setup(...customRoutes);
 
     this.app.use(router.routes());
     this.app.use(router.allowedMethods());
@@ -275,13 +290,13 @@ export class Server {
 
   protected async _upgradeCallback(request: http.IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
     if (!request.url) {
-      console.error('No request URL.');
+      this.logger.error('No request URL.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();
       return;
     }
     if (!this.apiHandler) {
-      console.error('API Handler not initialized');
+      this.logger.error('API Handler not initialized');
       socket.write('HTTP/1.1 500 Not initialized\r\n\r\n');
       socket.destroy();
       return;
@@ -319,7 +334,7 @@ export class Server {
         user = await this.store.readSystemUser(sessionValue.uid);
       } catch (e) {
         const cause = e as Error;
-        console.error('Invalid authentication.', cause);
+        this.logger.error('[Invalid authentication]', cause);
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
@@ -328,7 +343,7 @@ export class Server {
 
     const prefix = this.opts.router && this.opts.router.prefix ? this.opts.router.prefix : '';
     if (prefix && !request.url.startsWith(prefix)) {
-      console.error('The request URL does not start with the prefix.');
+      this.logger.error('The request URL does not start with the prefix.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();
       return;
@@ -342,7 +357,7 @@ export class Server {
     }
     const route = this.apiHandler.getOrCreateWs(url);
     if (!route || !route.server) {
-      console.error('Route not found.');
+      this.logger.error('Route not found.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();
       return;

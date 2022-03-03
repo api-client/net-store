@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import { Options as CorsOptions } from '@koa/cors';
 import { DefaultState } from 'koa';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, ILogger } from '@advanced-rest-client/core';
 import { Authentication } from './authentication/Authentication.js'
 
 export type SupportedServer = 'https' | 'http';
@@ -42,6 +42,10 @@ export interface IServerConfiguration {
    * Note, the server does not use the HTTP session mechanisms (like cookies). It handles it's session via the authorization header.
    */
   session?: ISessionConfiguration;
+  /**
+   * The logger object to use.
+   */
+  logger?: ILogger;
 }
 
 export interface ITestingServerConfiguration extends IServerConfiguration {

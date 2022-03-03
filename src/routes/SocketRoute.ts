@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket, Server, RawData } from 'ws';
 import { EventEmitter } from 'events'
 import http from 'http';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, Logger } from '@advanced-rest-client/core';
 import Clients from './WsClients.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 
@@ -39,11 +39,8 @@ export abstract class SocketRoute extends EventEmitter {
    */
   routeUrl = '/';
 
-  protected store: StorePersistence;
-
-  constructor(store: StorePersistence) {
+  constructor(protected store: StorePersistence, protected logger: Logger) {
     super();
-    this.store = store;
     this._connectionHandler = this._connectionHandler.bind(this);
     this._closeHandler = this._closeHandler.bind(this);
   }

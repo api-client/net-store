@@ -1,7 +1,6 @@
 import { ParameterizedContext } from 'koa';
-import { BaseRoute } from './BaseRoute.js';
-import { ApiError } from '../ApiError.js';
-import { TestStore } from '../../test/helpers/TestStore.js';
+import { BaseRoute } from '../../src/routes/BaseRoute.js';
+import { TestStore } from './TestStore.js';
 
 /**
  * This route is only initialized when running tests.
@@ -18,7 +17,9 @@ export class TestsHttpRoute extends BaseRoute {
     router.delete('/test/reset/users', this.handleDataResetUsers.bind(this));
     router.delete('/test/reset/sessions', this.handleDataResetSessions.bind(this));
     router.delete('/test/reset/spaces', this.handleDataResetSpaces.bind(this));
+    router.delete('/test/reset/projects', this.handleDataResetProjects.bind(this));
     router.post('/test/generate/spaces', this.handleDataGenerateSpaces.bind(this));
+    router.post('/test/generate/projects/:space', this.handleDataGenerateSpaceProjects.bind(this));
   }
 
   protected async handleDataResetUsers(ctx: ParameterizedContext): Promise<void> {
@@ -26,10 +27,7 @@ export class TestsHttpRoute extends BaseRoute {
       await this.testStore.clearUsers();
       ctx.status = 204;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -38,10 +36,7 @@ export class TestsHttpRoute extends BaseRoute {
       await this.testStore.clearSessions();
       ctx.status = 204;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -50,10 +45,16 @@ export class TestsHttpRoute extends BaseRoute {
       await this.testStore.clearSpaces();
       ctx.status = 204;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleDataResetProjects(ctx: ParameterizedContext): Promise<void> {
+    try {
+      await this.testStore.clearProjects();
+      ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -73,10 +74,21 @@ export class TestsHttpRoute extends BaseRoute {
       ctx.type = 'json';
       ctx.body = generated;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleDataGenerateSpaceProjects(ctx: ParameterizedContext): Promise<void> {
+    const { size='25' } = ctx.query;
+    const sizeParam = Number(size);
+    const { space } = ctx.params;
+    try {
+      const generated = await this.testStore.generateProjects(space, sizeParam);
+      ctx.status = 200;
+      ctx.type = 'json';
+      ctx.body = generated;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
     }
   }
 }

@@ -30,10 +30,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -43,17 +40,14 @@ export class ProjectsHttpRoute extends BaseRoute {
       const user = this.getUserOrThrow(ctx);
       const body = await this.readJsonBody(ctx.request) as IHttpProject;
       if (!body || !body.key) {
-        throw new ApiError('Invalid HttpProject definition.', 400);
+        throw new ApiError('Invalid project definition.', 400);
       }
       await this.store.createSpaceProject(space, body.key, body, user);
       ctx.status = 204;
       const spacePath = RouteBuilder.buildSpaceProjectRoute(space, body.key);
       ctx.set('location', spacePath);
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 }

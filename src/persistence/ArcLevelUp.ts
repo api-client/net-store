@@ -9,7 +9,7 @@ import {
   IUser, IWorkspace, IUserWorkspace, IHttpProjectListItem, IHttpProject, IUserSpaces, 
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
   RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger,
 } from '@advanced-rest-client/core';
 import { IListOptions, StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
@@ -94,8 +94,8 @@ export class ArcLevelUp extends StorePersistence {
   /**
    * @param path The path where to store the data bases.
    */
-  constructor(path: string) {
-    super();
+  constructor(logger: Logger, path: string) {
+    super(logger);
     this.dbPath = path;
   }
 
@@ -282,7 +282,7 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
@@ -632,7 +632,7 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
@@ -984,7 +984,7 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
@@ -1096,7 +1096,7 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {

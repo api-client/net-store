@@ -30,7 +30,7 @@ export class SpacesWsRoute extends SocketRoute {
       await promise;
     } catch (e) {
       const error = e as Error;
-      console.error(e);
+      this.logger.error(e);
       this.sendError(ws, `Unable to process projects collection. ${error.message}`);
       return;
     }

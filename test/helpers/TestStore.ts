@@ -1,4 +1,4 @@
-import { Workspace, IUserSpaces, IAccessControl, IWorkspace } from '@advanced-rest-client/core';
+import { Workspace, IUserSpaces, IAccessControl, IWorkspace, IHttpProject, HttpProject, IHttpProjectListItem } from '@advanced-rest-client/core';
 import { DataMock } from '@pawel-up/data-mock';
 import { PutBatch } from 'abstract-leveldown';
 import { ArcLevelUp } from '../../index.js';
@@ -27,6 +27,16 @@ export class TestStore extends ArcLevelUp {
     }
     if (userSpaces) {
       await userSpaces.clear();
+    }
+  }
+
+  async clearProjects(): Promise<void> {
+    const { projectsIndex, projectsData } = this;
+    if (projectsIndex) {
+      await projectsIndex.clear();
+    }
+    if (projectsData) {
+      await projectsData.clear();
     }
   }
 
@@ -71,6 +81,40 @@ export class TestStore extends ArcLevelUp {
       });
     });
     await userSpaces.batch(accessData);
+    return result;
+  }
+
+  async generateProjects(spaceKey: string, size=25): Promise<IHttpProject[]> {
+    const { projectsIndex, projectsData } = this;
+    if (!projectsIndex || !projectsData) {
+      throw new Error(`Store not initialized.`);
+    }
+    const data: PutBatch[] = [];
+    const index: PutBatch[] = [];
+    const result: IHttpProject[] = [];
+    for (let i = 0; i < size; i++) {
+      const name = this.mock.lorem.word();
+      const project = HttpProject.fromName(name);
+      const finalKey = `~${spaceKey}~${project.key}~`;
+      result.push(project.toJSON());
+      data.push({
+        type: 'put',
+        key: finalKey,
+        value: JSON.stringify(project),
+      });
+      const item: IHttpProjectListItem = {
+        key: project.key,
+        name: project.info.name || 'Unnamed project',
+      };
+      index.push({
+        type: 'put',
+        key: finalKey,
+        value: JSON.stringify(item),
+      });
+    }
+    await projectsIndex.batch(index);
+    await projectsData.batch(data);
+
     return result;
   }
 }

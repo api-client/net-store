@@ -1,18 +1,22 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { Workspace, IUserWorkspace, IWorkspace, WorkspaceKind, IListResponse } from '@advanced-rest-client/core';
+import { Workspace, IUserWorkspace, IWorkspace, WorkspaceKind, IListResponse, IBackendEvent } from '@advanced-rest-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
+import WsHelper, { RawData } from '../helpers/WsHelper.js';
 
 describe('Multi user', () => {
   describe('/spaces', () => {
     let baseUri: string;
     let prefix: string;
+    let baseUriWs: string;
     const http = new HttpHelper();
+    const ws = new WsHelper();
 
     before(async () => {
       const cnf = await getConfig();
       baseUri = cnf.multiUserBaseUri;
+      baseUriWs = cnf.multiUserWsBaseUri;
       prefix = cnf.prefix;
     });
 
@@ -20,7 +24,6 @@ describe('Multi user', () => {
       let user1Token: string;
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
-        await http.delete(`${baseUri}/test/reset/spaces`);
       });
 
       after(async () => {
@@ -63,6 +66,27 @@ describe('Multi user', () => {
         
         const space = JSON.parse(result.body as string) as IUserWorkspace;
         assert.equal(space.access, 'owner');
+      });
+
+      it('informs clients about the new space', async () => {
+        const messages: IBackendEvent[] = [];
+        const client = await ws.createAndConnect(`${baseUriWs}/spaces`, user1Token);
+        client.on('message', (data: RawData) => {
+          messages.push(JSON.parse(data.toString()));
+        });
+        await http.post(`${baseUri}/spaces`, {
+          token: user1Token,
+          body: JSON.stringify(Workspace.fromName('test')),
+        });
+        
+        await ws.disconnect(client);
+        assert.lengthOf(messages, 1, 'received one event');
+        const [ev] = messages;
+        assert.equal(ev.type, 'event');
+        assert.equal(ev.operation, 'created');
+        assert.equal(ev.kind, 'ARC#Space');
+        const space = ev.data as IWorkspace;
+        assert.equal(space.kind, 'ARC#Space');
       });
     });
 

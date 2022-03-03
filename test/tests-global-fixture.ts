@@ -6,10 +6,12 @@ import getPort from './helpers/getPort.js';
 import path from 'path';
 import { OAuth2Server, MutableResponse } from 'oauth2-mock-server';
 import { DataMock } from '@pawel-up/data-mock';
+import { DummyLogger } from '@advanced-rest-client/core';
 import { Server } from '../index.js';
 import { TestStore } from './helpers/TestStore.js';
 import { SetupConfig } from './helpers/interfaces.js';
 import { ITestingServerConfiguration } from '../src/definitions.js';
+import { TestsHttpRoute } from './helpers/TestsHttpRoute.js'
 
 let noAuthServer: Server;
 let oidcAuthServer: Server;
@@ -17,8 +19,9 @@ const oauthServer = new OAuth2Server(
   'test/certs/server_key.key',
   'test/certs/server_cert.crt'
 );
-const noAuthStore = new TestStore('test/data/no-auth');
-const oidcAuthStore = new TestStore('test/data/oidc-auth');
+const logger = new DummyLogger();
+const noAuthStore = new TestStore(logger, 'test/data/no-auth');
+const oidcAuthStore = new TestStore(logger, 'test/data/oidc-auth');
 
 const lockFile = path.join('test', 'servers.lock');
 const playgroundPath = path.join('test', 'data');
@@ -73,6 +76,7 @@ export const mochaGlobalSetup = async () => {
       secret: 'EOX0Xu6aSb',
     },
     testing: true,
+    logger,
   };
   const multiUserConfig: ITestingServerConfiguration = {
     router: { prefix },
@@ -91,6 +95,7 @@ export const mochaGlobalSetup = async () => {
       }
     },
     testing: true,
+    logger,
   };
   
   noAuthServer = new Server(noAuthStore, singleUserConfig);
@@ -100,10 +105,10 @@ export const mochaGlobalSetup = async () => {
   await oidcAuthStore.initialize();
   
   // No auth test server
-  await noAuthServer.initialize();
+  await noAuthServer.initialize(TestsHttpRoute);
   await noAuthServer.startHttp(singleUserPort);
   // OpenID Connect test server
-  await oidcAuthServer.initialize();
+  await oidcAuthServer.initialize(TestsHttpRoute);
   await oidcAuthServer.startHttp(multiUserPort);
 
   const info: SetupConfig = {

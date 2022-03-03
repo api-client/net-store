@@ -1,4 +1,7 @@
-import { IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, UserAccessOperation } from '@advanced-rest-client/core';
+import { 
+  IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, 
+  UserAccessOperation, Logger,
+} from '@advanced-rest-client/core';
 import { JsonPatch } from 'json8-patch';
 
 export interface IListOptions {
@@ -77,6 +80,8 @@ export abstract class StorePersistence {
    * Cleans up before closing the server.
    */
   abstract cleanup(): Promise<void>;
+
+  constructor(protected logger: Logger) { }
 
   /**
    * Creates a default space for the user. This is called when the user has no spaces created.
@@ -174,7 +179,7 @@ export abstract class StorePersistence {
     }
     const str = JSON.stringify(copy);
     const buff = Buffer.from(str);
-    return buff.toString('base64');
+    return buff.toString('base64url');
   }
   
   /**
@@ -184,7 +189,7 @@ export abstract class StorePersistence {
   decodeCursor(cursor: string): IListState {
     let buff;
     try {
-      buff = Buffer.from(cursor, 'base64');
+      buff = Buffer.from(cursor, 'base64url');
     } catch (e) {
       throw new Error(`Invalid cursor.`);
     }

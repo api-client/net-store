@@ -1,3 +1,4 @@
+import { DefaultLogger } from '@advanced-rest-client/core';
 import { ArcLevelUp, Server } from '../index.js';
 import Secrets from './secrets.js';
 
@@ -10,8 +11,10 @@ class DevelopmentEnvironment {
   server: Server;
 
   constructor() {
-    this.store = new ArcLevelUp('develop/auth');
+    const logger = new DefaultLogger();
+    this.store = new ArcLevelUp(logger, 'develop/auth');
     this.server = new Server(this.store, {
+      logger,
       router: {
         prefix,
       },

@@ -1,5 +1,6 @@
 import Router from '@koa/router';
 import { DefaultContext } from 'koa';
+import { Logger } from '@advanced-rest-client/core';
 import { IServerConfiguration, IApplicationState } from './definitions.js';
 import { BaseRoute } from './routes/BaseRoute.js';
 import { SocketRoute } from './routes/SocketRoute.js';
@@ -33,6 +34,7 @@ export class ApiRoutes {
       protected router: Router<IApplicationState, DefaultContext>, 
       protected session: AppSession,
       protected info: BackendInfo,
+      protected logger: Logger,
       protected opts: IServerConfiguration = {}
     ) {
     this.opts = opts;
@@ -41,22 +43,23 @@ export class ApiRoutes {
     this.session = session;
   }
 
-  async setup(): Promise<void> {
+  /**
+   * @param customRoutes Any custom routes to initialize.
+   */
+  async setup(...customRoutes: typeof BaseRoute[]): Promise<void> {
     this.projectsCache.initialize();
     // static HTTP routes. WS routes are created on demand.
-    this.routes.push(new SessionHttpRoute(this.router, this.store, this.info, this.session));
-    this.routes.push(new BackendHttpRoute(this.router, this.store, this.info, this.session));
-    this.routes.push(new SpacesHttpRoute(this.router, this.store, this.info, this.session));
-    this.routes.push(new SpaceHttpRoute(this.router, this.store, this.info, this.session));
-    this.routes.push(new ProjectsHttpRoute(this.router, this.store, this.info, this.session));
-    this.routes.push(new ProjectHttpRoute(this.router, this.store, this.info, this.session, this.projectsCache));
-    this.routes.push(new UsersHttpRoute(this.router, this.store, this.info, this.session));
-    if (this.info.testing) {
-      // Note, the following is only for testing the application in CI.
-      // This should never be available via the API.
-      const { TestsHttpRoute } = await import('./routes/TestsHttpRoute.js');
-      this.routes.push(new TestsHttpRoute(this.router, this.store, this.info, this.session));
-    }
+    this.routes.push(new SessionHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    this.routes.push(new BackendHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    this.routes.push(new SpacesHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    this.routes.push(new SpaceHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    this.routes.push(new ProjectsHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    this.routes.push(new ProjectHttpRoute(this.router, this.store, this.info, this.session, this.logger, this.projectsCache));
+    this.routes.push(new UsersHttpRoute(this.router, this.store, this.info, this.session, this.logger));
+    customRoutes.forEach((custom) => {
+      const ctr = custom as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, info: BackendInfo, session: AppSession, logger: Logger) => BaseRoute;
+      this.routes.push(new ctr(this.router, this.store, this.info, this.session, this.logger));
+    });
     for (const item of this.routes) {
       await item.setup();
     }
@@ -83,7 +86,7 @@ export class ApiRoutes {
   getOrCreateWs(url: string): SocketRoute | undefined {
     const { store } = this;
     if (url.startsWith('/auth/login')) {
-      const route = new AuthWsRoute(store);
+      const route = new AuthWsRoute(store, this.logger);
       this.addWsRoute(route, url);
       return route;
     }
@@ -98,23 +101,23 @@ export class ApiRoutes {
     }
     
     if (url === spacesRoute) {
-      const route = new SpacesWsRoute(store);
+      const route = new SpacesWsRoute(store, this.logger);
       this.addWsRoute(route, url);
       return route;
     }
     const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}';
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceRoute(v4reg)).test(url)) {
-      const route = new SpaceWsRoute(store);
+      const route = new SpaceWsRoute(store, this.logger);
       this.addWsRoute(route, url);
       return route;
     }
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceProjectsRoute(v4reg)).test(url)) {
-      const route = new ProjectsWsRoute(store);
+      const route = new ProjectsWsRoute(store, this.logger);
       this.addWsRoute(route, url);
       return route;
     }
     if (this.protectedBuildRouteRegexp(RouteBuilder.buildSpaceProjectRoute(v4reg, v4reg)).test(url)) {
-      const route = new ProjectWsRoute(store, this.projectsCache);
+      const route = new ProjectWsRoute(store, this.logger, this.projectsCache);
       this.addWsRoute(route, url);
       return route;
     }

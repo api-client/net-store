@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import http from 'http';
 import { WebSocket } from 'ws';
-import { IUser, IBackendCommand, IHttpProject } from '@advanced-rest-client/core';
+import { IUser, IBackendCommand, IHttpProject, Logger } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { SocketRoute } from './SocketRoute.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
@@ -19,8 +19,8 @@ import { ProjectsCache } from '../cache/ProjectsCache.js';
 export class ProjectWsRoute extends SocketRoute {
   protected projectsCache: ProjectsCache;
 
-  constructor(store: StorePersistence, projectsCache: ProjectsCache) {
-    super(store);
+  constructor(store: StorePersistence, logger: Logger, projectsCache: ProjectsCache) {
+    super(store, logger);
     this.projectsCache = projectsCache;
   }
 
@@ -43,7 +43,7 @@ export class ProjectWsRoute extends SocketRoute {
       await promise;
     } catch (e) {
       const error = e as Error;
-      console.error(e);
+      this.logger.error(e);
       this.sendError(ws, `Unable to process projects collection. ${error.message}`);
       return;
     }

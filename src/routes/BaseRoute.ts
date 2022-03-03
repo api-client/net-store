@@ -1,6 +1,6 @@
 import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser, UserAccessOperation } from '@advanced-rest-client/core';
+import { IUser, UserAccessOperation, Logger } from '@advanced-rest-client/core';
 import { StorePersistence, IListOptions } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 import { ApiError } from '../ApiError.js';
@@ -15,21 +15,17 @@ export interface IApiError {
 }
 
 export abstract class BaseRoute {
-  protected router: Router;
-  protected store: StorePersistence;
-  protected info: BackendInfo;
-  protected session: AppSession;
-
   /**
    * @param router The Koa router instance to append paths to.
    * @param store The instance of the storage layer for the routes.
    */
-  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession) {
-    this.router = router;
-    this.store = store;
-    this.info = info;
-    this.session = session;
-  }
+  constructor(
+    protected router: Router, 
+    protected store: StorePersistence, 
+    protected info: BackendInfo, 
+    protected session: AppSession,
+    protected logger: Logger
+  ) { }
 
   abstract setup(): Promise<void>;
 

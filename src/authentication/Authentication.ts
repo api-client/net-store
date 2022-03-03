@@ -1,7 +1,7 @@
 import http from 'http';
 import { DefaultContext, ParameterizedContext, Next } from 'koa';
 import Router from '@koa/router';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, Logger } from '@advanced-rest-client/core';
 import { IApplicationState } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
@@ -13,18 +13,13 @@ import { AppSession } from '../session/AppSession.js';
  * During the initialization phase the logic should register all necessary routes.
  */
 export abstract class Authentication {
-  /**
-   * The man application router.
-   */
-  protected router: Router<IApplicationState, DefaultContext>;
-  protected store: StorePersistence;
-  protected session: AppSession;
+  constructor(
+    protected router: Router<IApplicationState, DefaultContext>, 
+    protected store: StorePersistence, 
+    protected session: AppSession,
+    protected logger: Logger,
+  ) { }
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession) {
-    this.router = router;
-    this.store = store;
-    this.session = session;
-  }
   /** 
    * Initializes the authentication, eg, sets up routes, checks configuration, etc.
    */

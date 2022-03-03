@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IHttpProject, IUser } from '@advanced-rest-client/core';
+import { IHttpProject, IUser, Logger } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import Router from '@koa/router';
 import { BaseRoute } from './BaseRoute.js';
@@ -31,8 +31,8 @@ export class ProjectHttpRoute extends BaseRoute {
    * @param router The Koa router instance to append paths to.
    * @param store The instance of the storage layer for the routes.
    */
-  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession, projectsCache: ProjectsCache) {
-    super(router, store, info, session);
+  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession, logger: Logger, projectsCache: ProjectsCache) {
+    super(router, store, info, session, logger);
     this.projectsCache = projectsCache;
   }
 

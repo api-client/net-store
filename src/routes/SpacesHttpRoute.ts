@@ -33,10 +33,7 @@ export class SpacesHttpRoute extends BaseRoute {
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -55,10 +52,7 @@ export class SpacesHttpRoute extends BaseRoute {
       const spacePath = RouteBuilder.buildSpaceRoute(body.key);
       ctx.set('location', spacePath);
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 }

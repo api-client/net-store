@@ -1,3 +1,4 @@
+import { DefaultLogger } from '@advanced-rest-client/core';
 import { ArcLevelUp, Server } from '../index.js';
 
 class DevelopmentEnvironment {
@@ -5,8 +6,10 @@ class DevelopmentEnvironment {
   server: Server;
 
   constructor() {
-    this.store = new ArcLevelUp('develop/dbs');
+    const logger = new DefaultLogger();
+    this.store = new ArcLevelUp(logger, 'develop/dbs');
     this.server = new Server(this.store, {
+      logger,
       router: {
         prefix: '/v1',
       }
