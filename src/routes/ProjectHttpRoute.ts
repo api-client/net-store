@@ -57,13 +57,10 @@ export class ProjectHttpRoute extends BaseRoute {
       const user = this.getUserOrThrow(ctx);
       const data = await this.readProjectAndCache(space, project, user);
       ctx.body = data;
-      ctx.type = 'application/json';
+      ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -88,13 +85,10 @@ export class ProjectHttpRoute extends BaseRoute {
         status: 'OK',
         revert: result.revert,
       };
-      ctx.type = 'application/json';
+      ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -106,13 +100,10 @@ export class ProjectHttpRoute extends BaseRoute {
       const options = this.collectListingParameters(ctx);
       const result = await this.store.listProjectRevisions(space, project, options, user);
       ctx.body = result;
-      ctx.type = 'application/json';
+      ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -128,11 +119,14 @@ export class ProjectHttpRoute extends BaseRoute {
   protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
     const cached = this.projectsCache.get(project);
     if (cached) {
+      if (cached.space !== space) {
+        throw new ApiError(`Space not found.`, 404);
+      }
       return cached.data;
     }
     const result = await this.store.readSpaceProject(space, project, user);
     if (!result) {
-      throw new ApiError('Project not found.', 404);
+      throw new ApiError('Not found.', 404);
     }
     this.projectsCache.set(space, project, result);
     return result;
@@ -149,10 +143,7 @@ export class ProjectHttpRoute extends BaseRoute {
       await this.store.deleteSpaceProject(space, project, user);
       ctx.status = 204;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 }

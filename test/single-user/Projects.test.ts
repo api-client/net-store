@@ -99,6 +99,7 @@ describe('Single user', () => {
         const item = list.data[0] as IHttpProjectListItem;
         assert.typeOf(item.name, 'string', 'has the project name');
         assert.typeOf(item.key, 'string', 'has the project key');
+        assert.typeOf(item.updated, 'number', 'has the project updated time');
       });
 
       it('supports the limit parameter', async () => {

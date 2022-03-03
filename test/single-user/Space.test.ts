@@ -115,7 +115,7 @@ describe('Single user', () => {
         assert.equal(info.message, 'Not found');
       });
 
-      it('returns 400 when invalid patch dta', async () => {
+      it('returns 400 when invalid patch data', async () => {
         const srcSpace = created[1];
         const patch = [
           {

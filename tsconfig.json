@@ -26,5 +26,6 @@
     "scripts/dev.ts",
     "scripts/dev-auth.ts",
     "index.ts",
-    "json8-patch.d.ts"  ]
+    "json8-patch.d.ts"  
+  ]
 }

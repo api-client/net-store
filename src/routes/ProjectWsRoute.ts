@@ -92,7 +92,7 @@ export class ProjectWsRoute extends SocketRoute {
     }
     const result = await this.store.readSpaceProject(space, project, user);
     if (!result) {
-      throw new Error('Project not found.');
+      throw new Error('Not found.');
     }
     this.projectsCache.set(space, project, result);
     return result;

@@ -44,6 +44,9 @@ export interface IBinDataItem {
 
 /**
  * The persistence layer that uses LevelUp to store data in the local file system.
+ * 
+ * TODO:
+ * - https://github.com/fergiemcdowall/search-index
  */
 export class ArcLevelUp extends StorePersistence {
   dbPath: string;
@@ -608,7 +611,9 @@ export class ArcLevelUp extends StorePersistence {
     const state = this.readListState(options);
     const itOpts: AbstractIteratorOptions = {
       gte: `~${key}~`,
-      lte: `~${key}~~`
+      lte: `~${key}~~`,
+      // newest on top.
+      reverse: true,
     };
     const iterator = projectsIndex.iterator(itOpts);
     if (state.lastKey) {
@@ -634,6 +639,8 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       this.logger.error(e);
     }
+    // sorts the results by the updated time, newest on top.
+    data.sort(({ updated: a = 0 }, { updated: b = 0 }) => b - a);
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
@@ -691,6 +698,7 @@ export class ArcLevelUp extends StorePersistence {
     const item: IHttpProjectListItem = {
       key: projectKey,
       name: project.info.name || 'Unnamed project',
+      updated: Date.now(),
     };
     await projectsIndex.put(finalKey, this.encodeDocument(item));
     const event: IBackendEvent = {
@@ -728,7 +736,7 @@ export class ArcLevelUp extends StorePersistence {
     try {
       raw = await projectsData.get(finalKey);
     } catch (e) {
-      throw new ApiError(`The project ${projectKey} does not exists.`, 404);
+      throw new ApiError(`Not found.`, 404);
     }
     const data = this.decodeDocument(raw) as IHttpProject;
     return data;
@@ -747,8 +755,8 @@ export class ArcLevelUp extends StorePersistence {
    * @param user Optional, user that triggers the update.
    */
   async updateSpaceProject(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user?: IUser): Promise<void> {
-    const { projectsIndex, projectsData } = this;
-    if (!projectsIndex || !projectsData) {
+    const { projectsData } = this;
+    if (!projectsData) {
       throw new Error(`Store not initialized.`);
     }
     // check if the user has read access to the space.
@@ -785,7 +793,29 @@ export class ArcLevelUp extends StorePersistence {
       } else if (nameChange.op === 'remove') {
         await this.changeProjectName(spaceKey, projectKey, 'Unnamed project');
       }
+    } else {
+      await this.updateProjectTime(projectKey, finalKey);
     }
+  }
+
+  protected async updateProjectTime(projectKey: string, indexKey: string): Promise<void> {
+    const { projectsIndex } = this;
+    if (!projectsIndex) {
+      throw new Error(`Store not initialized.`);
+    }
+    let data: IHttpProjectListItem;
+    try {
+      const raw = await projectsIndex.get(indexKey);
+      data = this.decodeDocument(raw) as IHttpProjectListItem;
+    } catch (e) {
+      data = {
+        key: projectKey,
+        name: '',
+        updated: Date.now(),
+      };
+    }
+    data.updated = Date.now();
+    await projectsIndex.put(indexKey, this.encodeDocument(data));
   }
 
   protected async changeProjectName(spaceKey: string, projectKey: string, value: string): Promise<void> {
@@ -802,6 +832,7 @@ export class ArcLevelUp extends StorePersistence {
       data = {
         key: projectKey,
         name: '',
+        updated: Date.now(),
       };
     }
     data.name = value;
@@ -848,7 +879,7 @@ export class ArcLevelUp extends StorePersistence {
       dataRaw = await projectsData.get(finalKey);
       indexRaw = await projectsIndex.get(finalKey);
     } catch (e) {
-      throw new ApiError(`The project ${projectKey} does not exists.`, 404);
+      throw new ApiError(`Not found.`, 404);
     }
     const time = Date.now();
     // move the data to the bin.
@@ -961,6 +992,7 @@ export class ArcLevelUp extends StorePersistence {
     const itOpts: AbstractIteratorOptions = {
       gte: `project~${projectKey}~`,
       lte: `project~${projectKey}~~`,
+      reverse: true,
     };
     const iterator = projectRevisions.iterator(itOpts);
     if (state.lastKey) {
@@ -986,6 +1018,8 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       this.logger.error(e);
     }
+    // // sorts from the latests to oldest
+    // data.sort(({ created: a = 0 }, { created: b = 0 }) => b - a);
     const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,

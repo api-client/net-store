@@ -44,6 +44,10 @@ export abstract class BaseRoute {
     return !!this.info.hasAuthentication;
   }
 
+  get jsonType(): string {
+    return 'application/json';
+  }
+
   wrapError(cause: Error, code = 500, detail?: string): IApiError {
     return {
       error: true,
@@ -63,6 +67,7 @@ export abstract class BaseRoute {
     const error = new ApiError(e.message || 'Unknown error', e.code || 400);
     ctx.body = this.wrapError(error, error.code);
     ctx.status = error.code;
+    ctx.type = this.jsonType;
   }
 
   /**

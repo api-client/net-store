@@ -105,6 +105,7 @@ export class TestStore extends ArcLevelUp {
       const item: IHttpProjectListItem = {
         key: project.key,
         name: project.info.name || 'Unnamed project',
+        updated: Date.now(),
       };
       index.push({
         type: 'put',
