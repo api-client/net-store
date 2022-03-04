@@ -53,13 +53,13 @@ describe('Multi user', () => {
         assert.deepEqual(space, srcSpace, 'returns the space');
       });
 
-      it('returns 404 when no space', async () => {
+      it('returns 403 when no space', async () => {
         const result = await http.get(`${baseUri}/spaces/1234567890`, {
           token: user1Token,
         });
-        assert.equal(result.status, 404, 'has 404 status code');
+        assert.equal(result.status, 403, 'has 403 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found');
+        assert.equal(info.message, 'Not authorized to read this space.');
       });
 
       it('returns 401 when no credentials', async () => {
@@ -134,7 +134,7 @@ describe('Multi user', () => {
         assert.equal(space.info.name, 'Other name', 'has the applied patch');
       });
 
-      it('returns 404 when no space', async () => {
+      it('returns 403 when no space', async () => {
         const patch: JsonPatch = [
           {
             op: 'replace',
@@ -146,12 +146,12 @@ describe('Multi user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 404, 'has 404 status code');
+        assert.equal(result.status, 403, 'has 403 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found');
+        assert.equal(info.message, 'Not authorized to read this space.');
       });
 
-      it('returns 404 when accessing a workspace without access ', async () => {
+      it('returns 403 when accessing a workspace without access', async () => {
         const patch: JsonPatch = [
           {
             op: 'replace',
@@ -163,9 +163,9 @@ describe('Multi user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 404, 'has 404 status code');
+        assert.equal(result.status, 403, 'has 403 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found');
+        assert.equal(info.message, 'Not authorized to read this space.');
       });
 
       it('returns 400 when invalid patch dta', async () => {
@@ -469,9 +469,8 @@ describe('Multi user', () => {
           body: JSON.stringify(patches),
         });
         assert.equal(response.status, 204, 'has the 204 status code');
-
         const getResponse = await http.get(`${baseUri}/spaces/${key}`, { token: user2Token });
-        assert.equal(getResponse.status, 404, 'has the 404 status code');
+        assert.equal(getResponse.status, 403, 'has the 403 status code');
       });
 
       it('informs about space change via the web socket', async () => {

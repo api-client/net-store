@@ -14,7 +14,8 @@
       "ts": "never"
     }],
     "unused-imports/no-unused-imports": "error",
-    "no-only-tests/no-only-tests": "error"
+    "no-only-tests/no-only-tests": "error",
+    "no-console": "error"
   },
   "env": {
     "mocha": true,

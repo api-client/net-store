@@ -163,6 +163,18 @@ export abstract class StorePersistence {
   }
 
   /**
+   * Checks whether the given access level allows the user to write changes to a resource.
+   * @param access The user access level.
+   * @returns True when write is allowed.
+   */
+  canRead(access: AccessControlLevel): boolean {
+    if (this.canWrite(access)) {
+      return true;
+    }
+    return ['read', 'comment'].includes(access);
+  }
+
+  /**
    * Encoded the current state of the list search into the cursor string.
    * 
    * @param state The state of the search.
@@ -254,6 +266,12 @@ export abstract class StorePersistence {
    * @param user The current user
    */
   abstract updateUserSpace(key: string, space: IWorkspace, patch: JsonPatch, user?: IUser): Promise<void>;
+  /**
+   * Deletes the space from the system
+   * @param key The space key
+   * @param user The current user, if any.
+   */
+  abstract deleteUserSpace(key: string, user?: IUser): Promise<void>;
   /**
    * Adds or removes users to/from the space.
    * Only available in a multi-user environment.

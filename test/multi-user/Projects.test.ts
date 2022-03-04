@@ -4,6 +4,7 @@ import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectList
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
+import { RouteBuilder } from '../../index.js';
 
 describe('Multi user', () => {
   describe('/spaces/space/projects', () => {
@@ -34,20 +35,21 @@ describe('Multi user', () => {
 
       it('creates a new project', async () => {
         const spaceKey = spaces[0].key;
-
         const project = HttpProject.fromName('test');
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
           token: user1Token,
         });
         assert.equal(result.status, 204, 'has 204 status');
-        assert.include(result.headers.location, `/spaces/${spaceKey}/projects/`, 'has the location');
+        assert.include(result.headers.location, `${httpPath}/`, 'has the location');
         assert.equal(result.body, '', 'has no body');
       });
 
       it('returns an error when invalid workspace', async () => {
         const spaceKey = spaces[0].key;
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
           token: user1Token,
         });
@@ -59,7 +61,8 @@ describe('Multi user', () => {
 
       it('returns an error when no user token', async () => {
         const spaceKey = spaces[0].key;
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
         });
         assert.equal(result.status, 401, 'has 401 status');
@@ -70,7 +73,8 @@ describe('Multi user', () => {
 
       it('returns an error when invalid user token', async () => {
         const spaceKey = spaces[0].key;
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
           token: 'abc',
         });
@@ -82,13 +86,14 @@ describe('Multi user', () => {
 
       it('informs clients about new project', async () => {
         const spaceKey = spaces[0].key;
-
         const messages: IBackendEvent[] = [];
-        const client = await ws.createAndConnect(`${baseUriWs}/spaces/${spaceKey}/projects?token=${user1Token}`);
+        const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}?token=${user1Token}`);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
-        await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(HttpProject.fromName('test')),
           token: user1Token,
         });
@@ -121,7 +126,8 @@ describe('Multi user', () => {
       });
 
       it('returns results and the page token', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects`, { token: user1Token });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -133,7 +139,8 @@ describe('Multi user', () => {
       });
 
       it('supports the limit parameter', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=4`, { token: user1Token });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -142,10 +149,11 @@ describe('Multi user', () => {
       });
 
       it('paginates to the next page', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=2`, { token: user1Token });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token });
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, '(request2) has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
@@ -154,26 +162,28 @@ describe('Multi user', () => {
       });
 
       it('reaches the end of pagination', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=35`, { token: user1Token });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
       });
 
       it('returns the same cursor when no more entries', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=35`, { token: user1Token });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
 
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has the remaining');
 
-        const result3 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list2.cursor}`, { token: user1Token });
+        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token });
         assert.equal(result3.status, 200, 'has the 200 status');
         const list3 = JSON.parse(result3.body as string) as IListResponse;
         assert.lengthOf(list3.data, 0, 'has no more entries');
@@ -182,7 +192,8 @@ describe('Multi user', () => {
       });
 
       it('returns an error when no user token', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}`);
         assert.equal(result.status, 401, 'has 401 status');
         const body = result.body as string;
         const error = JSON.parse(body);
@@ -190,7 +201,8 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid user token', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects`, { token: 'abc' });
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}`, { token: 'abc' });
         assert.equal(result.status, 401, 'has 401 status');
         const body = result.body as string;
         const error = JSON.parse(body);

@@ -207,7 +207,8 @@ describe('Single user', () => {
         await http.patch(`${baseUri}${path}`, {
           body: JSON.stringify(patch),
         });
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}`);
         const list = JSON.parse(result.body as string) as IListResponse;
         // projects list is ordered by last update time.
         const item = list.data[0] as IHttpProjectListItem;
@@ -266,6 +267,111 @@ describe('Single user', () => {
         const [p1, p2] = (list.data as IRevisionInfo[]);
         assert.equal(p1.patch[0][0].op, 'add', 'the last operation is listed first');
         assert.equal(p2.patch[0][0].op, 'replace', 'the first operation is listed last');
+      });
+
+      it('updates project update time', async () => {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const r1 = await http.get(`${baseUri}${httpPath}`);
+        const listBefore = JSON.parse(r1.body as string) as IListResponse;
+        const patch: JsonPatch = [
+          {
+            op: 'replace',
+            path: '/info/name',
+            value: 'X name',
+          }
+        ];
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        await http.patch(`${baseUri}${path}`, {
+          body: JSON.stringify(patch),
+        });
+        const r2 = await http.get(`${baseUri}${httpPath}`);
+        const listAfter = JSON.parse(r2.body as string) as IListResponse;
+        // projects list is ordered by last update time.
+        const itemBefore = listBefore.data[0] as IHttpProjectListItem;
+        const itemAfter = listAfter.data[0] as IHttpProjectListItem;
+        assert.isAbove(itemAfter.updated, itemBefore.updated);
+      });
+    });
+
+    describe('DELETE /spaces/space/projects/project', () => {
+      let spaceKey: string;
+      let projectKey: string;
+      let refProject: IHttpProject;
+
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/projects`);
+      });
+
+      beforeEach(async () => {
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`);
+        spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
+        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`);
+        refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
+        projectKey = refProject.key;
+      });
+
+      it('returns the 204 status code', async () => {
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        const result = await http.delete(`${baseUri}${path}`);
+        assert.equal(result.status, 204);
+      });
+
+      it('cannot iterate the project', async () => {
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        await http.delete(`${baseUri}${path}`);
+
+        const readPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const readResult = await http.get(`${baseUri}${readPath}`);
+        const list = JSON.parse(readResult.body as string) as IListResponse;
+        assert.lengthOf(list.data, 0);
+      });
+
+      it('cannot read the project', async () => {
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        await http.delete(`${baseUri}${path}`);
+        const readResult = await http.get(`${baseUri}${path}`);
+        assert.equal(readResult.status, 404);
+      });
+
+      it('notifies space clients about the project delete', async () => {
+        const messages: IBackendEvent[] = [];
+        const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`);
+        client.on('message', (data: RawData) => {
+          messages.push(JSON.parse(data.toString()));
+        });
+
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        await http.delete(`${baseUri}${path}`);
+        
+        await ws.disconnect(client);
+        assert.lengthOf(messages, 1, 'received one event');
+        const [ev] = messages;
+        assert.equal(ev.type, 'event');
+        assert.equal(ev.operation, 'deleted');
+        assert.equal(ev.kind, 'ARC#HttpProjectListItem');
+        assert.equal(ev.id, projectKey);
+      });
+
+      it('notifies project clients about the project delete', async () => {
+        const messages: IBackendEvent[] = [];
+        const wsPath = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`);
+        client.on('message', (data: RawData) => {
+          messages.push(JSON.parse(data.toString()));
+        });
+
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        await http.delete(`${baseUri}${path}`);
+        
+        await ws.disconnect(client);
+        assert.lengthOf(messages, 1, 'received one event');
+        const [ev] = messages;
+        assert.equal(ev.type, 'event');
+        assert.equal(ev.operation, 'deleted');
+        assert.equal(ev.kind, 'ARC#HttpProject');
+        assert.equal(ev.id, projectKey);
       });
     });
   });

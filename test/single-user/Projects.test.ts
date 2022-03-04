@@ -4,6 +4,7 @@ import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectList
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
+import { RouteBuilder } from '../../index.js';
 
 describe('Single user', () => {
   describe('/spaces/space/projects', () => {
@@ -31,19 +32,20 @@ describe('Single user', () => {
 
       it('creates a new project', async () => {
         const spaceKey = spaces[0].key;
-
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const project = HttpProject.fromName('test');
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
         });
         assert.equal(result.status, 204, 'has 204 status');
-        assert.include(result.headers.location, `/spaces/${spaceKey}/projects/`, 'has the location');
+        assert.include(result.headers.location, `${httpPath}/`, 'has the location');
         assert.equal(result.body, '', 'has no body');
       });
 
       it('returns an error when invalid workspace', async () => {
         const spaceKey = spaces[0].key;
-        const result = await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
         });
         assert.equal(result.status, 400, 'has 400 status');
@@ -54,13 +56,14 @@ describe('Single user', () => {
 
       it('informs clients about new project', async () => {
         const spaceKey = spaces[0].key;
-
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const messages: IBackendEvent[] = [];
-        const client = await ws.createAndConnect(`${baseUriWs}/spaces/${spaceKey}/projects`);
+        const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
-        await http.post(`${baseUri}/spaces/${spaceKey}/projects`, {
+        await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(HttpProject.fromName('test')),
         });
         await ws.disconnect(client);
@@ -90,7 +93,8 @@ describe('Single user', () => {
       });
 
       it('returns results and the page token', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}`);
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -103,7 +107,8 @@ describe('Single user', () => {
       });
 
       it('supports the limit parameter', async () => {
-        const result = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=4`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result = await http.get(`${baseUri}${httpPath}?limit=4`);
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -112,10 +117,11 @@ describe('Single user', () => {
       });
 
       it('paginates to the next page', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=2`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`);
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
         assert.equal(result2.status, 200, '(request2) has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
@@ -124,26 +130,28 @@ describe('Single user', () => {
       });
 
       it('reaches the end of pagination', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=35`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`);
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
       });
 
       it('returns the same cursor when no more entries', async () => {
-        const result1 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?limit=35`);
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`);
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
 
-        const result2 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has the remaining');
 
-        const result3 = await http.get(`${baseUri}/spaces/${spaceKey}/projects?cursor=${list2.cursor}`);
+        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`);
         assert.equal(result3.status, 200, 'has the 200 status');
         const list3 = JSON.parse(result3.body as string) as IListResponse;
         assert.lengthOf(list3.data, 0, 'has no more entries');
