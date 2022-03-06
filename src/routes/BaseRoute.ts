@@ -6,6 +6,7 @@ import { AppSession } from '../session/AppSession.js';
 import { ApiError } from '../ApiError.js';
 import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
+import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 export interface IApiError {
   error: boolean;
@@ -14,18 +15,34 @@ export interface IApiError {
   detail: string;
 }
 
+export interface ISpaceConfiguration {
+  router: Router;
+  store: StorePersistence;
+  info: BackendInfo;
+  session: AppSession;
+  logger: Logger;
+  projectsCache: ProjectsCache;
+}
+
 export abstract class BaseRoute {
+  protected router: Router;
+  protected store: StorePersistence;
+  protected info: BackendInfo;
+  protected session: AppSession;
+  protected logger: Logger;
+  protected projectsCache: ProjectsCache;
+
   /**
-   * @param router The Koa router instance to append paths to.
-   * @param store The instance of the storage layer for the routes.
+   * @param init Route configuration
    */
-  constructor(
-    protected router: Router, 
-    protected store: StorePersistence, 
-    protected info: BackendInfo, 
-    protected session: AppSession,
-    protected logger: Logger
-  ) { }
+  constructor(init: ISpaceConfiguration) { 
+    this.router = init.router;
+    this.store = init.store;
+    this.info = init.info;
+    this.session = init.session;
+    this.logger = init.logger;
+    this.projectsCache = init.projectsCache;
+  }
 
   abstract setup(): Promise<void>;
 
@@ -41,7 +58,7 @@ export abstract class BaseRoute {
    * Checks whether the server is configured to support user authentication.
    */
   get isMultiUser(): boolean {
-    return !!this.info.hasAuthentication;
+    return this.info.mode === 'multi-user';
   }
 
   get jsonType(): string {
@@ -142,9 +159,6 @@ export abstract class BaseRoute {
    * Otherwise it returns user data.
    */
   getUserOrThrow(ctx: ParameterizedContext<IApplicationState>): IUser | undefined {
-    if (!this.isMultiUser) {
-      return undefined;
-    }
     const { user } = ctx.state;
     if (!user) {
       throw new ApiError(`The client is not authorized to access this resource.`, 401);

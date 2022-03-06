@@ -9,6 +9,22 @@ import { SocketRoute } from './SocketRoute.js';
  * - create a project
  */
 export class ProjectsWsRoute extends SocketRoute {
+  async isAuthorized(user?: IUser): Promise<boolean> {
+    if (!user) {
+      return false;
+    }
+    const spaceId = this.route[1];
+    const projectId = this.route[3];
+    let valid = false;
+    try {
+      await this.store.checkProjectAccess('read', spaceId, projectId, user);
+      valid = true;
+    } catch (e) {
+      // ...
+    }
+    return valid;
+  }
+
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: IUser, sid?: string): void {
     this.registerClient(ws, user, sid);
     ws.on('message', this._messageHandler.bind(this, ws));

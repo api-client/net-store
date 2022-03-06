@@ -4,6 +4,8 @@ import http from 'http';
 import { IUser, Logger } from '@advanced-rest-client/core';
 import Clients from './WsClients.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
+import { BackendInfo } from '../BackendInfo.js';
+import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 export interface ClientInfo {
   /**
@@ -17,6 +19,13 @@ export interface ClientInfo {
   socket: WebSocket;
 }
 
+export interface ISocketRouteInit {
+  store: StorePersistence;
+  logger: Logger;
+  info: BackendInfo;
+  projectsCache: ProjectsCache;
+}
+
 export interface SocketRoute {
   /**
    * Emitted when the server has no more connections and should be closed.
@@ -28,6 +37,11 @@ export interface SocketRoute {
  * The base class for web sockets servers and routes.
  */
 export abstract class SocketRoute extends EventEmitter {
+  protected info: BackendInfo;
+  protected store: StorePersistence; 
+  protected logger: Logger;
+  protected projectsCache: ProjectsCache;
+
   server?: Server<WebSocket>;
   /**
    * The route data, e.g. ['spaces', '[spaceId]', 'projects', '[projectId]']
@@ -39,11 +53,23 @@ export abstract class SocketRoute extends EventEmitter {
    */
   routeUrl = '/';
 
-  constructor(protected store: StorePersistence, protected logger: Logger) {
+  constructor(init: ISocketRouteInit) {
     super();
+    this.info = init.info;
+    this.store = init.store;
+    this.logger = init.logger;
+    this.projectsCache = init.projectsCache;
     this._connectionHandler = this._connectionHandler.bind(this);
     this._closeHandler = this._closeHandler.bind(this);
   }
+
+  /**
+   * Each WS route must implement this method.
+   * It checks whether the user is authorized to access the route.
+   * 
+   * @param user Optional user information.
+   */
+  abstract isAuthorized(user?: IUser): Promise<boolean>;
 
   closeWhenNeeded(): void {
     if (Clients.count(this.routeUrl) === 0) {

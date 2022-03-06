@@ -1,11 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import http from 'http';
 import { WebSocket } from 'ws';
-import { IUser, IBackendCommand, IHttpProject, Logger } from '@advanced-rest-client/core';
+import { IUser, IBackendCommand, IHttpProject } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { SocketRoute } from './SocketRoute.js';
-import { StorePersistence } from '../persistence/StorePersistence.js';
-import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 /**
  * A route for the web socket server that serves the information about 
@@ -17,11 +15,20 @@ import { ProjectsCache } from '../cache/ProjectsCache.js';
  * - delete a project (note, this will close the connection to the server)
  */
 export class ProjectWsRoute extends SocketRoute {
-  protected projectsCache: ProjectsCache;
-
-  constructor(store: StorePersistence, logger: Logger, projectsCache: ProjectsCache) {
-    super(store, logger);
-    this.projectsCache = projectsCache;
+  async isAuthorized(user?: IUser): Promise<boolean> {
+    if (!user) {
+      return false;
+    }
+    const spaceId = this.route[1];
+    const projectId = this.route[3];
+    let valid = false;
+    try {
+      await this.store.checkProjectAccess('read', spaceId, projectId, user);
+      valid = true;
+    } catch (e) {
+      // ...
+    }
+    return valid;
   }
 
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: IUser, sid?: string): void {

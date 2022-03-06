@@ -1,7 +1,8 @@
 import { IBackendInfo } from '@advanced-rest-client/core';
+import { ServerMode } from './definitions.js';
 
 export class BackendInfo {
-  hasAuthentication = false;
+  mode: ServerMode = 'single-user';
   /**
    * This is not intended for production.
    * It tells the API that it is running in a testing mode
@@ -10,9 +11,9 @@ export class BackendInfo {
   testing = false;
 
   toJSON(): IBackendInfo {
-    const info: IBackendInfo = {
-      hasAuthentication: this.hasAuthentication,
+    const info: any = {
+      mode: this.mode,
     };
-    return info;
+    return info as IBackendInfo;
   }
 }

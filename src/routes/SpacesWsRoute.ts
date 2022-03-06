@@ -12,6 +12,22 @@ import { SocketRoute } from './SocketRoute.js';
  * - create a space
  */
 export class SpacesWsRoute extends SocketRoute {
+
+  async isAuthorized(user?: IUser): Promise<boolean> {
+    if (!user) {
+      return false;
+    }
+    const spaceId = this.route[1];
+    let valid = false;
+    try {
+      await this.store.checkSpaceAccess('read', spaceId, user);
+      valid = true;
+    } catch (e) {
+      // ...
+    }
+    return valid;
+  }
+  
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: IUser, sid?: string): void {
     this.registerClient(ws, user, sid);
     ws.on('message', this._messageHandler.bind(this, ws));

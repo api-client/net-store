@@ -18,6 +18,8 @@ import {
   IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication } from './authentication/Authentication.js';
+import DefaultUser from './authentication/DefaultUser.js';
+import { SingleUserAuthentication } from './authentication/SingleUserAuthentication.js';
 import { BackendInfo } from './BackendInfo.js';
 import { AppSession } from './session/AppSession.js';
 import { BaseRoute } from './routes/BaseRoute.js';
@@ -80,15 +82,11 @@ export class Server {
     this.session = new AppSession(this.store, opts.session || {});
     this.logger = this.setupLogger(opts);
 
-    if (opts.authentication) {
-      if (typeof opts.authentication === 'function') {
-        info.hasAuthentication = true;
-      } else {
-        const config = opts.authentication as IAuthenticationConfiguration;
-        info.hasAuthentication = config.enabled === true;
+    info.mode = opts.mode === 'multi-user' ? opts.mode : 'single-user';
+    if (info.mode === 'multi-user') {
+      if (!opts.authentication) {
+        throw new Error(`The "authentication" configuration is required in the "multi-user" mode.`);
       }
-    } else {
-      info.hasAuthentication = false;
     }
     const routerOptions: RouterOptions = {};
     if (opts.router && opts.router.prefix) {
@@ -136,16 +134,18 @@ export class Server {
       this.app.use(cors(config));
     }
     this.app.use(views(join(__dirname, 'views'), { extension: 'ejs' }));
-    if (this.info.hasAuthentication) {
-      let factory: Authentication;
+    let factory: Authentication;
+    if (this.info.mode === 'multi-user') {
       if (typeof opts.authentication === 'function') {
         factory = await this.initializeCustomAuth();
       } else {
         factory = await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
       }
-      this.auth = factory;
-      this.app.use(factory.middleware);
+    } else {
+      factory = new SingleUserAuthentication(this.router, this.store, this.session, this.logger);
     }
+    this.auth = factory;
+    this.app.use(factory.middleware);
     await this.setupRoutes(...customRoutes);
   }
 
@@ -304,10 +304,13 @@ export class Server {
     
     let user: IUser | undefined;
     let sessionId: string | undefined;
-    if (this.info.hasAuthentication) {
-      const factory = this.auth as Authentication;
-      try {
-        sessionId = await factory.getSessionId(request);
+    
+    const factory = this.auth as Authentication;
+    try {
+      sessionId = await factory.getSessionId(request);
+      if (sessionId === SingleUserAuthentication.defaultSid) {
+        user = DefaultUser;
+      } else {
         const authLocation = factory.getAuthLocation();
         if (request.url === authLocation) {
           // we allow un-auth user here.
@@ -332,13 +335,13 @@ export class Server {
           throw new Error(`Using unauthenticated session.`);
         }
         user = await this.store.readSystemUser(sessionValue.uid);
-      } catch (e) {
-        const cause = e as Error;
-        this.logger.error('[Invalid authentication]', cause);
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
       }
+    } catch (e) {
+      const cause = e as Error;
+      this.logger.error('[Invalid authentication]', cause);
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
     }
 
     const prefix = this.opts.router && this.opts.router.prefix ? this.opts.router.prefix : '';
@@ -357,6 +360,16 @@ export class Server {
     }
     const route = this.apiHandler.getOrCreateWs(url);
     if (!route || !route.server) {
+      this.logger.error('Route not found.');
+      socket.write('HTTP/1.1 404 Not found\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // handle WS authorization
+    const authorized = await route.isAuthorized(user);
+    if (!authorized) {
+      this.apiHandler.removeWsRoute(route);
       this.logger.error('Route not found.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();

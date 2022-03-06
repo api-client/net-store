@@ -1,15 +1,10 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IHttpProject, IUser, Logger } from '@advanced-rest-client/core';
+import { IHttpProject, IUser } from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
-import Router from '@koa/router';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
-import { StorePersistence } from '../persistence/StorePersistence.js';
-import { ProjectsCache } from '../cache/ProjectsCache.js';
-import { BackendInfo } from '../BackendInfo.js';
-import { AppSession } from '../session/AppSession.js';
 
 /**
  * An HTTP route for the server that serves the information about 
@@ -26,16 +21,6 @@ import { AppSession } from '../session/AppSession.js';
  * when we would like to run the store in a separate process.
  */
 export class ProjectHttpRoute extends BaseRoute {
-  protected projectsCache: ProjectsCache;
-  /**
-   * @param router The Koa router instance to append paths to.
-   * @param store The instance of the storage layer for the routes.
-   */
-  constructor(router: Router, store: StorePersistence, info: BackendInfo, session: AppSession, logger: Logger, projectsCache: ProjectsCache) {
-    super(router, store, info, session, logger);
-    this.projectsCache = projectsCache;
-  }
-
   async setup(): Promise<void> {
     const { router } = this;
     const basePath = RouteBuilder.buildSpaceProjectRoute(':space', ':project');

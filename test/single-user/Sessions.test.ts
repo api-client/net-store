@@ -26,26 +26,5 @@ describe('Single user', () => {
         assert.equal(data.iss as string, 'urn:arc-store', 'has the iss')
       });
     });
-
-    describe('POST /sessions/renew', () => {
-      it('returns 401 error when session not initialized', async () => {
-        const result = await http.post(`${baseUri}/sessions/renew`);
-        assert.equal(result.status, 401, 'has 401 status code');
-        assert.include(result.headers['content-type'], 'application/json', 'has the application/json body');
-        const body = JSON.parse(result.body as string);
-        assert.equal(body.message, 'Not authorized', 'has the error message');
-      });
-
-      it('returns 401 error when no user session', async () => {
-        const token = await http.createSession(baseUri);
-        const result = await http.post(`${baseUri}/sessions/renew`, {
-          token,
-        });
-        assert.equal(result.status, 401, 'has 401 status code');
-        assert.include(result.headers['content-type'], 'application/json', 'has the application/json body');
-        const body = JSON.parse(result.body as string);
-        assert.equal(body.message, 'Not authorized', 'has the error message');
-      });
-    });
   });
 });

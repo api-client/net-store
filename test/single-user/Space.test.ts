@@ -17,10 +17,11 @@ describe('Single user', () => {
 
     describe('GET /spaces/space', () => {
       let created: IWorkspace[];
-
+      let user1Token: string;
       before(async () => {
-        await http.post(`${baseUri}/test/generate/spaces?size=4`);
-        const result = await http.get(`${baseUri}/spaces`);
+        user1Token = await http.createUserToken(baseUri);
+        await http.post(`${baseUri}/test/generate/spaces?size=4`, { token: user1Token });
+        const result = await http.get(`${baseUri}/spaces`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         created = list.data as IWorkspace[];
@@ -32,14 +33,14 @@ describe('Single user', () => {
 
       it('reads a space info', async () => {
         const srcSpace = created[0];
-        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`);
+        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`, { token: user1Token });
         assert.equal(result.status, 200, 'has 200 status code');
         const space = JSON.parse(result.body as string) as IWorkspace;
         assert.deepEqual(space, srcSpace, 'returns the space');
       });
 
       it('returns 404 when no space', async () => {
-        const result = await http.get(`${baseUri}/spaces/1234567890`);
+        const result = await http.get(`${baseUri}/spaces/1234567890`, { token: user1Token });
         assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
         assert.equal(info.message, 'Not found');
@@ -48,12 +49,14 @@ describe('Single user', () => {
 
     describe('PATCH /spaces/space', () => {
       let created: IWorkspace[];
+      let user1Token: string;
 
       // note: generate as many spaces as tests you perform
       // not have a "fresh" (or rather consistent) records in the data store.
       before(async () => {
-        await http.post(`${baseUri}/test/generate/spaces?size=4`);
-        const result = await http.get(`${baseUri}/spaces`);
+        user1Token = await http.createUserToken(baseUri);
+        await http.post(`${baseUri}/test/generate/spaces?size=4`, { token: user1Token });
+        const result = await http.get(`${baseUri}/spaces`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         created = list.data as IWorkspace[];
@@ -74,6 +77,7 @@ describe('Single user', () => {
         ];
         const result = await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
           body: JSON.stringify(patch),
+          token: user1Token,
         });
         assert.equal(result.status, 200, 'has 200 status code');
         const body = JSON.parse(result.body as string);
@@ -92,6 +96,7 @@ describe('Single user', () => {
         ];
         await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
           body: JSON.stringify(patch),
+          token: user1Token,
         });
         const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`);
         assert.equal(result.status, 200, 'has 200 status code');
@@ -109,6 +114,7 @@ describe('Single user', () => {
         ];
         const result = await http.patch(`${baseUri}/spaces/1234567890`, {
           body: JSON.stringify(patch),
+          token: user1Token,
         });
         assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
@@ -124,6 +130,7 @@ describe('Single user', () => {
         ];
         const result = await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
           body: JSON.stringify(patch),
+          token: user1Token,
         });
         assert.equal(result.status, 400, 'has 404 status code');
         const info = JSON.parse(result.body as string);

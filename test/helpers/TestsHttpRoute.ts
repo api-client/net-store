@@ -18,8 +18,11 @@ export class TestsHttpRoute extends BaseRoute {
     router.delete('/test/reset/sessions', this.handleDataResetSessions.bind(this));
     router.delete('/test/reset/spaces', this.handleDataResetSpaces.bind(this));
     router.delete('/test/reset/projects', this.handleDataResetProjects.bind(this));
+    router.delete('/test/reset/revisions', this.handleDataResetRevisions.bind(this));
+    router.delete('/test/reset/bin', this.handleDataResetBin.bind(this));
     router.post('/test/generate/spaces', this.handleDataGenerateSpaces.bind(this));
     router.post('/test/generate/projects/:space', this.handleDataGenerateSpaceProjects.bind(this));
+    router.post('/test/generate/revisions/pr/:project', this.handleDataGenerateProjectRevisions.bind(this));
   }
 
   protected async handleDataResetUsers(ctx: ParameterizedContext): Promise<void> {
@@ -58,6 +61,24 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
+  protected async handleDataResetRevisions(ctx: ParameterizedContext): Promise<void> {
+    try {
+      await this.testStore.clearRevisions();
+      ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleDataResetBin(ctx: ParameterizedContext): Promise<void> {
+    try {
+      await this.testStore.clearBin();
+      ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
   protected async handleDataGenerateSpaces(ctx: ParameterizedContext): Promise<void> {
     const { size='25', owner } = ctx.query;
     const sizeParam = Number(size);
@@ -84,6 +105,20 @@ export class TestsHttpRoute extends BaseRoute {
     const { space } = ctx.params;
     try {
       const generated = await this.testStore.generateProjects(space, sizeParam);
+      ctx.status = 200;
+      ctx.type = 'json';
+      ctx.body = generated;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleDataGenerateProjectRevisions(ctx: ParameterizedContext): Promise<void> {
+    const { size='25' } = ctx.query;
+    const sizeParam = Number(size);
+    const { project } = ctx.params;
+    try {
+      const generated = await this.testStore.generateRevisions(project, sizeParam);
       ctx.status = 200;
       ctx.type = 'json';
       ctx.body = generated;

@@ -13,7 +13,23 @@ export interface IRunningServer {
   portOrSocket: number | string;
 }
 
+export type ServerMode = 'single-user' | 'multi-user';
+
 export interface IServerConfiguration {
+  /**
+   * The model the store is on.
+   * 
+   * The `single-user` mode is the default mode where external user authentication is not required
+   * (but clients must use the auth token issued by the session endpoint).
+   * 
+   * In the `multi-user` model the authentication configuration is required and the user must 
+   * authenticate through an external identity provider (by default Open ID Connect is supported).
+   * After that the client has to create an authenticated session in the store service and use
+   * the token with the API calls.
+   * 
+   * @default single-user
+   */
+  mode?: ServerMode;
   /**
    * Router configuration options.
    */
@@ -88,17 +104,13 @@ export interface ICorsConfiguration {
 
 export interface IAuthenticationConfiguration {
   /**
-   * Whether the authentication is supported by the server.
-   */
-  enabled: boolean;
-  /**
    * The authentication protocol to use. Not set when just disabling the configuration.
    */
-  type?: AuthorizationTypes;
+  type: AuthorizationTypes;
   /**
    * The authentication configuration depending on the selected type.
    */
-  config?: AuthorizationSchemes;
+  config: AuthorizationSchemes;
 }
 
 export type AuthorizationSchemes = IOidcConfiguration;

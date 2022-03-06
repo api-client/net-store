@@ -146,18 +146,20 @@ export class AppSession {
    * Creates and stores a session for an authenticated client.
    * Note, this also regenerates the session id.
    * 
-   * @param sid The session id.
    * @param uid The user id.
+   * @param sid The unauthenticated session id, if any.
    * @returns The JWT to be returned to the client.
    */
-  async generateAuthenticatedSession(sid: string, uid: string): Promise<string> {
+  async generateAuthenticatedSession(uid: string, sid?: string): Promise<string> {
     const newSid = UUID.default();
     const info: ITokenContents = {
       sid: newSid,
     };
     const options = this.getSignOptions();
     const token = jwt.sign(info, this.secret, options);
-    await this.delete(sid);
+    if (sid) {
+      await this.delete(sid);
+    }
     await this.set(newSid, { authenticated: true, uid });
     return token;
   }

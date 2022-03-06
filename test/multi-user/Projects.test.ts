@@ -19,13 +19,12 @@ describe('Multi user', () => {
       baseUriWs = cnf.multiUserWsBaseUri;
     });
 
-    describe('POST /spaces/space/projects', () => {
-      let spaces: IWorkspace[];
+    describe('POST', () => {
+      let spaceKey: string;
       let user1Token: string;
+      
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
-        const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=2`, { token: user1Token });
-        spaces = JSON.parse(rawCreated.body as string);
       });
 
       after(async () => {
@@ -33,8 +32,12 @@ describe('Multi user', () => {
         await http.delete(`${baseUri}/test/reset/users`);
       });
 
+      beforeEach(async () => {
+        const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
+        spaceKey = (JSON.parse(rawCreated.body as string) as IWorkspace[])[0].key;
+      });
+
       it('creates a new project', async () => {
-        const spaceKey = spaces[0].key;
         const project = HttpProject.fromName('test');
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
@@ -47,7 +50,6 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid workspace', async () => {
-        const spaceKey = spaces[0].key;
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
@@ -60,7 +62,6 @@ describe('Multi user', () => {
       });
 
       it('returns an error when no user token', async () => {
-        const spaceKey = spaces[0].key;
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
@@ -72,7 +73,6 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid user token', async () => {
-        const spaceKey = spaces[0].key;
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
@@ -85,7 +85,6 @@ describe('Multi user', () => {
       });
 
       it('informs clients about new project', async () => {
-        const spaceKey = spaces[0].key;
         const messages: IBackendEvent[] = [];
         const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}?token=${user1Token}`);
@@ -107,9 +106,28 @@ describe('Multi user', () => {
         const item = ev.data as IHttpProjectListItem;
         assert.equal(item.name, 'test');
       });
+
+      it('lists over created project', async () => {
+        const project = HttpProject.fromName('test');
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const createResult = await http.post(`${baseUri}${httpPath}`, {
+          body: JSON.stringify(project),
+          token: user1Token,
+        });
+        assert.equal(createResult.status, 204, 'has 204 status');
+        const listPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const listResult = await http.get(`${baseUri}${listPath}`, {
+          token: user1Token,
+        });
+        const info = JSON.parse(listResult.body as string) as IListResponse;
+        
+        assert.lengthOf(info.data, 1, 'has a project');
+        const item = info.data[0] as IHttpProjectListItem;
+        assert.equal(item.key, project.key, 'has the created project');
+      });
     });
 
-    describe('GET /spaces/space/projects', () => {
+    describe('GET', () => {
       let spaceKey: string;
       let user1Token: string;
       before(async () => {

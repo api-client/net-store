@@ -1,13 +1,17 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, IHttpProject } from '@advanced-rest-client/core';
+import { 
+  IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, 
+  IHttpProjectListItem, IHttpProject, UserAccessOperation, IUser, 
+  AccessControlLevel,
+} from '@advanced-rest-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
 import { RouteBuilder } from '../../index.js';
 
-describe('Single user', () => {
+describe('Multi user', () => {
   let baseUri: string;
   let baseUriWs: string;
   const http = new HttpHelper();
@@ -15,8 +19,8 @@ describe('Single user', () => {
 
   before(async () => {
     const cnf = await getConfig();
-    baseUri = cnf.singleUserBaseUri;
-    baseUriWs = cnf.singleUserWsBaseUri;
+    baseUri = cnf.multiUserBaseUri;
+    baseUriWs = cnf.multiUserWsBaseUri;
   });
 
   describe('/spaces/space/projects/project', () => {
@@ -25,18 +29,26 @@ describe('Single user', () => {
       let projectKey: string;
       let refProject: IHttpProject;
       let user1Token: string;
+      let user2Token: string;
+      let user2Id: string;
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
-        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
-        spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
-        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token });
-        refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
-        projectKey = refProject.key;
+        user2Token = await http.createUserToken(baseUri);
+        const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
+        user2Id = (JSON.parse(user2Response.body as string) as IUser).key;
       });
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+      });
+
+      beforeEach(async () => {
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
+        spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
+        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token });
+        refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
+        projectKey = refProject.key;
       });
 
       it('reads project data', async () => {
@@ -47,12 +59,12 @@ describe('Single user', () => {
         assert.deepEqual(info, refProject, 'returns the project');
       });
 
-      it('returns 404 when no space', async () => {
+      it('returns 403 when no space', async () => {
         const path = RouteBuilder.buildSpaceProjectRoute('abcdef', projectKey);
         const result = await http.get(`${baseUri}${path}`, { token: user1Token });
-        assert.equal(result.status, 404, 'has 404 status code');
+        assert.equal(result.status, 403, 'has 403 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Space not found.');
+        assert.equal(info.message, 'Not authorized to read this space.');
       });
 
       it('returns 404 when no project', async () => {
@@ -62,13 +74,48 @@ describe('Single user', () => {
         const info = JSON.parse(result.body as string);
         assert.equal(info.message, 'Not found.');
       });
+
+      it('returns 401 when no auth token', async () => {
+        const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        const result = await http.get(`${baseUri}${path}`);
+        assert.equal(result.status, 401, 'has 401 status code');
+        const info = JSON.parse(result.body as string);
+        assert.equal(info.message, 'The client is not authorized to access this resource.');
+      });
+
+      const levels: AccessControlLevel[] = [
+        'read',
+        'comment',
+        'write',
+        'owner',
+      ];
+      
+      levels.forEach((access) => {
+        it(`can read share space project with ${access} level`, async () => {
+          const records: UserAccessOperation[] = [{
+            op: 'add',
+            uid: user2Id,
+            value: access,
+          }];
+          const body = JSON.stringify(records);
+          const usersPath = RouteBuilder.buildSpaceUsersRoute(spaceKey);
+          const response = await http.patch(`${baseUri}${usersPath}`, {
+            token: user1Token,
+            body,
+          });
+          assert.equal(response.status, 204, 'has the 204 status code');
+          const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+          const result = await http.get(`${baseUri}${path}`, { token: user2Token });
+          assert.equal(result.status, 200, 'has 200 status code');
+        });
+      });
     });
 
     describe('PATCH', () => {
+      let user1Token: string;
       let spaceKey: string;
       let projectKey: string;
       let refProject: IHttpProject;
-      let user1Token: string;
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
         const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
@@ -118,7 +165,7 @@ describe('Single user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        const result = await http.get(`${baseUri}${path}`);
+        const result = await http.get(`${baseUri}${path}`, { token: user1Token });
         assert.equal(result.status, 200, 'has 200 status code');
         const space = JSON.parse(result.body as string) as IHttpProject;
         assert.equal(space.info.name, 'Other name', 'has the applied patch');
@@ -137,9 +184,9 @@ describe('Single user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 404, 'has 404 status code');
+        assert.equal(result.status, 403, 'has 403 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found.');
+        assert.equal(info.message, 'Not authorized to read this space.');
       });
 
       it('returns 404 when no project', async () => {
@@ -273,7 +320,7 @@ describe('Single user', () => {
         const revPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
         await http.patch(`${baseUri}${path}`, { body: JSON.stringify(patch1), token: user1Token, });
         await http.patch(`${baseUri}${path}`, { body: JSON.stringify(patch2), token: user1Token, });
-        const result = await http.get(`${baseUri}${revPath}`);
+        const result = await http.get(`${baseUri}${revPath}`, { token: user1Token, });
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.lengthOf(list.data, 2, 'has 2 patches');
         const [p1, p2] = (list.data as IRevisionInfo[]);
@@ -283,7 +330,7 @@ describe('Single user', () => {
 
       it('updates project update time', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const r1 = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
+        const r1 = await http.get(`${baseUri}${httpPath}`, { token: user1Token, });
         const listBefore = JSON.parse(r1.body as string) as IListResponse;
         const patch: JsonPatch = [
           {
@@ -297,7 +344,7 @@ describe('Single user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        const r2 = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
+        const r2 = await http.get(`${baseUri}${httpPath}`, { token: user1Token, });
         const listAfter = JSON.parse(r2.body as string) as IListResponse;
         // projects list is ordered by last update time.
         const itemBefore = listBefore.data[0] as IHttpProjectListItem;
@@ -310,8 +357,8 @@ describe('Single user', () => {
       let spaceKey: string;
       let projectKey: string;
       let refProject: IHttpProject;
-
       let user1Token: string;
+
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
       });
@@ -323,25 +370,25 @@ describe('Single user', () => {
       });
 
       beforeEach(async () => {
-        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token, });
         spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
-        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token });
+        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token, });
         refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
         projectKey = refProject.key;
       });
 
       it('returns the 204 status code', async () => {
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
-        const result = await http.delete(`${baseUri}${path}`, { token: user1Token });
+        const result = await http.delete(`${baseUri}${path}`, { token: user1Token, });
         assert.equal(result.status, 204);
       });
 
       it('cannot iterate the project', async () => {
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
-        await http.delete(`${baseUri}${path}`, { token: user1Token });
+        await http.delete(`${baseUri}${path}`, { token: user1Token, });
 
         const readPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const readResult = await http.get(`${baseUri}${readPath}`, { token: user1Token });
+        const readResult = await http.get(`${baseUri}${readPath}`, { token: user1Token, });
         const list = JSON.parse(readResult.body as string) as IListResponse;
         assert.lengthOf(list.data, 0);
       });
@@ -349,7 +396,7 @@ describe('Single user', () => {
       it('cannot read the project', async () => {
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
         await http.delete(`${baseUri}${path}`, { token: user1Token });
-        const readResult = await http.get(`${baseUri}${path}`, { token: user1Token });
+        const readResult = await http.get(`${baseUri}${path}`, { token: user1Token, });
         assert.equal(readResult.status, 404);
       });
 
@@ -362,7 +409,7 @@ describe('Single user', () => {
         });
 
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
-        await http.delete(`${baseUri}${path}`, { token: user1Token });
+        await http.delete(`${baseUri}${path}`, { token: user1Token, });
         
         await ws.disconnect(client);
         assert.lengthOf(messages, 1, 'received one event');
@@ -382,7 +429,7 @@ describe('Single user', () => {
         });
 
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
-        await http.delete(`${baseUri}${path}`, { token: user1Token });
+        await http.delete(`${baseUri}${path}`, { token: user1Token, });
         
         await ws.disconnect(client);
         assert.lengthOf(messages, 1, 'received one event');
@@ -398,9 +445,10 @@ describe('Single user', () => {
   describe('/spaces/space/projects/project/revisions', () => {
     describe('GET', () => {
       let spaceKey: string;
+      let user1Token: string;
       let projectKey: string;
       let refProject: IHttpProject;
-      let user1Token: string;
+
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
       });
@@ -412,17 +460,17 @@ describe('Single user', () => {
       });
 
       beforeEach(async () => {
-        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token, });
         spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
-        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token });
+        const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token, });
         refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
         projectKey = refProject.key;
-        await http.post(`${baseUri}/test/generate/revisions/pr/${projectKey}?size=40`, { token: user1Token });
+        await http.post(`${baseUri}/test/generate/revisions/pr/${projectKey}?size=40`, { token: user1Token, });
       });
 
       it('returns results and the page token', async () => {
         const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
+        const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token, });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -432,7 +480,7 @@ describe('Single user', () => {
 
       it('supports the limit parameter', async () => {
         const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token });
+        const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token, });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -442,10 +490,10 @@ describe('Single user', () => {
 
       it('paginates to the next page', async () => {
         const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token });
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token, });
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token, });
         assert.equal(result2.status, 200, '(request2) has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
@@ -455,10 +503,10 @@ describe('Single user', () => {
 
       it('reaches the end of pagination', async () => {
         const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token, });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token, });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
@@ -466,16 +514,16 @@ describe('Single user', () => {
 
       it('returns the same cursor when no more entries', async () => {
         const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token, });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
 
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token, });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has the remaining');
 
-        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token });
+        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token, });
         assert.equal(result3.status, 200, 'has the 200 status');
         const list3 = JSON.parse(result3.body as string) as IListResponse;
         assert.lengthOf(list3.data, 0, 'has no more entries');

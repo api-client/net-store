@@ -146,12 +146,19 @@ export default class HttpHelper {
    */
   async createUserToken(baseUri: string): Promise<string> {
     const initToken = await this.createSession(baseUri);
+    const meRoute = `${baseUri}/users/me`;
+    const preTest = await this.get(meRoute, {
+      token: initToken,
+    });
+    if (preTest.status === 200) {
+      return initToken;
+    }
     const path = await this.getAuthSessionEndpoint(baseUri, initToken);
     const authUrl = new URL(`/v1${path}`, baseUri);
     await this.get(authUrl.toString());
     // when the above finishes we are either authenticated as a user or not.
     // We gonna check the /users/me endpoint for confirmation.
-    const result = await this.get(`${baseUri}/users/me`, {
+    const result = await this.get(meRoute, {
       token: initToken,
     });
     // we expect a user info

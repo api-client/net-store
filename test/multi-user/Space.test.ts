@@ -1,12 +1,14 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
 import { 
-  IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, IBackendEvent,
+  IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
+  IBackendEvent, HttpProject, AccessControlLevel,
 } from '@advanced-rest-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
+import { RouteBuilder } from '../../index.js';
 
 describe('Multi user', () => {
   describe('/spaces/space', () => {
@@ -21,7 +23,7 @@ describe('Multi user', () => {
       baseUriWs = cnf.multiUserWsBaseUri;
     });
 
-    describe('GET /spaces/space', () => {
+    describe('GET', () => {
       let created: IWorkspace[];
       let user1Token: string;
 
@@ -30,7 +32,8 @@ describe('Multi user', () => {
         await http.post(`${baseUri}/test/generate/spaces?size=4`, {
           token: user1Token,
         });
-        const result = await http.get(`${baseUri}/spaces`, {
+        const basePath = RouteBuilder.buildSpacesRoute();
+        const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
         assert.equal(result.status, 200, 'has the 200 status');
@@ -44,8 +47,9 @@ describe('Multi user', () => {
       });
 
       it('reads a space info', async () => {
-        const srcSpace = created[0];
-        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`, {
+        const srcSpace = created[0]; 
+        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
         assert.equal(result.status, 200, 'has 200 status code');
@@ -54,7 +58,8 @@ describe('Multi user', () => {
       });
 
       it('returns 403 when no space', async () => {
-        const result = await http.get(`${baseUri}/spaces/1234567890`, {
+        const basePath = RouteBuilder.buildSpaceRoute('1234567890');
+        const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
         assert.equal(result.status, 403, 'has 403 status code');
@@ -64,14 +69,15 @@ describe('Multi user', () => {
 
       it('returns 401 when no credentials', async () => {
         const srcSpace = created[0];
-        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`);
+        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const result = await http.get(`${baseUri}${basePath}`);
         assert.equal(result.status, 401, 'has 401 status code');
         const info = JSON.parse(result.body as string);
         assert.equal(info.message, 'The client is not authorized to access this resource.');
       });
     });
 
-    describe('PATCH /spaces/space', () => {
+    describe('PATCH', () => {
       let created: IWorkspace[];
       let other: IWorkspace[];
       let user1Token: string;
@@ -102,7 +108,8 @@ describe('Multi user', () => {
             value: 'New name',
           }
         ];
-        const result = await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
+        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
         });
@@ -121,11 +128,12 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
+        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`, {
+        const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
         
@@ -142,7 +150,8 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        const result = await http.patch(`${baseUri}/spaces/1234567890`, {
+        const basePath = RouteBuilder.buildSpaceRoute('1234567890');
+        const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
         });
@@ -159,7 +168,8 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        const result = await http.patch(`${baseUri}/spaces/${other[0].key}`, {
+        const basePath = RouteBuilder.buildSpaceRoute(other[0].key);
+        const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
         });
@@ -175,7 +185,8 @@ describe('Multi user', () => {
             test: "hello"
           }
         ];
-        const result = await http.patch(`${baseUri}/spaces/${srcSpace.key}`, {
+        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
         });
@@ -185,7 +196,7 @@ describe('Multi user', () => {
       });
     });
 
-    describe('PATCH /spaces/space/users (adding users)', () => {
+    describe('PATCH (adding users)', () => {
       let u1spaces: IWorkspace[];
       let u2spaces: IWorkspace[];
       let user1Token: string;
@@ -419,7 +430,7 @@ describe('Multi user', () => {
       });
     });
 
-    describe('PATCH /spaces/space/users (removing users)', () => {
+    describe('PATCH (removing users)', () => {
       let u1spaces: IWorkspace[];
       // let u2spaces: IWorkspace[];
       let user1Token: string;
@@ -530,6 +541,159 @@ describe('Multi user', () => {
         assert.equal(ev.operation, 'access-removed');
         assert.equal(ev.kind, 'ARC#Space');
         assert.equal(ev.id, key);
+      });
+    });
+
+    describe('DELETE', () => {
+      let spaceKey: string;
+      let user1Token: string;
+      let user2Token: string;
+      let user2Id: string;
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+        user2Token = await http.createUserToken(baseUri);
+        const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
+        user2Id = (JSON.parse(user2Response.body as string) as IUser).key;
+      });
+
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/spaces`);
+      });
+
+      beforeEach(async () => {
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
+        spaceKey = (JSON.parse(rawSpaces.body as string) as IWorkspace[])[0].key;
+      });
+
+      it('deletes the space', async () => {
+        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const result = await http.delete(`${baseUri}${basePath}`, {
+          token: user1Token,
+        });
+        assert.equal(result.status, 204, 'has the 204 status code.');
+        const readResult = await http.get(`${baseUri}${basePath}`, {
+          token: user1Token,
+        });
+        assert.equal(readResult.status, 404, 'the read has the 404 status code.');
+      });
+
+      it('deletes space projects from the cache', async () => {
+        const project = HttpProject.fromName('test');
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const createResult = await http.post(`${baseUri}${httpPath}`, {
+          body: JSON.stringify(project),
+          token: user1Token,
+        });
+        assert.equal(createResult.status, 204, 'has project create status')
+        const projectUrl = `${baseUri}${createResult.headers.location}`;
+        const firstRead = await http.get(projectUrl, { token: user1Token });
+        assert.equal(firstRead.status, 200, 'can read the project');
+
+        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const result = await http.delete(`${baseUri}${basePath}`, {
+          token: user1Token,
+        });
+        assert.equal(result.status, 204, 'has the 204 status code.');
+        const secondRead = await http.get(projectUrl, { token: user1Token });
+        assert.equal(secondRead.status, 404, 'the project cannot be read.');
+      });
+
+      it('deletes the space by a shared user as owner', async () => {
+        const records: UserAccessOperation[] = [{
+          op: 'add',
+          uid: user2Id,
+          value: 'owner',
+        }];
+        const body = JSON.stringify(records);
+        const usersPath = RouteBuilder.buildSpaceUsersRoute(spaceKey);
+        const response = await http.patch(`${baseUri}${usersPath}`, {
+          token: user1Token,
+          body,
+        });
+        assert.equal(response.status, 204, 'has the 204 status code');
+        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const result = await http.delete(`${baseUri}${basePath}`, {
+          token: user2Token,
+        });
+        assert.equal(result.status, 204, 'has the 204 status code.');
+      });
+
+      const levels: AccessControlLevel[] = [
+        'read',
+        'comment',
+        'write',
+      ];
+
+      levels.forEach((access) => {
+        it(`does not delete the space by a shared user with ${access} access`, async () => {
+          const records: UserAccessOperation[] = [{
+            op: 'add',
+            uid: user2Id,
+            value: access,
+          }];
+          const body = JSON.stringify(records);
+          const usersPath = RouteBuilder.buildSpaceUsersRoute(spaceKey);
+          const response = await http.patch(`${baseUri}${usersPath}`, {
+            token: user1Token,
+            body,
+          });
+          assert.equal(response.status, 204, 'has the 204 status code');
+          const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+          const result = await http.delete(`${baseUri}${basePath}`, {
+            token: user2Token,
+          });
+          assert.equal(result.status, 403, 'has the 403 status code.');
+        });
+      });
+
+      it('notifies spaces clients about the space delete', async () => {
+        const messages: IBackendEvent[] = [];
+        const wsPath = RouteBuilder.buildSpacesRoute();
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
+        client.on('message', (data: RawData) => {
+          messages.push(JSON.parse(data.toString()));
+        });
+
+        const path = RouteBuilder.buildSpaceRoute(spaceKey);
+        await http.delete(`${baseUri}${path}`, { token: user1Token, });
+        
+        await ws.disconnect(client);
+        assert.lengthOf(messages, 1, 'received one event');
+        const [ev] = messages;
+        assert.equal(ev.type, 'event');
+        assert.equal(ev.operation, 'deleted');
+        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.id, spaceKey);
+      });
+
+      it('notifies project clients about the space delete', async () => {
+        const project = HttpProject.fromName('test');
+        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const createResult = await http.post(`${baseUri}${httpPath}`, {
+          body: JSON.stringify(project),
+          token: user1Token,
+        });
+        assert.equal(createResult.status, 204, 'has project create status')
+        const projectKey = project.key;
+
+        const messages: IBackendEvent[] = [];
+        const wsPath = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
+        client.on('message', (data: RawData) => {
+          messages.push(JSON.parse(data.toString()));
+        });
+
+        const path = RouteBuilder.buildSpaceRoute(spaceKey);
+        await http.delete(`${baseUri}${path}`, { token: user1Token, });
+        
+        await ws.disconnect(client);
+        assert.lengthOf(messages, 1, 'received one event');
+        const [ev] = messages;
+        assert.equal(ev.type, 'event');
+        assert.equal(ev.operation, 'deleted');
+        assert.equal(ev.kind, 'ARC#HttpProject');
+        assert.equal(ev.id, projectKey);
       });
     });
   });

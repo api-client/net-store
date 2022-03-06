@@ -17,6 +17,11 @@ describe('Single user', () => {
     });
 
     describe('POST /spaces', () => {
+      let user1Token: string;
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+      });
+
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
       });
@@ -24,6 +29,7 @@ describe('Single user', () => {
       it('creates a new space', async () => {
         const space = Workspace.fromName('test');
         const result = await http.post(`${baseUri}/spaces`, {
+          token: user1Token,
           body: JSON.stringify(space),
         });
         assert.equal(result.status, 204, 'has 204 status');
@@ -34,6 +40,7 @@ describe('Single user', () => {
       it('returns an error when invalid workspace', async () => {
         const result = await http.post(`${baseUri}/spaces`, {
           body: JSON.stringify({}),
+          token: user1Token,
         });
         assert.equal(result.status, 400, 'has 400 status');
         const body = result.body as string;
@@ -44,9 +51,11 @@ describe('Single user', () => {
       it('adds the user as the owner', async () => {
         const response = await http.post(`${baseUri}/spaces`, {
           body: JSON.stringify(Workspace.fromName('test')),
+          token: user1Token,
         });
+        
         const url = new URL(`${prefix}${response.headers.location}`, baseUri);
-        const result = await http.get(url.toString());
+        const result = await http.get(url.toString(), { token: user1Token, });
         assert.equal(result.status, 200, 'has 200 status');
         
         const space = JSON.parse(result.body as string) as IUserWorkspace;
@@ -55,16 +64,18 @@ describe('Single user', () => {
     });
 
     describe('GET /spaces', () => {
+      let user1Token: string;
       before(async () => {
-        await http.post(`${baseUri}/test/generate/spaces?size=40`);
+        user1Token = await http.createUserToken(baseUri);
+        await http.post(`${baseUri}/test/generate/spaces?size=40`, { token: user1Token });
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/spaces`, { token: user1Token });
       });
 
       it('returns results and the page token', async () => {
-        const result = await http.get(`${baseUri}/spaces`);
+        const result = await http.get(`${baseUri}/spaces`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -76,7 +87,7 @@ describe('Single user', () => {
       });
 
       it('supports the limit parameter', async () => {
-        const result = await http.get(`${baseUri}/spaces?limit=4`);
+        const result = await http.get(`${baseUri}/spaces?limit=4`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -88,10 +99,10 @@ describe('Single user', () => {
       });
 
       it('paginates to the next page', async () => {
-        const result1 = await http.get(`${baseUri}/spaces?limit=2`);
+        const result1 = await http.get(`${baseUri}/spaces?limit=2`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
@@ -100,26 +111,26 @@ describe('Single user', () => {
       });
 
       it('reaches the end of pagination', async () => {
-        const result1 = await http.get(`${baseUri}/spaces?limit=35`);
+        const result1 = await http.get(`${baseUri}/spaces?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
       });
 
       it('returns the same cursor when no more entries', async () => {
-        const result1 = await http.get(`${baseUri}/spaces?limit=35`);
+        const result1 = await http.get(`${baseUri}/spaces?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
 
-        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has the remaining');
 
-        const result3 = await http.get(`${baseUri}/spaces?cursor=${list2.cursor}`);
+        const result3 = await http.get(`${baseUri}/spaces?cursor=${list2.cursor}`, { token: user1Token });
         assert.equal(result3.status, 200, 'has the 200 status');
         const list3 = JSON.parse(result3.body as string) as IListResponse;
         assert.lengthOf(list3.data, 0, 'has no more entries');

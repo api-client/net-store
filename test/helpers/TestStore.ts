@@ -1,4 +1,7 @@
-import { Workspace, IUserSpaces, IAccessControl, IWorkspace, IHttpProject, HttpProject, IHttpProjectListItem } from '@advanced-rest-client/core';
+import { 
+  Workspace, IUserSpaces, IAccessControl, IWorkspace, IHttpProject, 
+  HttpProject, IHttpProjectListItem, IRevisionInfo, HttpProjectKind,
+} from '@advanced-rest-client/core';
 import { DataMock } from '@pawel-up/data-mock';
 import { PutBatch } from 'abstract-leveldown';
 import { ArcLevelUp } from '../../index.js';
@@ -37,6 +40,20 @@ export class TestStore extends ArcLevelUp {
     }
     if (projectsData) {
       await projectsData.clear();
+    }
+  }
+
+  async clearRevisions(): Promise<void> {
+    const { projectRevisions } = this;
+    if (projectRevisions) {
+      await projectRevisions.clear();
+    }
+  }
+
+  async clearBin(): Promise<void> {
+    const { trashBin } = this;
+    if (trashBin) {
+      await trashBin.clear();
     }
   }
 
@@ -117,5 +134,39 @@ export class TestStore extends ArcLevelUp {
     await projectsData.batch(data);
 
     return result;
+  }
+
+  async generateRevisions(projectKey: string, size=25): Promise<void> {
+    const { projectRevisions } = this;
+    if (!projectRevisions) {
+      throw new Error(`Store not initialized.`);
+    }
+    const data: PutBatch[] = [];
+    const result: IRevisionInfo[] = [];
+    let created = Date.now();
+    for (let i = 0; i < size; i++) {
+      created += this.mock.types.number({ min: 1, max: 10000 });
+      const id = `~project~${projectKey}~${created}~`;
+      const patch: any = {
+        op: 'replace',
+        path: '/info/name',
+        value: this.mock.lorem.word(),
+      };
+      const info: IRevisionInfo = {
+        id,
+        key: projectKey,
+        kind: HttpProjectKind,
+        created,
+        deleted: false,
+        patch,
+      };
+      result.push(info);
+      data.push({
+        type: 'put',
+        key: id,
+        value: JSON.stringify(info),
+      });
+    }
+    await projectRevisions.batch(data);
   }
 }

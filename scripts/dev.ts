@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { DefaultLogger } from '@advanced-rest-client/core';
 import { ArcLevelUp, Server } from '../index.js';
 

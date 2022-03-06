@@ -21,8 +21,10 @@ describe('Single user', () => {
 
     describe('POST /spaces/space/projects', () => {
       let spaces: IWorkspace[];
+      let user1Token: string;
       before(async () => {
-        const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=2`);
+        user1Token = await http.createUserToken(baseUri);
+        const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=2`, { token: user1Token });
         spaces = JSON.parse(rawCreated.body as string);
       });
 
@@ -36,6 +38,7 @@ describe('Single user', () => {
         const project = HttpProject.fromName('test');
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
+          token: user1Token,
         });
         assert.equal(result.status, 204, 'has 204 status');
         assert.include(result.headers.location, `${httpPath}/`, 'has the location');
@@ -47,6 +50,7 @@ describe('Single user', () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
+          token: user1Token,
         });
         assert.equal(result.status, 400, 'has 400 status');
         const body = result.body as string;
@@ -59,12 +63,13 @@ describe('Single user', () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const messages: IBackendEvent[] = [];
         const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
-        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`);
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
         await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(HttpProject.fromName('test')),
+          token: user1Token,
         });
         await ws.disconnect(client);
         assert.lengthOf(messages, 1, 'received one event');
@@ -81,10 +86,12 @@ describe('Single user', () => {
     describe('GET /spaces/space/projects', () => {
       let spaceKey: string;
 
+      let user1Token: string;
       before(async () => {
-        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`);
+        user1Token = await http.createUserToken(baseUri);
+        const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
         spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
-        await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=40`);
+        await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=40`, { token: user1Token });
       });
 
       after(async () => {
@@ -94,7 +101,7 @@ describe('Single user', () => {
 
       it('returns results and the page token', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result = await http.get(`${baseUri}${httpPath}`);
+        const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -108,7 +115,7 @@ describe('Single user', () => {
 
       it('supports the limit parameter', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result = await http.get(`${baseUri}${httpPath}?limit=4`);
+        const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -118,10 +125,10 @@ describe('Single user', () => {
 
       it('paginates to the next page', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token });
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, '(request2) has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
@@ -131,10 +138,10 @@ describe('Single user', () => {
 
       it('reaches the end of pagination', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
@@ -142,16 +149,16 @@ describe('Single user', () => {
 
       it('returns the same cursor when no more entries', async () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`);
+        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
 
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`);
+        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has the remaining');
 
-        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`);
+        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token });
         assert.equal(result3.status, 200, 'has the 200 status');
         const list3 = JSON.parse(result3.body as string) as IListResponse;
         assert.lengthOf(list3.data, 0, 'has no more entries');

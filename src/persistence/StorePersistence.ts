@@ -235,6 +235,28 @@ export abstract class StorePersistence {
   }
 
   /**
+   * Checks whether the user has read or write access to the space.
+   * 
+   * It throws errors when the user has no access or when the user has no access to the resource.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param key The user space key.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  abstract checkSpaceAccess(minimumLevel: AccessControlLevel, key: string, user?: IUser): Promise<AccessControlLevel>;
+  /**
+   * Similar to `checkSpaceAccess()` but it check for the access to a project.
+   * Since projects inherit access from the parent space it is mostly the same logic as in `checkSpaceAccess()` but it also tests whether the
+   * project was deleted.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param space The user space key.
+   * @param project The project key.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  abstract checkProjectAccess(minimumLevel: AccessControlLevel, space: string, project: string, user?: IUser): Promise<AccessControlLevel>;
+
+  /**
    * Lists spaces of a user. When user is not set it lists all spaces as this means a single-user environment.
    * 
    * @param options Listing options.

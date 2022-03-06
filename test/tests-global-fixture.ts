@@ -83,8 +83,8 @@ export const mochaGlobalSetup = async () => {
     session: {
       secret: 'EOX0Xu6aSb',
     },
+    mode: 'multi-user',
     authentication: {
-      enabled: true,
       type: 'oidc',
       config: {
         issuerUri: oauthServer.issuer.url as string,
