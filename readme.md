@@ -1,8 +1,8 @@
-# Advanced REST Client's Net Store
+# API Client's Net Store
 
-This library is a self-contained backend store for ARC's applications. It is designed to:
+This library is a self-contained backend store for API Client ecosystem applications. It is designed to:
 
-- work as a local service installed with ARC / API Client applications in a single-user environment
+- work as a local service installed with API Client applications in a single-user environment
 - run in a local network allowing remote access to the application data (single-, and multi-user environment)
 - run in a container as a www service (see limitations below)
 

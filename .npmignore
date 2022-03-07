@@ -7,7 +7,9 @@ test/
 cli.md
 commitlint.config.cjs
 tsconfig.json
-tsconfig-tests.json
+tsconfig.production.json
 develop
 build/scripts/
 scripts/secrets.ts
+index.ts
+json8-patch.d.ts

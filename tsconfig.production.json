@@ -1,5 +1,9 @@
 {
   "extends": "./tsconfig",
+  "include": [
+    "src/**/*",
+    "index.ts"
+  ],
   "exclude": [
     "scripts/dev.ts",
     "scripts/dev-auth.ts"
