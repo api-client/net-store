@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import { Options as CorsOptions } from '@koa/cors';
 import { DefaultState } from 'koa';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, ILogger } from '@api-client/core';
 import { Authentication } from './authentication/Authentication.js'
 
 export type SupportedServer = 'https' | 'http';
@@ -13,7 +13,23 @@ export interface IRunningServer {
   portOrSocket: number | string;
 }
 
+export type ServerMode = 'single-user' | 'multi-user';
+
 export interface IServerConfiguration {
+  /**
+   * The model the store is on.
+   * 
+   * The `single-user` mode is the default mode where external user authentication is not required
+   * (but clients must use the auth token issued by the session endpoint).
+   * 
+   * In the `multi-user` model the authentication configuration is required and the user must 
+   * authenticate through an external identity provider (by default Open ID Connect is supported).
+   * After that the client has to create an authenticated session in the store service and use
+   * the token with the API calls.
+   * 
+   * @default single-user
+   */
+  mode?: ServerMode;
   /**
    * Router configuration options.
    */
@@ -42,6 +58,17 @@ export interface IServerConfiguration {
    * Note, the server does not use the HTTP session mechanisms (like cookies). It handles it's session via the authorization header.
    */
   session?: ISessionConfiguration;
+  /**
+   * The logger object to use.
+   */
+  logger?: ILogger;
+}
+
+export interface ITestingServerConfiguration extends IServerConfiguration {
+  /**
+   * This is for API testing in the CI only
+   */
+  testing: true;
 }
 
 export interface ISessionConfiguration {
@@ -77,17 +104,13 @@ export interface ICorsConfiguration {
 
 export interface IAuthenticationConfiguration {
   /**
-   * Whether the authentication is supported by the server.
-   */
-  enabled: boolean;
-  /**
    * The authentication protocol to use. Not set when just disabling the configuration.
    */
-  type?: AuthorizationTypes;
+  type: AuthorizationTypes;
   /**
    * The authentication configuration depending on the selected type.
    */
-  config?: AuthorizationSchemes;
+  config: AuthorizationSchemes;
 }
 
 export type AuthorizationSchemes = IOidcConfiguration;
@@ -113,6 +136,13 @@ export interface IOidcConfiguration {
    * The redirect URI must point back to the same domain, port, and base URI as this server.
    */
   redirectBaseUri: string;
+  /**
+   * You want to use it ONLY when you have a local OAuth server
+   * that has a self-signed certificate. This will suppress errors related 
+   * to invalid certificates.
+   * **Do not set this for public OAuth providers!**
+   */
+  ignoreCertErrors?: boolean;
 }
 
 export interface IRouterConfiguration {

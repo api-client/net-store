@@ -1,8 +1,11 @@
 import { WebSocketServer, WebSocket, Server, RawData } from 'ws';
 import { EventEmitter } from 'events'
 import http from 'http';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, Logger } from '@api-client/core';
 import Clients from './WsClients.js';
+import { StorePersistence } from '../persistence/StorePersistence.js';
+import { BackendInfo } from '../BackendInfo.js';
+import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 export interface ClientInfo {
   /**
@@ -16,6 +19,13 @@ export interface ClientInfo {
   socket: WebSocket;
 }
 
+export interface ISocketRouteInit {
+  store: StorePersistence;
+  logger: Logger;
+  info: BackendInfo;
+  projectsCache: ProjectsCache;
+}
+
 export interface SocketRoute {
   /**
    * Emitted when the server has no more connections and should be closed.
@@ -27,6 +37,11 @@ export interface SocketRoute {
  * The base class for web sockets servers and routes.
  */
 export abstract class SocketRoute extends EventEmitter {
+  protected info: BackendInfo;
+  protected store: StorePersistence; 
+  protected logger: Logger;
+  protected projectsCache: ProjectsCache;
+
   server?: Server<WebSocket>;
   /**
    * The route data, e.g. ['spaces', '[spaceId]', 'projects', '[projectId]']
@@ -38,11 +53,23 @@ export abstract class SocketRoute extends EventEmitter {
    */
   routeUrl = '/';
 
-  constructor() {
+  constructor(init: ISocketRouteInit) {
     super();
+    this.info = init.info;
+    this.store = init.store;
+    this.logger = init.logger;
+    this.projectsCache = init.projectsCache;
     this._connectionHandler = this._connectionHandler.bind(this);
     this._closeHandler = this._closeHandler.bind(this);
   }
+
+  /**
+   * Each WS route must implement this method.
+   * It checks whether the user is authorized to access the route.
+   * 
+   * @param user Optional user information.
+   */
+  abstract isAuthorized(user?: IUser): Promise<boolean>;
 
   closeWhenNeeded(): void {
     if (Clients.count(this.routeUrl) === 0) {
@@ -88,6 +115,14 @@ export abstract class SocketRoute extends EventEmitter {
     });
   }
 
+  /**
+   * Finds the client for the given channel and returns associated user information.
+   * @param ws The channel object
+   */
+  getUserInfo(ws: WebSocket): IUser | undefined {
+    return Clients.getUserByChannel(ws);
+  }
+
   protected abstract _connectionHandler(ws: WebSocket, req: http.IncomingMessage, user?: IUser, sid?: string): void;
   
   protected _closeHandler(): void {
@@ -114,11 +149,12 @@ export abstract class SocketRoute extends EventEmitter {
     return result;
   }
 
-  sendError(ws: WebSocket, cause: string): void {
+  sendError(ws: WebSocket, cause: string, path = this.routeUrl): void {
     const message = JSON.stringify({
       error: true,
       cause: `Unable to process spaces query: ${cause}`,
       time: Date.now(),
+      path,
     });
     ws.send(message);
   }

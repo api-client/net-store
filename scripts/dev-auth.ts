@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+import { DefaultLogger } from '@api-client/core';
 import { ArcLevelUp, Server } from '../index.js';
 import Secrets from './secrets.js';
 
@@ -10,8 +12,11 @@ class DevelopmentEnvironment {
   server: Server;
 
   constructor() {
-    this.store = new ArcLevelUp('develop/auth');
+    const logger = new DefaultLogger();
+    this.store = new ArcLevelUp(logger, 'develop/auth');
     this.server = new Server(this.store, {
+      mode: 'multi-user',
+      logger,
       router: {
         prefix,
       },
@@ -19,7 +24,6 @@ class DevelopmentEnvironment {
         secret: Secrets.secret,
       },
       authentication: {
-        enabled: true,
         type: 'oidc',
         config: {
           issuerUri: 'https://accounts.google.com/',

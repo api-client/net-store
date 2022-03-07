@@ -1,14 +1,19 @@
-import { IBackendInfo } from '@advanced-rest-client/core';
+import { IBackendInfo } from '@api-client/core';
+import { ServerMode } from './definitions.js';
 
-class BackendInfo {
-  hasAuthentication = false;
+export class BackendInfo {
+  mode: ServerMode = 'single-user';
+  /**
+   * This is not intended for production.
+   * It tells the API that it is running in a testing mode
+   * (it has unprotected API to destroy data!)
+   */
+  testing = false;
 
   toJSON(): IBackendInfo {
     const info: IBackendInfo = {
-      hasAuthentication: this.hasAuthentication,
+      mode: this.mode,
     };
-    return info;
+    return info as IBackendInfo;
   }
 }
-const instance = new BackendInfo();
-export default instance;

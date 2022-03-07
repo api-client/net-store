@@ -61,3 +61,4 @@ build
 test/express.lock
 develop
 scripts/secrets.ts
+test/data/

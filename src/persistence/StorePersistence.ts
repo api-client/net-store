@@ -1,4 +1,7 @@
-import { IUser, IWorkspace, UUID, IUserWorkspace, AccessControlLevel, IHttpProject } from '@advanced-rest-client/core';
+import { 
+  IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, 
+  UserAccessOperation, Logger,
+} from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 
 export interface IListOptions {
@@ -15,25 +18,21 @@ export interface IListOptions {
    */
   limit?: number;
   /**
-   * The start key to use.
+   * Supported by some endpoints. When set it performs a query on the data store.
    */
-  start?: string;
+  query?: string;
   /**
-   * The last key to use.
+   * Only with the `query` property. Tells the system in which fields to search for the query term.
    */
-  end?: string;
-}
-
-export interface IListResponse {
-  /**
-   * The cursor to use with the next query.
-   * Not set when no more results.
-   */
-  cursor?: string;
-  /**
-   * The list of objects returned from the store.
-   */
-  data: unknown[];
+  queryField?: string[];
+  // /**
+  //  * The start key to use.
+  //  */
+  // start?: string;
+  // /**
+  //  * The last key to use.
+  //  */
+  // end?: string;
 }
 
 export interface IListState {
@@ -54,6 +53,14 @@ export interface IListState {
    * The last key to use.
    */
   end?: string;
+  /**
+   * Supported by some endpoints. When set it performs a query on the data store.
+   */
+  query?: string;
+  /**
+   * Only with the `query` property. Tells the system in which fields to search for the query term.
+   */
+  queryField?: string[];
 }
 
 /**
@@ -66,9 +73,15 @@ export abstract class StorePersistence {
    */
   defaultLimit = 35;
   /**
-   * Initializes the data store. IE, opens the connection, creates a filesystem, etc.
+   * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.
    */
   abstract initialize(): Promise<void>;
+  /**
+   * Cleans up before closing the server.
+   */
+  abstract cleanup(): Promise<void>;
+
+  constructor(protected logger: Logger) { }
 
   /**
    * Creates a default space for the user. This is called when the user has no spaces created.
@@ -76,14 +89,9 @@ export abstract class StorePersistence {
    * @param owner The owning user. When not set the `default` is set for the single-user environment.
    * @returns The workspace to create for the user.
    */
-  defaultSpace(owner = 'default'): IWorkspace {
-    const info: IWorkspace = {
-      key: UUID.default(),
-      name: 'Default',
-      owner,
-      projects: [],
-    };
-    return info;
+  defaultSpace(owner?: string): IWorkspace {
+    const workspace = Workspace.fromName('Drafts', owner);
+    return workspace.toJSON();
   }
 
   /**
@@ -129,12 +137,18 @@ export abstract class StorePersistence {
       } else {
         state.limit = this.defaultLimit;
       }
-      if (options.start) {
-        state.start = options.start;
+      if (options.query) {
+        state.query = options.query;
       }
-      if (options.end) {
-        state.end = options.end;
+      if (Array.isArray(options.queryField) && options.queryField.length) {
+        state.queryField = options.queryField;
       }
+      // if (options.start) {
+      //   state.start = options.start;
+      // }
+      // if (options.end) {
+      //   state.end = options.end;
+      // }
     }
     return state;
   }
@@ -149,13 +163,25 @@ export abstract class StorePersistence {
   }
 
   /**
+   * Checks whether the given access level allows the user to write changes to a resource.
+   * @param access The user access level.
+   * @returns True when write is allowed.
+   */
+  canRead(access: AccessControlLevel): boolean {
+    if (this.canWrite(access)) {
+      return true;
+    }
+    return ['read', 'comment'].includes(access);
+  }
+
+  /**
    * Encoded the current state of the list search into the cursor string.
    * 
    * @param state The state of the search.
    * @param lastKey The last read key from the store.
    * @returns Encoded cursor.
    */
-   encodeCursor(state: IListState = {}, lastKey?: string): string {
+  encodeCursor(state: IListState = {}, lastKey?: string): string {
     const copy: IListState = { ...state };
     if (!copy.limit) {
       copy.limit = this.defaultLimit;
@@ -165,7 +191,7 @@ export abstract class StorePersistence {
     }
     const str = JSON.stringify(copy);
     const buff = Buffer.from(str);
-    return buff.toString('base64');
+    return buff.toString('base64url');
   }
   
   /**
@@ -175,7 +201,7 @@ export abstract class StorePersistence {
   decodeCursor(cursor: string): IListState {
     let buff;
     try {
-      buff = Buffer.from(cursor, 'base64');
+      buff = Buffer.from(cursor, 'base64url');
     } catch (e) {
       throw new Error(`Invalid cursor.`);
     }
@@ -199,8 +225,36 @@ export abstract class StorePersistence {
     if (data.end) {
       result.end = data.end;
     }
+    if (data.query) {
+      result.query = data.query;
+    }
+    if (Array.isArray(data.queryField) && data.queryField.length) {
+      result.queryField = data.queryField;
+    }
     return result;
   }
+
+  /**
+   * Checks whether the user has read or write access to the space.
+   * 
+   * It throws errors when the user has no access or when the user has no access to the resource.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param key The user space key.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  abstract checkSpaceAccess(minimumLevel: AccessControlLevel, key: string, user?: IUser): Promise<AccessControlLevel>;
+  /**
+   * Similar to `checkSpaceAccess()` but it check for the access to a project.
+   * Since projects inherit access from the parent space it is mostly the same logic as in `checkSpaceAccess()` but it also tests whether the
+   * project was deleted.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param space The user space key.
+   * @param project The project key.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  abstract checkProjectAccess(minimumLevel: AccessControlLevel, space: string, project: string, user?: IUser): Promise<AccessControlLevel>;
 
   /**
    * Lists spaces of a user. When user is not set it lists all spaces as this means a single-user environment.
@@ -235,23 +289,20 @@ export abstract class StorePersistence {
    */
   abstract updateUserSpace(key: string, space: IWorkspace, patch: JsonPatch, user?: IUser): Promise<void>;
   /**
-   * Adds a user to the space.
-   * Only available in a multi-user environment.
-   * 
-   * @param key The key of the space to update
-   * @param newUser The key of the user to add.
-   * @param user The user that triggered the change.
+   * Deletes the space from the system
+   * @param key The space key
+   * @param user The current user, if any.
    */
-  abstract addSpaceUser(key: string, newUser: string, newAccess: AccessControlLevel, user: IUser): Promise<void>;
+  abstract deleteUserSpace(key: string, user?: IUser): Promise<void>;
   /**
-   * The opposite to the `addSpaceUser()`. Removes the user from the list of users that can access the space.
+   * Adds or removes users to/from the space.
    * Only available in a multi-user environment.
    * 
    * @param key The key of the space to update
-   * @param removedUser The key of the user to remove from the space.
+   * @param patch The list of patch operations to perform on user access to the space.
    * @param user The user that triggered the change.
    */
-  abstract removeSpaceUser(key: string, removedUser: string, user: IUser): Promise<void>;
+  abstract patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
   /**
    * Lists projects that are embedded in a space.
    * 
@@ -326,6 +377,21 @@ export abstract class StorePersistence {
    * @param userKey The user key.
    */
   abstract readSystemUser(userKey: string): Promise<IUser | undefined>;
+  /**
+   * Reads multiple system users with one query. Typically used when the UI asks for
+   * user data to render "user pills" in the access control list.
+   * 
+   * @param userKeys The list of user keys.
+   * @returns Ordered list of users defined by the `userKeys` order.
+   * Note, when the user is not found an `undefined` is set at the position.
+   */
+  abstract readSystemUsers(userKeys: string[]): Promise<IListResponse>;
+  /**
+   * Lists the registered users.
+   * The final list won't contain the current user.
+   * The user can query for a specific data utilizing the `query` filed.
+   */
+  abstract listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse>;
   /**
    * Permanently stores session data in the data store.
    * 

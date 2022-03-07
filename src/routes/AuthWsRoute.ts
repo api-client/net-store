@@ -13,4 +13,8 @@ export class AuthWsRoute extends SocketRoute {
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: any, sid?: string): void {
     this.registerClient(ws, undefined, sid);
   }
+
+  async isAuthorized(): Promise<boolean> {
+    return true;
+  }
 }

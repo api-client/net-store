@@ -14,7 +14,8 @@
       "ts": "never"
     }],
     "unused-imports/no-unused-imports": "error",
-    "no-only-tests/no-only-tests": "error"
+    "no-only-tests/no-only-tests": "error",
+    "no-console": "error"
   },
   "env": {
     "mocha": true,
@@ -48,7 +49,8 @@
       "files": ["*.ts", "*.tsx"],
       "rules": {
         "no-redeclare": "off",
-        "@typescript-eslint/explicit-function-return-type": ["error"]
+        "@typescript-eslint/explicit-function-return-type": ["error"],
+        "no-dupe-class-members": "off"
       }
     }
   ],
@@ -64,5 +66,8 @@
         "extensions": [".js", ".jsx", ".ts", ".tsx"]
       }
     }
+  },
+  "globals": {
+    "NodeJS": true
   }
 }

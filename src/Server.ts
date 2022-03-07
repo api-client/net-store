@@ -5,7 +5,7 @@ import http from 'http';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { IUser } from '@advanced-rest-client/core';
+import { IUser, Logger, DefaultLogger } from '@api-client/core';
 import cors, { Options as CorsOptions } from '@koa/cors';
 import Router, { RouterOptions } from '@koa/router';
 import views from 'koa-views';
@@ -13,11 +13,16 @@ import { dir } from 'tmp-promise';
 import { platform } from 'os';
 import { Duplex } from 'stream'
 import { ApiRoutes } from './ApiRoutes.js';
-import { SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState } from './definitions.js'
+import { 
+  SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, 
+  IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
-import { Authentication } from './authentication/Authentication.js';
-import storeInfo from './BackendInfo.js';
-import session from './session/GlobalSession.js';
+import { Authentication, IAuthenticationOptions } from './authentication/Authentication.js';
+import DefaultUser from './authentication/DefaultUser.js';
+import { SingleUserAuthentication } from './authentication/SingleUserAuthentication.js';
+import { BackendInfo } from './BackendInfo.js';
+import { AppSession } from './session/AppSession.js';
+import { BaseRoute } from './routes/BaseRoute.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,9 +64,12 @@ export class Server {
   app = new Koa();
   router: Router<IApplicationState, DefaultContext>;
   opts: IServerConfiguration;
+  logger: Logger;
   protected apiHandler?: ApiRoutes;
   protected store: StorePersistence;
   protected auth?: Authentication;
+  protected info: BackendInfo;
+  protected session: AppSession;
 
   /**
    * @param opts Optional server configuration options.
@@ -69,12 +77,15 @@ export class Server {
   constructor(store: StorePersistence, opts: IServerConfiguration={}) {
     this.opts = opts;
     this.store = store;
-    if (opts.authentication) {
-      if (typeof opts.authentication === 'function') {
-        storeInfo.hasAuthentication = true;
-      } else {
-        const config = opts.authentication as IAuthenticationConfiguration;
-        storeInfo.hasAuthentication = config.enabled === true;
+    const info = new BackendInfo();
+    this.info = info;
+    this.session = new AppSession(this.store, opts.session || {});
+    this.logger = this.setupLogger(opts);
+
+    info.mode = opts.mode === 'multi-user' ? opts.mode : 'single-user';
+    if (info.mode === 'multi-user') {
+      if (!opts.authentication) {
+        throw new Error(`The "authentication" configuration is required in the "multi-user" mode.`);
       }
     }
     const routerOptions: RouterOptions = {};
@@ -82,74 +93,88 @@ export class Server {
       routerOptions.prefix = opts.router.prefix;
     }
     this.router = new Router(routerOptions);
+
+    // API testing
+    const typed = opts as ITestingServerConfiguration;
+    if (typed.testing === true) {
+      this.info.testing = true;
+    }
+  }
+
+  /**
+   * Creates a logger object to log debug output.
+   */
+  setupLogger(opts: IServerConfiguration = {}): Logger {
+    if (opts.logger) {
+      return opts.logger;
+    }
+    return new DefaultLogger();
   }
 
   /**
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
+    this.session.cleanup();
     if (!this.apiHandler) {
       return;
     }
     this.apiHandler.cleanup();
   }
 
+  protected getAuthInit(): IAuthenticationOptions {
+    return {
+      logger: this.logger,
+      router: this.router,
+      session: this.session,
+      store: this.store,
+    }
+  }
+
   /**
    * Depending on the configuration initializes required libraries.
+   * @param customRoutes Any custom routes to initialize.
    */
-  async initialize(): Promise<void> {
+  async initialize(...customRoutes: typeof BaseRoute[]): Promise<void> {
     const { opts } = this;
-    session.setStore(this.store);
-    if (opts.session) {
-      session.applyConfig(opts.session);
-    }
+    this.session.initialize();
     if (opts.cors && opts.cors.enabled) {
       const config = opts.cors.cors || this.defaultCorsConfig();
       this.app.use(cors(config));
     }
     this.app.use(views(join(__dirname, 'views'), { extension: 'ejs' }));
-    if (storeInfo.hasAuthentication) {
-      if (typeof storeInfo.hasAuthentication === 'function') {
-        await this.initializeCustomAuth();
+    let factory: Authentication;
+    if (this.info.mode === 'multi-user') {
+      if (typeof opts.authentication === 'function') {
+        factory = await this.initializeCustomAuth();
       } else {
-        await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
+        factory = await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
       }
-      this.app.use(async (ctx, next) => {
-        const factory = this.auth as Authentication;
-        const sessionId = await factory.getSessionId(ctx.req);
-        ctx.state.sid = sessionId;
-        if (sessionId) {
-          const sessionValue = await session.get(sessionId);
-          if (!sessionValue) {
-            throw new Error(`Session not established.`);
-          }
-          if (sessionValue.authenticated) {
-            ctx.state.user = await this.store.readSystemUser(sessionValue.uid);
-          }
-        }
-        return next();
-      });
+    } else {
+      factory = new SingleUserAuthentication(this.getAuthInit());
     }
-    await this.setupRoutes();
+    this.auth = factory;
+    this.app.use(factory.middleware);
+    await this.setupRoutes(...customRoutes);
   }
 
   /**
    * Initializes a custom authentication function provided by the configuration.
    */
-  protected async initializeCustomAuth(): Promise<void> {
-    const { opts, router, store } = this;
-    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence) => Authentication;
-    const factory = new ctr(router, store);
+  protected async initializeCustomAuth(): Promise<Authentication> {
+    const { opts } = this;
+    const ctr = opts.authentication as new(init: IAuthenticationOptions) => Authentication;
+    const factory = new ctr(this.getAuthInit());
     await factory.initialize();
-    this.auth = factory;
+    return factory;
   }
 
   /**
    * Initializes one of the pre-defined authentication schemes.
    */
-  protected async initializeAuthentication(options: IAuthenticationConfiguration): Promise<void> {
+  protected async initializeAuthentication(options: IAuthenticationConfiguration): Promise<Authentication> {
     switch (options.type) {
-      case 'oidc': await this.initializeOidc(options.config as IOidcConfiguration); break;
+      case 'oidc': return this.initializeOidc(options.config as IOidcConfiguration);
       default: throw new Error(`Unknown authentication scheme: ${options.type}`);
     }
   }
@@ -158,25 +183,24 @@ export class Server {
    * Initializes the OIDC authentication scheme.
    * Note, the import is dynamic to save on unnecessary imports at startup.
    */
-  protected async initializeOidc(config: IOidcConfiguration): Promise<void> {
+  protected async initializeOidc(config: IOidcConfiguration): Promise<Authentication> {
     const { Oidc } = await import('./authentication/Oidc.js');
     if (!config || !config.issuerUri) {
       throw new Error(`OpenID Connect configuration error.`);
     }
-    const factory = new Oidc(this.router, this.store, config);
+    const factory = new Oidc(this.getAuthInit(), config);
     await factory.initialize();
-    this.auth = factory;
+    return factory;
   }
 
   /**
    * Called when initializing the server class.
    * Sets up the API routes.
-   * 
    */
-  protected async setupRoutes(): Promise<void> {
-    const { opts, router } = this;
-    const handler = new ApiRoutes(this.store, router, opts);
-    await handler.setup();
+  protected async setupRoutes(...customRoutes: typeof BaseRoute[]): Promise<void> {
+    const { router } = this;
+    const handler = new ApiRoutes(this.store, router, this.session, this.info, this.logger, this.opts);
+    await handler.setup(...customRoutes);
 
     this.app.use(router.routes());
     this.app.use(router.allowedMethods());
@@ -275,13 +299,13 @@ export class Server {
 
   protected async _upgradeCallback(request: http.IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
     if (!request.url) {
-      console.error('No request URL.');
+      this.logger.error('No request URL.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();
       return;
     }
     if (!this.apiHandler) {
-      console.error('API Handler not initialized');
+      this.logger.error('API Handler not initialized');
       socket.write('HTTP/1.1 500 Not initialized\r\n\r\n');
       socket.destroy();
       return;
@@ -289,12 +313,15 @@ export class Server {
     
     let user: IUser | undefined;
     let sessionId: string | undefined;
-    if (storeInfo.hasAuthentication) {
-      const factory = this.auth as Authentication;
-      try {
-        sessionId = await factory.getSessionId(request);
+    
+    const factory = this.auth as Authentication;
+    try {
+      sessionId = await factory.getSessionId(request);
+      if (sessionId === SingleUserAuthentication.defaultSid) {
+        user = DefaultUser;
+      } else {
         const authLocation = factory.getAuthLocation();
-        if (request.url === authLocation) {
+        if (request.url.includes(`${authLocation}?token=`)) {
           // we allow un-auth user here.
           const route = this.apiHandler.getOrCreateWs(authLocation);
           if (!route || !route.server) {
@@ -307,9 +334,9 @@ export class Server {
           return;
         }
         if (!sessionId) {
-          throw new Error(`No authorization header.`);
+          throw new Error(`No authorization info.`);
         }
-        const sessionValue = await session.get(sessionId);
+        const sessionValue = await this.session.get(sessionId);
         if (!sessionValue) {
           throw new Error(`Session not established.`);
         }
@@ -317,27 +344,42 @@ export class Server {
           throw new Error(`Using unauthenticated session.`);
         }
         user = await this.store.readSystemUser(sessionValue.uid);
-      } catch (e) {
-        const cause = e as Error;
-        console.error('Invalid authentication.', cause);
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
       }
+    } catch (e) {
+      const cause = e as Error;
+      this.logger.error('[Invalid authentication]', cause);
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
     }
 
     const prefix = this.opts.router && this.opts.router.prefix ? this.opts.router.prefix : '';
     if (prefix && !request.url.startsWith(prefix)) {
-      console.error('The request URL does not start with the prefix.');
+      this.logger.error('The request URL does not start with the prefix.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
       socket.destroy();
       return;
     }
-    const url = request.url.substring(prefix.length);
+    let url = request.url.substring(prefix.length);
+    if (url.includes('?')) {
+      // clears the URL from any query parameters. Authentication uses QP to set session.
+      const index = url.indexOf('?');
+      url = url.substring(0, index);
+    }
     const route = this.apiHandler.getOrCreateWs(url);
     if (!route || !route.server) {
-      console.error('Route not found.');
+      this.logger.error('Route not found.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // handle WS authorization
+    const authorized = await route.isAuthorized(user);
+    if (!authorized) {
+      this.apiHandler.removeWsRoute(route);
+      this.logger.error('Route not found.');
+      socket.write('HTTP/1.1 403 Not authorized\r\n\r\n');
       socket.destroy();
       return;
     }

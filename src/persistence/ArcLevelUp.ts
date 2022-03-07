@@ -3,35 +3,41 @@ import fs from 'fs/promises';
 import levelUp, { LevelUp } from 'levelup';
 import leveldown, { LevelDownIterator, LevelDown, Bytes } from 'leveldown';
 import sub from 'subleveldown';
-import { AbstractLevelDOWN, AbstractIteratorOptions } from 'abstract-leveldown';
-import { JsonPatch } from 'json8-patch';
+import { AbstractLevelDOWN, AbstractIteratorOptions, PutBatch } from 'abstract-leveldown';
+import { JsonPatch, diff } from 'json8-patch';
 import { 
   IUser, IWorkspace, IUserWorkspace, IHttpProjectListItem, IHttpProject, IUserSpaces, 
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
-  RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind,
-} from '@advanced-rest-client/core';
-import { IListOptions, IListResponse, StorePersistence } from './StorePersistence.js';
+  RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger,
+} from '@api-client/core';
+import { IListOptions, StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
+import { KeyGenerator } from './KeyGenerator.js';
 
-export interface IBinListItem {
+interface IApiListingOptions {
   /**
-   * The kind of removed item.
+   * Whether to include the deleted items to the list.
+   * Deleted items have the `_deleted` property.
    */
-  kind: string;
-  /**
-   * THe timestamp when the item was deleted.
-   */
-  deleted: number;
-  /**
-   * The original key of the deleted item.
-   */
-  key: string;
+  includeDeleted?: boolean;
+}
+
+export interface IBinItem {
   /**
    * The user deleting the object.
    */
-  deleteBy?: string;
+  deletedBy?: string;
+  /**
+   * The DB key of the object that has been deleted.
+   */
+  key: string;
+  /**
+   * The timestamp when the record was deleted.
+   */
+  deletedTime: number;
 }
 
 export interface IBinDataItem {
@@ -43,6 +49,9 @@ export interface IBinDataItem {
 
 /**
  * The persistence layer that uses LevelUp to store data in the local file system.
+ * 
+ * TODO:
+ * - https://github.com/fergiemcdowall/search-index
  */
 export class ArcLevelUp extends StorePersistence {
   dbPath: string;
@@ -73,14 +82,16 @@ export class ArcLevelUp extends StorePersistence {
    */
   projectRevisions?: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
   /**
-   * A store for the deleted objects. It is used to list the objects only. 
-   * The data are stored under the same key in the `trashBinData` store.
+   * A store that keeps track of deleted items. It has a reference to the deleted item
+   * with additional metadata like when the object was deleted and by whom.
+   * 
+   * This store can be used to quickly identify an object that was deleted without
+   * a need to read the original object from the store and deserializing it. When the
+   * corresponding object is in the store it means the object was deleted.
+   * 
+   * This store can also be used to list deleted items from a particular place (space, project, etc.)
    */
   trashBin?: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
-  /**
-   * The bin data.
-   */
-  trashBinData?: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
   /**
    * The users data store.
    */
@@ -93,8 +104,8 @@ export class ArcLevelUp extends StorePersistence {
   /**
    * @param path The path where to store the data bases.
    */
-  constructor(path: string) {
-    super();
+  constructor(logger: Logger, path: string) {
+    super(logger);
     this.dbPath = path;
   }
 
@@ -116,6 +127,22 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
+   * Cleans up before closing the server.
+   */
+  async cleanup(): Promise<void> {
+    await this.db?.close();
+    await this.spaces?.close();
+    await this.userSpaces?.close();
+    await this.projects?.close();
+    await this.projectsIndex?.close();
+    await this.projectsData?.close();
+    await this.projectRevisions?.close();
+    await this.trashBin?.close();
+    await this.users?.close();
+    await this.sessions?.close();
+  }
+
+  /**
    * Reads the `IUserSpaces` from the document that keeps track of which spaces the user has access to.
    * 
    * @param userKey Not required in the single-user environment. The user id to get the info from.
@@ -133,6 +160,47 @@ export class ArcLevelUp extends StorePersistence {
       return;
     }
     return this.decodeDocument(raw) as IUserSpaces;
+  }
+
+  /**
+   * Reads user spaces information for multiple users.
+   * 
+   * @param users The list of user keys.
+   * @returns The ordered list of user spaces. When the user does not exist it returns `undefined` at that index.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty: false): Promise<(IUserSpaces | undefined)[]>;
+  /**
+   * Reads user spaces information for multiple users.
+   * 
+   * @param users The list of user keys.
+   * @returns The ordered list of user spaces. When the user does not exist it creates a new record at that index.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty: true): Promise<IUserSpaces[]>;
+
+  /**
+   * Reads user spaces information for multiple users.
+   * @param users The list of user keys.
+   * @param fillEmpty When set it creates an empty object when does not exist.
+   */
+  protected async readUsersSpaces(users: string[], fillEmpty = false): Promise<(IUserSpaces | undefined)[]> {
+    const { userSpaces } = this;
+    if (!userSpaces) {
+      throw new Error(`Store not initialized.`);
+    }
+    const raw = await userSpaces.getMany(users);
+    const result: (IUserSpaces | undefined)[] = raw.map((item, index) => {
+      if (!item) {
+        if (fillEmpty) {
+          return {
+            user: users[index],
+            spaces: [],
+          };
+        }
+        return;
+      }
+      return this.decodeDocument(item) as IUserSpaces;
+    });
+    return result;
   }
 
   /**
@@ -196,6 +264,8 @@ export class ArcLevelUp extends StorePersistence {
     const iterator = spaces.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     try {
       // @ts-ignore
@@ -214,6 +284,9 @@ export class ArcLevelUp extends StorePersistence {
           access = 'owner';
         }
         const obj = JSON.parse(value);
+        if (obj._deleted) {
+          continue;
+        }
         data.push({ ...obj, access });
         lastKey = key;
         remaining -= 1;
@@ -222,9 +295,9 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -236,8 +309,8 @@ export class ArcLevelUp extends StorePersistence {
    * Creates a space in the store for a user.
    * When user is not set it lists all spaces as this means a single-user environment.
    * 
-   * @param options Listing options.
-   * @param key Workspace key. Note, the store may persists the value in a different key. The read operation will use the same key.
+   * @param key Workspace key.
+   * @param space The user space definition.
    * @param user The current user
    */
   async createUserSpace(key: string, space: IWorkspace, user?: IUser, access: AccessControlLevel = 'read'): Promise<void> {
@@ -307,11 +380,7 @@ export class ArcLevelUp extends StorePersistence {
     if (!spaces || !userSpaces) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
+    const access = await this.checkSpaceAccess('read', key, user);
     let raw: Bytes;
     try {
       raw = await spaces.get(key);
@@ -321,6 +390,61 @@ export class ArcLevelUp extends StorePersistence {
     const space = this.decodeDocument(raw) as IWorkspace;
     const userSpace = { ...space, access } as IUserWorkspace;
     return userSpace;
+  }
+
+  /**
+   * Checks whether the user has read or write access to the space.
+   * 
+   * It throws errors when the user has no access or when the user has no access to the resource.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param key The user space key.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  async checkSpaceAccess(minimumLevel: AccessControlLevel, key: string, user?: IUser): Promise<AccessControlLevel> {
+    if (!user) {
+      throw new ApiError(`Authentication required.`, 401)
+    }
+    const levels: AccessControlLevel[] = ["read", "comment", "write", "owner", "admin"];
+    const { spaces } = this;
+    if (!spaces) {
+      throw new Error(`Store not initialized.`);
+    }
+    const isDeleted = await this.isSpaceDeleted(key);
+    if (isDeleted) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    const access  = await this.readUserSpaceAccess(key, user.key);
+    if (!access) {
+      // no access is like 404.
+      throw new ApiError(`Not found.`, 404);
+      // throw new ApiError(`Not authorized to read this space.`, 403);
+    }
+    const currentAccessIndex = levels.indexOf(access);
+    const requestedAccessIndex = levels.indexOf(minimumLevel);
+    // the current must be at least at the index of requested.
+    if (currentAccessIndex < requestedAccessIndex) {
+      throw new ApiError(`Insufficient permissions to access this resource.`, 403);
+    }
+    return access;
+  }
+
+  /**
+   * Similar to `checkSpaceAccess()` but it check for the access to a project.
+   * Since projects inherit access from the parent space it is mostly the same logic as in `checkSpaceAccess()` but it also tests whether the
+   * project was deleted.
+   * 
+   * @param minimumLevel The minimum access level required for this operation.
+   * @param user The user object. When not set on the session this always throws an error.
+   */
+  async checkProjectAccess(minimumLevel: AccessControlLevel, space: string, project: string, user?: IUser): Promise<AccessControlLevel> {
+    // check if the user has read access to the space.
+    const access = await this.checkSpaceAccess(minimumLevel, space, user);
+    const projectDeleted = await this.isProjectDeleted(space, project);
+    if (projectDeleted) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    return access;
   }
 
   /**
@@ -336,15 +460,7 @@ export class ArcLevelUp extends StorePersistence {
     if (!spaces) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user && user.key || 'default';
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
+    await this.checkSpaceAccess('write', key, user);
     const value = this.encodeDocument(space);
     await spaces.put(key, value);
     const event: IBackendEvent = {
@@ -361,128 +477,225 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
-   * Only available in a multi-user environment.
-   * Adds a user to the space.
-   * 
-   * @param key The key of the space to update
-   * @param newUser The key of the user to add.
-   * @param user The user that triggered the change.
+   * Deletes the space from the system
+   * @param key The space key
+   * @param user The current user, if any.
    */
-  async addSpaceUser(key: string, newUser: string, newAccess: AccessControlLevel, user: IUser): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
+  async deleteUserSpace(key: string, user?: IUser): Promise<void> {
+    const { spaces, trashBin } = this;
+    if (!spaces || !trashBin) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user.key;
-    if (!userKey) {
-      throw new Error(`Not allowed in the single-user environment.`);
-    }
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
-    let raw: Bytes;
-    try {
-      raw = await spaces.get(key);
-    } catch (e) {
-      return;
-    }
-    const space = this.decodeDocument(raw) as IWorkspace;
-    if (!space.users) {
-      space.users = [];
-    }
-    space.users.push(newUser);
-    let userSpacesInfo = await this.readUserSpaces(newUser);
-    if (!userSpacesInfo) {
-      userSpacesInfo = {
-        user: newUser,
-        spaces: [],
-      };
-    }
-    userSpacesInfo.spaces.push({
-      key: key,
-      level: newAccess,
-    });
-    await spaces.put(key, this.encodeDocument(space));
-    await userSpaces.put(newUser, this.encodeDocument(userSpacesInfo));
+    const access = await this.checkSpaceAccess('write', key, user);
 
+    // 1. update the space to include the _deleted flag
+    // 2. Inset the space key to the bin store.
+
+    let dataRaw: Bytes;
+    try {
+      dataRaw = await spaces.get(key);
+    } catch (e) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    const time = Date.now();
+    const data = this.decodeDocument(dataRaw) as any;
+    if (user && access !== 'owner') {
+      const space = data as IWorkspace;
+      if (space.owner !== user.key) {
+        throw new ApiError(`Unauthorized to delete the space.`, 403)
+      }
+    }
+
+    data._deleted = true;
+
+    const binItem: IBinItem = {
+      key: key,
+      deletedTime: time,
+    };
+    if (user) {
+      binItem.deletedBy = user.key;
+    }
+    const deletedKey = KeyGenerator.deletedSpaceKey(key);
+
+    // persist the data
+    await trashBin.put(deletedKey, this.encodeDocument(binItem));
+    await spaces.put(key, this.encodeDocument(data));
+
+    // inform clients the space is deleted
     const event: IBackendEvent = {
       type: 'event',
-      operation: 'updated',
-      data: space,
+      operation: 'deleted',
       kind: WorkspaceKind,
       id: key,
     };
+    // informs spaces list clients about the delete.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(key),
+      url: RouteBuilder.buildSpacesRoute(),
     };
     Clients.notify(event, filter);
-    // TODO: Notify user about the change in their spaces list.
+    // Disconnect clients connected to the space.
+    Clients.closeByUrl(RouteBuilder.buildSpaceRoute(key));
+    // Disconnect clients connected to the space projects.
+    Clients.closeByUrl(RouteBuilder.buildSpaceProjectsRoute(key));
+    
+    // now, inform space projects listeners that the project is also deleted
+    const list = await this.getAllProjectIndexes(key);
+    list.forEach((project) => {
+      const event2 = { 
+        type: 'event',
+        operation: 'deleted',
+        kind: HttpProjectKind,
+        id: project.key,
+      };
+      const url = RouteBuilder.buildSpaceProjectRoute(key, project.key);
+      const filter2: IClientFilterOptions = {
+        url,
+      };
+      Clients.notify(event2, filter2);
+      Clients.closeByUrl(url);
+    });
   }
 
   /**
-   * The opposite to the `addSpaceUser()`. Removes the user from the list of users that can access the space.
+   * Adds or removes users to/from the space.
    * Only available in a multi-user environment.
    * 
    * @param key The key of the space to update
-   * @param removedUser The key of the user to remove from the space.
+   * @param patch The list of patch operations to perform on user access to the space.
    * @param user The user that triggered the change.
    */
-  async removeSpaceUser(key: string, removedUser: string, user: IUser): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
+  async patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void> {
+    const { spaces, userSpaces, users } = this;
+    if (!spaces || !userSpaces || !users) {
       throw new Error(`Store not initialized.`);
     }
-    const userKey = user.key;
-    if (!userKey) {
-      throw new Error(`Not allowed in the single-user environment.`);
-    }
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
+    await this.checkSpaceAccess('write', key, user);
     let raw: Bytes;
     try {
       raw = await spaces.get(key);
     } catch (e) {
-      return;
+      // technically won't happen because checking for write permission does that
+      throw new ApiError(`Not found.`, 404);
     }
+
+    const adding: IUserAccessAddOperation[] = [];
+    const removing: IUserAccessRemoveOperation[] = [];
+
+    patch.forEach((item) => {
+      if (item.op === 'remove') {
+        removing.push(item);
+      } else if (item.op === 'add') {
+        adding.push(item);
+      }
+    });
+
+    const addingIds = adding.map(i => i.uid);
+    const removingIds = removing.map(i => i.uid);
+    const allIds = Array.from(new Set(addingIds.concat(removingIds)));
+
+    // check whether all adding users are in the data store (removing is OK).
+    if (adding.length) {
+      const missingUsers = await this.listMissingUsers(addingIds);
+      if (missingUsers.length) {
+        throw new ApiError(`Some users not found in the system: ${missingUsers.join(', ')}.`, 400);
+      }
+    }
+
     const space = this.decodeDocument(raw) as IWorkspace;
-    if (space.users) {
-      const index = space.users.indexOf(removedUser);
-      if (index >= 0) {
-        space.users.splice(index, 1);
-        await spaces.put(key, this.encodeDocument(space));
-        const event: IBackendEvent = {
-          type: 'event',
-          operation: 'updated',
-          data: space,
-          kind: WorkspaceKind,
-          id: key,
-        };
-        const filter: IClientFilterOptions = {
-          url: RouteBuilder.buildSpaceRoute(key),
-        };
-        Clients.notify(event, filter);
-      }
+    // the copy is to generate the patch to the listeners.
+    const copy = this.decodeDocument(raw) as IWorkspace;
+    if (!space.users) {
+      space.users = [];
     }
-    const userSpacesInfo = await this.readUserSpaces(removedUser);
-    if (userSpacesInfo && userSpacesInfo.spaces) {
-      const index = userSpacesInfo.spaces.findIndex(i => i.key === key);
-      if (index >= 0) {
-        userSpacesInfo.spaces.splice(index, 1);
-        await userSpaces.put(removedUser, this.encodeDocument(userSpacesInfo));
-        // TODO: Notify the user about the change.
+    const { users: uList } = space;
+
+    const spacesList = await this.readUsersSpaces(allIds, true);
+    const putList: PutBatch[] = [];
+
+    // update the space's user list. We gonna do this on the main patch array to preserve order of operations.
+    patch.forEach((item) => {
+      const index = uList.indexOf(item.uid);
+      // I am casting this to the IUserSpaces interface as this must be here after calling `readUsersSpaces(.., true)`.
+      const spaceInfo = spacesList.find(i => i.user === item.uid) as IUserSpaces;
+      if (item.op === 'remove') {
+        if (index >= 0) {
+          uList.splice(index, 1);
+        }
+        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
+        if (spaceIndex >= 0) {
+          spaceInfo.spaces.splice(spaceIndex, 1);
+        }
+        putList.push({
+          key: item.uid,
+          type: 'put',
+          value: this.encodeDocument(spaceInfo),
+        });
+      } else if (item.op === 'add') {
+        if (index < 0) {
+          uList.push(item.uid);
+        }
+        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
+        if (spaceIndex >= 0) {
+          // the client requested to update user's access level
+          spaceInfo.spaces[spaceIndex].level = item.value;
+        } else {
+          // we are adding access level
+          // Note, from the client notification perspective, whether we are updating or adding permissions, the client need to pull changes
+          // to the space from the server anyway.
+          spaceInfo.spaces.push({
+            level: item.value,
+            key,
+          });
+        }
+        putList.push({
+          key: item.uid,
+          type: 'put',
+          value: this.encodeDocument(spaceInfo),
+        });
       }
+    });
+
+    // Now store the data
+    await spaces.put(key, this.encodeDocument(space));
+    await userSpaces.batch(putList);
+    
+    // JSON-patch library takes care of the difference to the object.
+    const diffPatch = diff(copy, space);
+    // we inform about the space change only when there was an actual change (may not be when updating permissions only).
+    if (diffPatch.length) {
+      const event: IBackendEvent = {
+        type: 'event',
+        operation: 'updated',
+        data: diffPatch,
+        kind: WorkspaceKind,
+        id: key,
+      };
+      const filter: IClientFilterOptions = {
+        url: RouteBuilder.buildSpaceRoute(key),
+      };
+      Clients.notify(event, filter);
     }
+
+    // we need to separately notify clients about adding and removing the access.
+    // we do this iterating over the original patch to preserve the order of operations
+    const removeEvent: IBackendEvent = {
+      type: 'event',
+      operation: 'access-removed',
+      kind: WorkspaceKind,
+      id: key,
+    };
+    const addEvent: IBackendEvent = { ...removeEvent, operation: 'access-granted' };
+    const baseFilter: IClientFilterOptions = {
+      url: RouteBuilder.buildSpacesRoute(),
+    };
+    patch.forEach((item) => {
+      const f = { ...baseFilter, users: [item.uid], };
+      if (item.op === 'remove') {
+        Clients.notify(removeEvent, f);
+      } else if (item.op === 'add') {
+        Clients.notify(addEvent, f);
+      }
+    });
   }
 
   /**
@@ -501,20 +714,19 @@ export class ArcLevelUp extends StorePersistence {
     if (!projectsIndex) {
       throw new Error(`Store not initialized.`);
     }
-    // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(key, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
+    await this.checkSpaceAccess('read', key, user);
     const state = this.readListState(options);
     const itOpts: AbstractIteratorOptions = {
       gte: `~${key}~`,
-      lte: `~${key}~~`
+      lte: `~${key}~~`,
+      // newest on top.
+      reverse: true,
     };
     const iterator = projectsIndex.iterator(itOpts);
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     let lastKey: string | undefined;
     const data: IHttpProjectListItem[] = [];
@@ -523,8 +735,11 @@ export class ArcLevelUp extends StorePersistence {
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
-        const item = this.decodeDocument(value) as IHttpProjectListItem;
-        data.push(item);
+        const item = this.decodeDocument(value) as any;
+        if (item._deleted) {
+          continue;
+        }
+        data.push(item  as IHttpProjectListItem);
         lastKey = key;
         remaining -= 1;
         if (!remaining) {
@@ -532,13 +747,49 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    // sorts the results by the updated time, newest on top.
+    data.sort(({ updated: a = 0 }, { updated: b = 0 }) => b - a);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
     };
+    return result;
+  }
+
+  /**
+   * Lists all indexes of a project in a space.
+   * This does not perform any authorization checks before accessing the data. SHould only be used internally.
+   * @param key The user space key
+   */
+  protected async getAllProjectIndexes(key: string, opts: IApiListingOptions = {}): Promise<IHttpProjectListItem[]> {
+    const { projectsIndex } = this;
+    if (!projectsIndex) {
+      throw new Error(`Store not initialized.`);
+    }
+    const result: IHttpProjectListItem[] = [];
+    const itOpts: AbstractIteratorOptions = {
+      gte: `~${key}~`,
+      lte: `~${key}~~`,
+      // newest on top.
+      reverse: true,
+      keys: false,
+    };
+    const iterator = projectsIndex.iterator(itOpts);
+    try {
+      // @ts-ignore
+      for await (const [, value] of iterator) {
+        const item = this.decodeDocument(value) as any;
+        if (item._deleted && !opts.includeDeleted) {
+          continue;
+        }
+        result.push(item  as IHttpProjectListItem);
+      }
+    } catch (e) {
+      this.logger.error(e);
+    }
     return result;
   }
 
@@ -559,19 +810,19 @@ export class ArcLevelUp extends StorePersistence {
     if (!projectsIndex || !projectsData) {
       throw new Error(`Store not initialized.`);
     }
-    // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(spaceKey, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
+    await this.checkSpaceAccess('write', spaceKey, user);
+    const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
+    // Project changes are only allowed through `PATCH`.
+    let exists = false;
+    try {
+      await projectsIndex.get(finalKey);
+      exists = true;
+    } catch (e) {
+      // OK
     }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
+    if (exists) {
+      throw new ApiError(`A project with the identifier ${projectKey} already exists`, 400);
     }
-    const finalKey = `~${spaceKey}~${projectKey}~`;
-    // TODO: probably we should check whether a project with the key already exists
-    // If so, throw an error. Project changes are only allowed through `PATCH`.
 
     // first handle the project data store
     // Note, at this point there's no one to notify about the project so we skip client notification.
@@ -581,7 +832,9 @@ export class ArcLevelUp extends StorePersistence {
     const item: IHttpProjectListItem = {
       key: projectKey,
       name: project.info.name || 'Unnamed project',
+      updated: Date.now(),
     };
+    
     await projectsIndex.put(finalKey, this.encodeDocument(item));
     const event: IBackendEvent = {
       type: 'event',
@@ -591,7 +844,7 @@ export class ArcLevelUp extends StorePersistence {
     };
     // informs only clients that are listening for projects change in a space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceProjectsRoute(spaceKey),
+      url: RouteBuilder.buildSpaceRoute(spaceKey),
     };
     Clients.notify(event, filter);
   }
@@ -608,17 +861,13 @@ export class ArcLevelUp extends StorePersistence {
       throw new Error(`Store not initialized.`);
     }
     // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(spaceKey, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const finalKey = `~${spaceKey}~${projectKey}~`;
+    await this.checkProjectAccess('read', spaceKey, projectKey, user);
+    const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     let raw: Bytes;
     try {
       raw = await projectsData.get(finalKey);
     } catch (e) {
-      throw new ApiError(`The project ${projectKey} does not exists.`, 404);
+      throw new ApiError(`Not found.`, 404);
     }
     const data = this.decodeDocument(raw) as IHttpProject;
     return data;
@@ -637,21 +886,12 @@ export class ArcLevelUp extends StorePersistence {
    * @param user Optional, user that triggers the update.
    */
   async updateSpaceProject(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user?: IUser): Promise<void> {
-    const { projectsIndex, projectsData } = this;
-    if (!projectsIndex || !projectsData) {
+    const { projectsData } = this;
+    if (!projectsData) {
       throw new Error(`Store not initialized.`);
     }
-    // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(spaceKey, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
-    const finalKey = `~${spaceKey}~${projectKey}~`;
+    await this.checkProjectAccess('write', spaceKey, projectKey, user);
+    const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     await projectsData.put(finalKey, this.encodeDocument(project));
     // send notification to the project listeners
     const event: IBackendEvent = {
@@ -675,7 +915,29 @@ export class ArcLevelUp extends StorePersistence {
       } else if (nameChange.op === 'remove') {
         await this.changeProjectName(spaceKey, projectKey, 'Unnamed project');
       }
+    } else {
+      await this.updateProjectTime(projectKey, finalKey);
     }
+  }
+
+  protected async updateProjectTime(projectKey: string, indexKey: string): Promise<void> {
+    const { projectsIndex } = this;
+    if (!projectsIndex) {
+      throw new Error(`Store not initialized.`);
+    }
+    let data: IHttpProjectListItem;
+    try {
+      const raw = await projectsIndex.get(indexKey);
+      data = this.decodeDocument(raw) as IHttpProjectListItem;
+    } catch (e) {
+      data = {
+        key: projectKey,
+        name: '',
+        updated: 0,
+      };
+    }
+    data.updated = Date.now();
+    await projectsIndex.put(indexKey, this.encodeDocument(data));
   }
 
   protected async changeProjectName(spaceKey: string, projectKey: string, value: string): Promise<void> {
@@ -683,7 +945,7 @@ export class ArcLevelUp extends StorePersistence {
     if (!projectsIndex) {
       throw new Error(`Store not initialized.`);
     }
-    const finalKey = `~${spaceKey}~${projectKey}~`;
+    const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     let data: IHttpProjectListItem;
     try {
       const raw = await projectsIndex.get(finalKey);
@@ -692,86 +954,94 @@ export class ArcLevelUp extends StorePersistence {
       data = {
         key: projectKey,
         name: '',
+        updated: 0,
       };
     }
     data.name = value;
+    data.updated = Date.now();
     await projectsIndex.put(finalKey, this.encodeDocument(data));
 
     const event: IBackendEvent = {
       type: 'event',
       operation: 'updated',
       data: data,
-      kind: HttpProjectKind,
+      kind: HttpProjectListItemKind,
       id: projectKey,
     };
     // informs only clients that are listening for projects change in a space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceProjectsRoute(spaceKey),
+      url: RouteBuilder.buildSpaceRoute(spaceKey),
     };
     Clients.notify(event, filter);
   }
 
   /**
    * Deletes a project from a space.
+   * 
+   * In the object data store, the delete operation should be performed by performing the 
+   * `put()` operation with a flag determining that the record is deleted. This allows for smooth 
+   * replication of the data store.
+   * 
+   * This logic puts the `_deleted` boolean flag to the deleted entity. Iterators aggregating
+   * the data (lists, gets, puts, etc) take this property into the account and treat a record 
+   * with this property as it was never read.
+   * 
+   * Potentially, the _deleted object can stay in the DB forever and be restored anytime.
+   * Currently there is no mechanism to permanently remove the data from the store through this API.
+   * Future releases may have options to either schedule a cleaning tasks or a configuration 
+   * option to clean the data store after set period of time.
+   * 
+   * Additionally, this implementation uses the `bin` store where it keeps records of all deleted items.
+   * This way it is easy to check whether an entity was deleted without retrieving the original 
+   * object and deserializing it. It could also be used to list deleted items more efficiently 
+   * than iterating over the main store.
+   * 
    * @param spaceKey The user space key.
    * @param projectKey The project key
    */
   async deleteSpaceProject(spaceKey: string, projectKey: string, user?: IUser): Promise<void> {
-    const { projectsIndex, projectsData, trashBin, trashBinData } = this;
-    if (!projectsIndex || !projectsData || !trashBin || !trashBinData) {
+    const { projectsIndex, projectsData, trashBin } = this;
+    if (!projectsIndex || !projectsData || !trashBin) {
       throw new Error(`Store not initialized.`);
     }
-    // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(spaceKey, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
-    const canWrite = this.canWrite(access);
-    if (!canWrite) {
-      throw new ApiError(`User is not authorized to write to this space.`, 403);
-    }
-    const finalKey = `~${spaceKey}~${projectKey}~`;
+    await this.checkProjectAccess('write', spaceKey, projectKey, user);
+    const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
+    
+    // 1. update project data to include the _deleted flag
+    // 2. update project index to include the _deleted flag
+    // 3. Inset project to the bin store.
+
     let dataRaw: Bytes;
     let indexRaw: Bytes;
     try {
       dataRaw = await projectsData.get(finalKey);
       indexRaw = await projectsIndex.get(finalKey);
     } catch (e) {
-      throw new ApiError(`The project ${projectKey} does not exists.`, 404);
+      throw new ApiError(`Not found.`, 404);
     }
     const time = Date.now();
-    // move the data to the bin.
-    const dataBinIndex: IBinListItem = {
-      key: finalKey,
-      deleted: time,
-      kind: HttpProjectKind,
-    };
-    if (userKey) {
-      dataBinIndex.deleteBy = userKey;
-    }
-    const dataBin: IBinDataItem = {
-      data: dataRaw,
-    };
-    await trashBin.put(`~project-data${finalKey}`, this.encodeDocument(dataBinIndex));
-    await trashBinData.put(`~project-data${finalKey}`, this.encodeDocument(dataBin));
-    await projectsData.del(finalKey);
-    const indexBinIndex: IBinListItem = {
-      key: finalKey,
-      deleted: time,
-      kind: HttpProjectListItemKind,
-    };
-    if (userKey) {
-      dataBinIndex.deleteBy = userKey;
-    }
-    const indexBin: IBinDataItem = {
-      data: indexRaw,
-    };
-    await trashBin.put(`~project-index${finalKey}`, this.encodeDocument(indexBinIndex));
-    await trashBinData.put(`~project-index${finalKey}`, this.encodeDocument(indexBin));
-    await projectsData.del(finalKey);
+    const data = this.decodeDocument(dataRaw) as any;
+    const index = this.decodeDocument(indexRaw) as any;
+    data._deleted = true;
+    index._deleted = true;
 
-    // The revision history may stay for now. It should be cleaned when the object is removed from the bin.
+    const binItem: IBinItem = {
+      key: finalKey,
+      deletedTime: time,
+    };
+    if (user) {
+      binItem.deletedBy = user.key;
+    }
+
+    const deletedKey = KeyGenerator.deletedProjectKey(spaceKey, projectKey);
+
+    // persist the data
+    await trashBin.put(deletedKey, this.encodeDocument(binItem));
+    await projectsData.put(finalKey, this.encodeDocument(data));
+    await projectsIndex.put(finalKey, this.encodeDocument(index));
+
+    // The revision history may stay for now. 
+    // It should be cleaned when the object is removed from the bin.
     
     const event: IBackendEvent = {
       type: 'event',
@@ -779,9 +1049,9 @@ export class ArcLevelUp extends StorePersistence {
       kind: HttpProjectListItemKind,
       id: projectKey,
     };
-    // informs only clients that are listening for projects change in a space.
+    // informs only clients that are listening for changes on the space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceProjectsRoute(spaceKey),
+      url: RouteBuilder.buildSpaceRoute(spaceKey),
     };
     Clients.notify(event, filter);
     const event2 = { ...event };
@@ -806,7 +1076,7 @@ export class ArcLevelUp extends StorePersistence {
       throw new Error(`Store not initialized.`);
     }
     const created = Date.now();
-    const id = `project~${projectKey}~${created}~`;
+    const id = `~project~${projectKey}~${created}~`;
     const info: IRevisionInfo = {
       id,
       key: projectKey,
@@ -841,20 +1111,19 @@ export class ArcLevelUp extends StorePersistence {
     if (!projectRevisions) {
       throw new Error(`Store not initialized.`);
     }
-    // check if the user has read access to the space.
-    const userKey = user && user.key;
-    const access  = await this.readUserSpaceAccess(spaceKey, userKey);
-    if (!access) {
-      throw new ApiError(`User is not authorized to read this space.`, 403);
-    }
+    await this.checkProjectAccess('read', spaceKey, projectKey, user);
     const state = this.readListState(options);
     const itOpts: AbstractIteratorOptions = {
-      gte: `project~${projectKey}~`,
-      lte: `project~${projectKey}~~`
+      gte: `~project~${projectKey}~`,
+      lte: `~project~${projectKey}~~`,
+      // newest at the top
+      reverse: true,
     };
     const iterator = projectRevisions.iterator(itOpts);
     if (state.lastKey) {
       iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
     }
     let lastKey: string | undefined;
     const data: IRevisionInfo[] = [];
@@ -863,8 +1132,11 @@ export class ArcLevelUp extends StorePersistence {
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
-        const item = this.decodeDocument(value) as IRevisionInfo;
-        data.push(item);
+        const item = this.decodeDocument(value) as any;
+        if (item._deleted) {
+          continue;
+        }
+        data.push(item as IRevisionInfo);
         lastKey = key;
         remaining -= 1;
         if (!remaining) {
@@ -872,9 +1144,11 @@ export class ArcLevelUp extends StorePersistence {
         }
       }
     } catch (e) {
-      console.error(e);
+      this.logger.error(e);
     }
-    const cursor = this.encodeCursor(state, lastKey);
+    // // sorts from the latests to oldest
+    // data.sort(({ created: a = 0 }, { created: b = 0 }) => b - a);
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -915,6 +1189,107 @@ export class ArcLevelUp extends StorePersistence {
     }
     const data = this.decodeDocument(raw) as IUser;
     return data;
+  }
+
+  /**
+   * Reads multiple system users with one query. Typically used when the UI asks for
+   * user data to render "user pills" in the access control list.
+   * 
+   * @param userKeys The list of user keys.
+   * @returns Ordered list of users defined by the `userKeys` order.
+   * Note, when the user is not found an `undefined` is set at the position.
+   */
+  async readSystemUsers(userKeys: string[]): Promise<IListResponse> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const items = await users.getMany(userKeys);
+    const data: (IUser|undefined)[] = items.map((raw) => {
+      if (!raw) {
+        return undefined;
+      }
+      return this.decodeDocument(raw) as IUser;
+    });
+    const result: IListResponse = {
+      data,
+      cursor: '',
+    };
+    return result;
+  }
+
+  /**
+   * Lists the registered users.
+   * The final list won't contain the current user.
+   * The user can query for a specific data utilizing the `query` filed.
+   */
+  async listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const state = this.readListState(options);
+    const userKey = user && user.key;
+    const iterator = users.iterator();
+    if (state.lastKey) {
+      iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
+    }
+    let lastKey: string | undefined;
+    const data: IUser[] = [];
+    let remaining = state.limit as number;
+    const lowerQuery = state.query ? state.query.toLowerCase() : undefined;
+    try {
+      // @ts-ignore
+      for await (const [key, value] of iterator) {
+        if (userKey && key === userKey) {
+          continue;
+        }
+        const item = this.decodeDocument(value) as IUser;
+        if ((item as any)._deleted) {
+          continue;
+        }
+        if (lowerQuery && !this.isUserInQuery(item, lowerQuery)) {
+          continue;
+        }
+        data.push(item);
+        lastKey = key;
+        remaining -= 1;
+        if (!remaining) {
+          break;
+        }
+      }
+    } catch (e) {
+      this.logger.error(e);
+    }
+    const cursor = this.encodeCursor(state, lastKey || state.lastKey);
+    const result: IListResponse = {
+      data,
+      cursor,
+    };
+    return result;
+  }
+
+  /**
+   * Checks whether user data contains the `query`.
+   * 
+   * @param user The user object
+   * @param lowerQuery The lowercase query
+   * @returns True when the `query` is in the user name or email.
+   */
+  protected isUserInQuery(user: IUser, lowerQuery: string): boolean {
+    const { name='', email } = user;
+    if (name.toLocaleLowerCase().includes(lowerQuery)) {
+      return true;
+    }
+    if (Array.isArray(email)) {
+      const hasEmail = email.some(i => (i.email || '').toLowerCase().includes(lowerQuery));
+      if (hasEmail) {
+        return hasEmail;
+      }
+    }
+    return false;
   }
 
   /**
@@ -966,5 +1341,80 @@ export class ArcLevelUp extends StorePersistence {
     }
     const data = this.decodeDocument(raw);
     return data;
+  }
+
+  /**
+   * Lists users that do not exist in the system
+   * @param keys The list of user keys to test.
+   * @returns If empty list then all users are set in the store. Returned is the list of keys of missing records.
+   */
+  protected async listMissingUsers(keys: string[]): Promise<string[]> {
+    const { users } = this;
+    if (!users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const data = await users.getMany(keys);
+    const result: string[] = [];
+    data.forEach((item, index) => {
+      if (!item) {
+        result.push(keys[index]);
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Checks the bin store whether a space has been deleted.
+   * @param space The space key to test.
+   * @returns True when the space has been deleted.
+   */
+  protected async isSpaceDeleted(space: string): Promise<boolean> {
+    const key = KeyGenerator.deletedSpaceKey(space);
+    return this.isDeleted(key);
+  }
+
+  /**
+   * Checks the bin store for whether a user has been deleted.
+   * @param user The user key to test.
+   * @returns True when the user has been deleted.
+   */
+  protected async isUserDeleted(user: string): Promise<boolean> {
+    const key = KeyGenerator.deletedUserKey(user);
+    return this.isDeleted(key);
+  }
+
+  /**
+   * Checks the bin store for whether an HTTP project has been deleted.
+   * @param space The key of the owning space
+   * @param project The key of the project
+   * @returns True when the project has been deleted.
+   */
+  protected async isProjectDeleted(space: string, project: string): Promise<boolean> {
+    const spaceDeleted = await this.isSpaceDeleted(space);
+    if (spaceDeleted) {
+      return true;
+    }
+    const key = KeyGenerator.deletedProjectKey(space, project);
+    return this.isDeleted(key);
+  }
+
+  /**
+   * Tests the `trashBin` store against passed key.
+   * @param key The `trashBin` key.
+   * @returns True when the object has been deleted and added to the trash registry.
+   */
+  protected async isDeleted(key: string): Promise<boolean> {
+    const { trashBin } = this;
+    if (!trashBin) {
+      throw new Error(`Store not initialized.`);
+    }
+    let deleted = false;
+    try {
+      await trashBin.get(key);
+      deleted = true;
+    } catch (e) {
+      // ...
+    }
+    return deleted;
   }
 }
