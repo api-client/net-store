@@ -57,14 +57,14 @@ describe('Multi user', () => {
         assert.deepEqual(space, srcSpace, 'returns the space');
       });
 
-      it('returns 403 when no space', async () => {
+      it('returns 404 when no space', async () => {
         const basePath = RouteBuilder.buildSpaceRoute('1234567890');
         const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
-        assert.equal(result.status, 403, 'has 403 status code');
+        assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns 401 when no credentials', async () => {
@@ -142,7 +142,7 @@ describe('Multi user', () => {
         assert.equal(space.info.name, 'Other name', 'has the applied patch');
       });
 
-      it('returns 403 when no space', async () => {
+      it('returns 404 when no space', async () => {
         const patch: JsonPatch = [
           {
             op: 'replace',
@@ -155,12 +155,12 @@ describe('Multi user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 403, 'has 403 status code');
+        assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
-      it('returns 403 when accessing a workspace without access', async () => {
+      it('returns 404 when accessing a workspace without access', async () => {
         const patch: JsonPatch = [
           {
             op: 'replace',
@@ -173,9 +173,9 @@ describe('Multi user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 403, 'has 403 status code');
+        assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns 400 when invalid patch dta', async () => {
@@ -267,9 +267,9 @@ describe('Multi user', () => {
           token: user1Token,
           body,
         });
-        assert.equal(response.status, 403, 'has the 403 status code');
+        assert.equal(response.status, 404, 'has the 404 status code');
         const info = JSON.parse(response.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns error a user does not exist', async () => {
@@ -319,7 +319,7 @@ describe('Multi user', () => {
         });
         assert.equal(a2response.status, 403, 'has the 403 status code');
         const info = JSON.parse(a2response.body as string);
-        assert.equal(info.message, 'Not authorized to write to this space.');
+        assert.equal(info.message, 'Insufficient permissions to access this resource.');
       });
 
       it('returns error when the space does not exist', async () => {
@@ -332,9 +332,9 @@ describe('Multi user', () => {
           token: user1Token,
           body: JSON.stringify(a1records),
         });
-        assert.equal(a1response.status, 403, 'has the 403 status code');
+        assert.equal(a1response.status, 404, 'has the 404 status code');
         const info = JSON.parse(a1response.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('informs space change via the web socket', async () => {
@@ -377,7 +377,8 @@ describe('Multi user', () => {
           value: 'read',
         }];
         const messages: IBackendEvent[] = [];
-        const client = await ws.createAndConnect(`${baseUriWs}/spaces`, user2Token);
+        const wsPath = RouteBuilder.buildSpacesRoute();
+        const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user2Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
@@ -481,7 +482,7 @@ describe('Multi user', () => {
         });
         assert.equal(response.status, 204, 'has the 204 status code');
         const getResponse = await http.get(`${baseUri}/spaces/${key}`, { token: user2Token });
-        assert.equal(getResponse.status, 403, 'has the 403 status code');
+        assert.equal(getResponse.status, 404, 'has the 404 status code');
       });
 
       it('informs about space change via the web socket', async () => {

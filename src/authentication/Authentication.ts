@@ -6,19 +6,36 @@ import { IApplicationState } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 
+export interface IAuthenticationOptions {
+  router: Router<IApplicationState, DefaultContext>;
+  store: StorePersistence;
+  session: AppSession;
+  logger: Logger;
+}
+
 /**
  * A base class for all authentication methods.
  * 
  * The authentication classes receive the reference to the data store and the main router.
  * During the initialization phase the logic should register all necessary routes.
+ * 
+ * This is not a copy of the Passport.js architecture as the user never is opening a page
+ * on the server. All calls are API calls so the authentication requires spacial logic
+ * to handle this separation.
  */
 export abstract class Authentication {
-  constructor(
-    protected router: Router<IApplicationState, DefaultContext>, 
-    protected store: StorePersistence, 
-    protected session: AppSession,
-    protected logger: Logger,
-  ) { }
+  protected router: Router<IApplicationState, DefaultContext>;
+  protected store: StorePersistence;
+  protected session: AppSession;
+  protected logger: Logger;
+
+  constructor(init: IAuthenticationOptions) { 
+    this.router = init.router;
+    this.store = init.store;
+    this.session = init.session;
+    this.logger = init.logger;
+    this.middleware = this.middleware.bind(this);
+  }
 
   /** 
    * Initializes the authentication, eg, sets up routes, checks configuration, etc.

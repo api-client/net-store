@@ -5,7 +5,7 @@ import DefaultUser from './DefaultUser.js'
 
 export class SingleUserAuthentication extends Authentication {
   static get defaultSid(): string {
-    return 'default-sid';
+    return 'default';
   }
 
   async initialize(): Promise<void> {
@@ -21,7 +21,7 @@ export class SingleUserAuthentication extends Authentication {
   }
 
   async middleware(ctx: ParameterizedContext<DefaultState, DefaultContext, unknown>, next: Next): Promise<void> {
-    ctx.state.sid = 'default-sid';
+    ctx.state.sid = SingleUserAuthentication.defaultSid;
     ctx.state.user = DefaultUser;
     return next();
   }

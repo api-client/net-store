@@ -2,18 +2,16 @@
 import https from 'https';
 import http from 'http';
 import { URL, URLSearchParams } from 'url';
-import Router from '@koa/router';
 import { randomBytes } from 'crypto';
-import { DefaultContext, ParameterizedContext, Next } from 'koa';
-import { IUser, Logger } from '@advanced-rest-client/core'
+import { ParameterizedContext, Next } from 'koa';
+import { IUser } from '@advanced-rest-client/core'
 import jwt from 'jsonwebtoken';
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
-import { Authentication } from './Authentication.js';
-import { AppSession, ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
+import { Authentication, IAuthenticationOptions } from './Authentication.js';
+import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
 import { IApiError } from '../routes/BaseRoute.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
-import { StorePersistence } from '../persistence/StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { IOpenIdProviderMetadata } from './OpenIdProviderMetadata.js';
 
@@ -66,10 +64,9 @@ export class Oidc extends Authentication {
    */
   protected meta?: IOpenIdProviderMetadata;
 
-  constructor(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession, logger: Logger, config: IOidcConfiguration) {
-    super(router, store, session, logger);
+  constructor(init: IAuthenticationOptions, config: IOidcConfiguration) {
+    super(init);
     this.config = config;
-    this.middleware = this.middleware.bind(this);
   }
 
   async initialize(): Promise<void> {

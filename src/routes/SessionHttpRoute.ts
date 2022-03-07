@@ -4,6 +4,7 @@ import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 import DefaultUser from '../authentication/DefaultUser.js';
+import { SingleUserAuthentication } from '../authentication/SingleUserAuthentication.js';
 
 /**
  * A route that handles client sessions.
@@ -19,16 +20,18 @@ export class SessionHttpRoute extends BaseRoute {
     const baseRoute = RouteBuilder.buildSessionsRoute();
     if (this.info.mode === 'multi-user') {
       router.post(baseRoute, this.handleMultiUserModeSessionCreate.bind(this));
+      router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
     } else {
       router.post(baseRoute, this.handleSingleUserModeSessionCreate.bind(this));
     }
-    router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
   }
 
   /**
    * A handler to create a user session in the store.
    * 
    * It generates a JWT with some very basic information.
+   * 
+   * This API is only available in the multi-user mode.
    */
   protected async handleMultiUserModeSessionCreate(ctx: ParameterizedContext): Promise<void> {
     try {
@@ -42,11 +45,11 @@ export class SessionHttpRoute extends BaseRoute {
   }
 
   /**
-   * IN a single user mode this endpoint always creates authenticated token for the default user.
+   * In a single user mode this endpoint always creates authenticated token for the default user.
    */
   protected async handleSingleUserModeSessionCreate(ctx: ParameterizedContext): Promise<void> {
     try {
-      const token = await this.session.generateAuthenticatedSession(DefaultUser.key, 'default-sid');
+      const token = await this.session.generateAuthenticatedSession(DefaultUser.key, SingleUserAuthentication.defaultSid);
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;
@@ -57,6 +60,7 @@ export class SessionHttpRoute extends BaseRoute {
 
   /**
    * A handler to create a user session in the store.
+   * This API is only available in the multi-user mode.
    */
   protected async handleSessionRenew(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
     try {

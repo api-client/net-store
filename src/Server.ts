@@ -17,7 +17,7 @@ import {
   SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, 
   IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
-import { Authentication } from './authentication/Authentication.js';
+import { Authentication, IAuthenticationOptions } from './authentication/Authentication.js';
 import DefaultUser from './authentication/DefaultUser.js';
 import { SingleUserAuthentication } from './authentication/SingleUserAuthentication.js';
 import { BackendInfo } from './BackendInfo.js';
@@ -122,6 +122,15 @@ export class Server {
     this.apiHandler.cleanup();
   }
 
+  protected getAuthInit(): IAuthenticationOptions {
+    return {
+      logger: this.logger,
+      router: this.router,
+      session: this.session,
+      store: this.store,
+    }
+  }
+
   /**
    * Depending on the configuration initializes required libraries.
    * @param customRoutes Any custom routes to initialize.
@@ -142,7 +151,7 @@ export class Server {
         factory = await this.initializeAuthentication(opts.authentication as IAuthenticationConfiguration);
       }
     } else {
-      factory = new SingleUserAuthentication(this.router, this.store, this.session, this.logger);
+      factory = new SingleUserAuthentication(this.getAuthInit());
     }
     this.auth = factory;
     this.app.use(factory.middleware);
@@ -153,9 +162,9 @@ export class Server {
    * Initializes a custom authentication function provided by the configuration.
    */
   protected async initializeCustomAuth(): Promise<Authentication> {
-    const { opts, router, store } = this;
-    const ctr = opts.authentication as new(router: Router<IApplicationState, DefaultContext>, store: StorePersistence, session: AppSession, logger: Logger) => Authentication;
-    const factory = new ctr(router, store, this.session, this.logger);
+    const { opts } = this;
+    const ctr = opts.authentication as new(init: IAuthenticationOptions) => Authentication;
+    const factory = new ctr(this.getAuthInit());
     await factory.initialize();
     return factory;
   }
@@ -179,7 +188,7 @@ export class Server {
     if (!config || !config.issuerUri) {
       throw new Error(`OpenID Connect configuration error.`);
     }
-    const factory = new Oidc(this.router, this.store, this.session, this.logger, config);
+    const factory = new Oidc(this.getAuthInit(), config);
     await factory.initialize();
     return factory;
   }
@@ -308,6 +317,7 @@ export class Server {
     const factory = this.auth as Authentication;
     try {
       sessionId = await factory.getSessionId(request);
+      
       if (sessionId === SingleUserAuthentication.defaultSid) {
         user = DefaultUser;
       } else {
@@ -352,7 +362,6 @@ export class Server {
       return;
     }
     let url = request.url.substring(prefix.length);
-
     if (url.includes('?')) {
       // clears the URL from any query parameters. Authentication uses QP to set session.
       const index = url.indexOf('?');
@@ -371,7 +380,7 @@ export class Server {
     if (!authorized) {
       this.apiHandler.removeWsRoute(route);
       this.logger.error('Route not found.');
-      socket.write('HTTP/1.1 404 Not found\r\n\r\n');
+      socket.write('HTTP/1.1 403 Not authorized\r\n\r\n');
       socket.destroy();
       return;
     }

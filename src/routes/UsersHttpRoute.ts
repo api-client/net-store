@@ -1,6 +1,5 @@
 import { ParameterizedContext } from 'koa';
 import { BaseRoute } from './BaseRoute.js';
-import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 
@@ -34,10 +33,7 @@ export class UsersHttpRoute extends BaseRoute {
         ctx.set('location', '/auth/login');
       }
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 
@@ -56,10 +52,7 @@ export class UsersHttpRoute extends BaseRoute {
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
-      const e = cause as ApiError;
-      const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-      ctx.body = this.wrapError(error, error.code);
-      ctx.status = error.code;
+      this.errorResponse(ctx, cause);
     }
   }
 }

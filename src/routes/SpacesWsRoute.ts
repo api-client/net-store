@@ -17,15 +17,7 @@ export class SpacesWsRoute extends SocketRoute {
     if (!user) {
       return false;
     }
-    const spaceId = this.route[1];
-    let valid = false;
-    try {
-      await this.store.checkSpaceAccess('read', spaceId, user);
-      valid = true;
-    } catch (e) {
-      // ...
-    }
-    return valid;
+    return true;
   }
   
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: IUser, sid?: string): void {

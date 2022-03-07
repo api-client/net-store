@@ -414,7 +414,6 @@ export class ArcLevelUp extends StorePersistence {
     if (isDeleted) {
       throw new ApiError(`Not found.`, 404);
     }
-
     const access  = await this.readUserSpaceAccess(key, user.key);
     if (!access) {
       // no access is like 404.

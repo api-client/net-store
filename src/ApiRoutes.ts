@@ -9,7 +9,6 @@ import { RouteBuilder } from './routes/RouteBuilder.js';
 import { SpacesHttpRoute } from './routes/SpacesHttpRoute.js';
 import { SpaceWsRoute } from './routes/SpaceWsRoute.js';
 import { ProjectsHttpRoute } from './routes/ProjectsHttpRoute.js';
-import { ProjectHttpRoute } from './routes/ProjectHttpRoute.js';
 import { ProjectsWsRoute } from './routes/ProjectsWsRoute.js';
 import { ProjectWsRoute } from './routes/ProjectWsRoute.js';
 import { AuthWsRoute } from './routes/AuthWsRoute.js';
@@ -60,7 +59,6 @@ export class ApiRoutes {
     this.routes.push(new BackendHttpRoute(init));
     this.routes.push(new SpacesHttpRoute(init));
     this.routes.push(new ProjectsHttpRoute(init));
-    this.routes.push(new ProjectHttpRoute(init));
     this.routes.push(new UsersHttpRoute(init));
     customRoutes.forEach((custom) => {
       const ctr = custom as new(init: ISpaceConfiguration) => BaseRoute;

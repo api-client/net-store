@@ -59,12 +59,12 @@ describe('Multi user', () => {
         assert.deepEqual(info, refProject, 'returns the project');
       });
 
-      it('returns 403 when no space', async () => {
+      it('returns 404 when no space', async () => {
         const path = RouteBuilder.buildSpaceProjectRoute('abcdef', projectKey);
         const result = await http.get(`${baseUri}${path}`, { token: user1Token });
-        assert.equal(result.status, 403, 'has 403 status code');
+        assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns 404 when no project', async () => {
@@ -184,9 +184,9 @@ describe('Multi user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        assert.equal(result.status, 403, 'has 403 status code');
+        assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not authorized to read this space.');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns 404 when no project', async () => {
@@ -297,6 +297,7 @@ describe('Multi user', () => {
         assert.typeOf(item.created, 'number');
         assert.isFalse(item.deleted);
         assert.typeOf(item.patch, 'array');
+        // @ts-ignore
         const isValid = ooPatch.valid(patch);
         assert.isTrue(isValid, 'has the valid patch')
       });
