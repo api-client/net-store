@@ -6,7 +6,7 @@ import getPort from './helpers/getPort.js';
 import path from 'path';
 import { OAuth2Server, MutableResponse } from 'oauth2-mock-server';
 import { DataMock } from '@pawel-up/data-mock';
-import { DummyLogger } from '@advanced-rest-client/core';
+import { DummyLogger } from '@api-client/core';
 import { Server } from '../index.js';
 import { TestStore } from './helpers/TestStore.js';
 import { SetupConfig } from './helpers/interfaces.js';

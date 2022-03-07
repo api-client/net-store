@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { Workspace, IUserWorkspace, IWorkspace, WorkspaceKind, IListResponse } from '@advanced-rest-client/core';
+import { Workspace, IUserWorkspace, IWorkspace, WorkspaceKind, IListResponse } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 

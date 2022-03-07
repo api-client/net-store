@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem } from '@advanced-rest-client/core';
+import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';

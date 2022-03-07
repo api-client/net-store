@@ -4,7 +4,7 @@ import {
   IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, 
   IHttpProjectListItem, IHttpProject, UserAccessOperation, IUser, 
   AccessControlLevel,
-} from '@advanced-rest-client/core';
+} from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';

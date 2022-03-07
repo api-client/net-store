@@ -1,5 +1,5 @@
 import { ParameterizedContext } from 'koa';
-import { IHttpProject, IUser } from '@advanced-rest-client/core';
+import { IHttpProject, IUser } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';

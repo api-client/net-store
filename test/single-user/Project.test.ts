@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, IHttpProject } from '@advanced-rest-client/core';
+import { IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, IHttpProject } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';

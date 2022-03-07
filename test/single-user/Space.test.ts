@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IWorkspace, IListResponse } from '@advanced-rest-client/core';
+import { IWorkspace, IListResponse } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';

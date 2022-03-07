@@ -1,7 +1,7 @@
 import http from 'http';
 import { DefaultContext, ParameterizedContext, Next } from 'koa';
 import Router from '@koa/router';
-import { IUser, Logger } from '@advanced-rest-client/core';
+import { IUser, Logger } from '@api-client/core';
 import { IApplicationState } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';

@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import jwt from 'jsonwebtoken';
-import { UUID } from '@advanced-rest-client/core';
+import { uuidV4 } from '@api-client/core';
 import { ISessionConfiguration } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 
@@ -127,7 +127,7 @@ export class AppSession {
    * @returns The unauthenticated token that allows the client to talk to some APIs.
    */
   async generateUnauthenticatedSession(): Promise<string> {
-    const sid = UUID.default();
+    const sid = uuidV4();
     const info: ITokenContents = {
       sid,
     };
@@ -151,7 +151,7 @@ export class AppSession {
    * @returns The JWT to be returned to the client.
    */
   async generateAuthenticatedSession(uid: string, sid: string): Promise<string> {
-    const newSid = UUID.default();
+    const newSid = uuidV4();
     const info: ITokenContents = {
       sid: newSid,
     };

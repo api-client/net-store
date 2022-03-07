@@ -4,7 +4,7 @@ import http from 'http';
 import { URL, URLSearchParams } from 'url';
 import { randomBytes } from 'crypto';
 import { ParameterizedContext, Next } from 'koa';
-import { IUser } from '@advanced-rest-client/core'
+import { IUser } from '@api-client/core'
 import jwt from 'jsonwebtoken';
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';

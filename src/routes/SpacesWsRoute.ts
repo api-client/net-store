@@ -1,6 +1,6 @@
 import http from 'http';
 import { WebSocket } from 'ws';
-import { IUser, IBackendCommand, IWorkspace } from '@advanced-rest-client/core';
+import { IUser, IBackendCommand, IWorkspace } from '@api-client/core';
 import { SocketRoute } from './SocketRoute.js';
 
 /**

@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import { Options as CorsOptions } from '@koa/cors';
 import { DefaultState } from 'koa';
-import { IUser, ILogger } from '@advanced-rest-client/core';
+import { IUser, ILogger } from '@api-client/core';
 import { Authentication } from './authentication/Authentication.js'
 
 export type SupportedServer = 'https' | 'http';

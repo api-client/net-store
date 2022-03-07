@@ -1,5 +1,5 @@
 {
-  "name": "@advanced-rest-client/net-store",
+  "name": "@api-client/net-store",
   "description": "The ARC's HTTP data store with interfaces for authorization and a persistence layers.",
   "version": "0.1.0",
   "license": "Apache-2.0",
@@ -13,17 +13,17 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/advanced-rest-client/net-store.git"
+    "url": "git://github.com/api-client/net-store.git"
   },
   "bugs": {
-    "url": "https://github.com/advanced-rest-client/net-store/issues",
+    "url": "https://github.com/api-client/net-store/issues",
     "email": "arc@mulesoft.com"
   },
   "engines": {
     "node": ">=15.4"
   },
   "dependencies": {
-    "@advanced-rest-client/core": "^0.2.4",
+    "@api-client/core": "^0.3.0",
     "@koa/cors": "^3.1.0",
     "@koa/router": "^10.1.1",
     "ejs": "^3.1.6",

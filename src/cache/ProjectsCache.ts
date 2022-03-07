@@ -1,4 +1,4 @@
-import { IHttpProject } from '@advanced-rest-client/core';
+import { IHttpProject } from '@api-client/core';
 
 interface ProjectState {
   /**

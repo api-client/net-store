@@ -3,7 +3,7 @@ import { assert } from 'chai';
 import { 
   IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
   IBackendEvent, HttpProject, AccessControlLevel,
-} from '@advanced-rest-client/core';
+} from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';

@@ -1,6 +1,6 @@
 import Router from '@koa/router';
 import { DefaultContext } from 'koa';
-import { Logger } from '@advanced-rest-client/core';
+import { Logger } from '@api-client/core';
 import { IServerConfiguration, IApplicationState } from './definitions.js';
 import { BaseRoute, ISpaceConfiguration } from './routes/BaseRoute.js';
 import { SocketRoute, ISocketRouteInit } from './routes/SocketRoute.js';

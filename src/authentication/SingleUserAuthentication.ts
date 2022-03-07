@@ -1,4 +1,4 @@
-import { IUser } from '@advanced-rest-client/core';
+import { IUser } from '@api-client/core';
 import { ParameterizedContext, DefaultState, DefaultContext, Next } from 'koa';
 import { Authentication } from './Authentication.js';
 import DefaultUser from './DefaultUser.js'

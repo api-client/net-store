@@ -1,4 +1,4 @@
-import { IUser } from '@advanced-rest-client/core';
+import { IUser } from '@api-client/core';
 import { WebSocket } from 'ws';
 
 export interface IClientInfo {

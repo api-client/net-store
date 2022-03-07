@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IWorkspace, UserAccessOperation } from '@advanced-rest-client/core';
+import { IWorkspace, UserAccessOperation } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';

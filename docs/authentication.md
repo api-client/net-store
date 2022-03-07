@@ -135,8 +135,8 @@ To configure own implementation of authentication, create a class that extends t
 
 ```typescript
 // auth.ts
-import { Authentication } from '@advanced-rest-client/net-store';
-import { IUser } from '@advanced-rest-client/core';
+import { Authentication } from '@api-client/net-store';
+import { IUser } from '@api-client/core';
 
 export default class Auth extends Authentication {
   /**
@@ -160,7 +160,7 @@ export default class Auth extends Authentication {
 
 
 // index.ts
-import { Server } from '@advanced-rest-client/net-store';
+import { Server } from '@api-client/net-store';
 import Auth from './auth.js';
 
 const server = new Server(myStore, {

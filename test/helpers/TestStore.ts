@@ -1,7 +1,7 @@
 import { 
   Workspace, IUserSpaces, IAccessControl, IWorkspace, IHttpProject, 
   HttpProject, IHttpProjectListItem, IRevisionInfo, HttpProjectKind,
-} from '@advanced-rest-client/core';
+} from '@api-client/core';
 import { DataMock } from '@pawel-up/data-mock';
 import { PutBatch } from 'abstract-leveldown';
 import { ArcLevelUp } from '../../index.js';

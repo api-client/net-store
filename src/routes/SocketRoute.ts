@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket, Server, RawData } from 'ws';
 import { EventEmitter } from 'events'
 import http from 'http';
-import { IUser, Logger } from '@advanced-rest-client/core';
+import { IUser, Logger } from '@api-client/core';
 import Clients from './WsClients.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { BackendInfo } from '../BackendInfo.js';

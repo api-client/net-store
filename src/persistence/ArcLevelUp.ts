@@ -10,7 +10,7 @@ import {
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
   RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
   IUserAccessAddOperation, IUserAccessRemoveOperation, Logger,
-} from '@advanced-rest-client/core';
+} from '@api-client/core';
 import { IListOptions, StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';

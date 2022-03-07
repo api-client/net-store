@@ -1,7 +1,7 @@
 import { 
   IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, 
   UserAccessOperation, Logger,
-} from '@advanced-rest-client/core';
+} from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 
 export interface IListOptions {

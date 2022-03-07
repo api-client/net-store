@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import http from 'http';
 import { WebSocket } from 'ws';
-import { IUser, IBackendCommand, IHttpProject } from '@advanced-rest-client/core';
+import { IUser, IBackendCommand, IHttpProject } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { SocketRoute } from './SocketRoute.js';
 

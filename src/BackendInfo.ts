@@ -1,4 +1,4 @@
-import { IBackendInfo } from '@advanced-rest-client/core';
+import { IBackendInfo } from '@api-client/core';
 import { ServerMode } from './definitions.js';
 
 export class BackendInfo {
@@ -11,7 +11,7 @@ export class BackendInfo {
   testing = false;
 
   toJSON(): IBackendInfo {
-    const info: any = {
+    const info: IBackendInfo = {
       mode: this.mode,
     };
     return info as IBackendInfo;

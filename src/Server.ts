@@ -5,7 +5,7 @@ import http from 'http';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { IUser, Logger, DefaultLogger } from '@advanced-rest-client/core';
+import { IUser, Logger, DefaultLogger } from '@api-client/core';
 import cors, { Options as CorsOptions } from '@koa/cors';
 import Router, { RouterOptions } from '@koa/router';
 import views from 'koa-views';
