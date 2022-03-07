@@ -317,12 +317,11 @@ export class Server {
     const factory = this.auth as Authentication;
     try {
       sessionId = await factory.getSessionId(request);
-      
       if (sessionId === SingleUserAuthentication.defaultSid) {
         user = DefaultUser;
       } else {
         const authLocation = factory.getAuthLocation();
-        if (request.url === authLocation) {
+        if (request.url.includes(`${authLocation}?token=`)) {
           // we allow un-auth user here.
           const route = this.apiHandler.getOrCreateWs(authLocation);
           if (!route || !route.server) {

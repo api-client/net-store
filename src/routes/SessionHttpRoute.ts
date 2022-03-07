@@ -1,4 +1,6 @@
+/* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
+import jwt from 'jsonwebtoken';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
 import { RouteBuilder } from './RouteBuilder.js';
@@ -36,6 +38,11 @@ export class SessionHttpRoute extends BaseRoute {
   protected async handleMultiUserModeSessionCreate(ctx: ParameterizedContext): Promise<void> {
     try {
       const token = await this.session.generateUnauthenticatedSession();
+      const info = jwt.decode(token) as jwt.JwtPayload;
+      if (info.exp) {
+        const date = new Date(info.exp);
+        ctx.set('expires', date.toISOString());
+      }
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;
@@ -50,6 +57,11 @@ export class SessionHttpRoute extends BaseRoute {
   protected async handleSingleUserModeSessionCreate(ctx: ParameterizedContext): Promise<void> {
     try {
       const token = await this.session.generateAuthenticatedSession(DefaultUser.key, SingleUserAuthentication.defaultSid);
+      const info = jwt.decode(token) as jwt.JwtPayload;
+      if (info.exp) {
+        const date = new Date(info.exp);
+        ctx.set('expires', date.toISOString());
+      }
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;
@@ -68,6 +80,11 @@ export class SessionHttpRoute extends BaseRoute {
         throw new ApiError('Not authorized', 401);
       }
       const token = await this.session.generateAuthenticatedSession(ctx.state.user.key, ctx.state.sid);
+      const info = jwt.decode(token) as jwt.JwtPayload;
+      if (info.exp) {
+        const date = new Date(info.exp);
+        ctx.set('expires', date.toISOString());
+      }
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;

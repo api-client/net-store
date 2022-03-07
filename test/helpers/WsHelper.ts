@@ -21,7 +21,6 @@ export default class WsHelper {
    * Connect to the WS server
    * 
    * @param client The client to wait for connection.
-   * @param token Optional token to add.
    */
   connect(client: WebSocket): Promise<void> {
     return new Promise((resolve, reject) => {

@@ -59,7 +59,7 @@ This endpoint requires authentication.
 When a token is about to expire the client can exchange the token for a new one. The client cannot exchange expired token.
 
 ```http
-POST /sessions HTTP 1/1
+POST /sessions/renew HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 

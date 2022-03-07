@@ -155,6 +155,7 @@ export default class HttpHelper {
     }
     const path = await this.getAuthSessionEndpoint(baseUri, initToken);
     const authUrl = new URL(`/v1${path}`, baseUri);
+    // this test server uses mocked OAuth server which always returns user data.
     await this.get(authUrl.toString());
     // when the above finishes we are either authenticated as a user or not.
     // We gonna check the /users/me endpoint for confirmation.

@@ -1,7 +1,5 @@
 # Advanced REST Client's Net Store
 
-> Work in progress
-
 This library is a self-contained backend store for ARC's applications. It is designed to:
 
 - work as a local service installed with ARC / API Client applications in a single-user environment
@@ -24,127 +22,6 @@ In the multi-user environment clients (users) can:
 - create and share (via space sharing) HTTP projects
 - share HTTP history
 
-## Server Client Communication
-
-In a single-user environment all API access is open and authentication or a session is not required. Below is the description of the steps required to perform to start an authenticated session in a multi-user environment.
-
-Regardless of the protocol used to communicate with the store (HTTP/S, socket, web socket) the client must obey the following rules to be able to communicate with the store.
-
-1. The client initializes the session in the store (POST /sessions).
-1. The store returns a token for the client with the expiration time configured in the store settings. The client uses this token in all further communication with the store
-1. The client checks whether the user is authenticated for this token (GET /users/me).
-    1. If the user is not authenticated then `401` status is returned with the location of the login form. Use this location to open a browser window and authenticate the user
-    1. The client connects a web-socket to `/auth/status?token=...` and awaits for the status.
-    1. If the user is authenticated it returns user information object
-1. The client uses the API with the same token.
-1. The client stores the token locally for future use (sessions are persistent in the Store.)
-1. The client refresh the token by creating a new token (POST /sessions/renew)
-
-### Example communication
-
-```plain
-|--------|                           |--------|
-| Client |                           | Server |
-|--------|                           |--------|
-|                                             |
-|           POST /sessions (no body)          |
-| ==========================================> |
-|                                             |
-|        Unauthenticated token in body        |
-| <========================================== |
-|                                             |
-|          GET /users/me                      |
-|          Authorization: Bearer xxx          |
-| ==========================================> |
-|                                             |
-|        HTTP 1.1 401 Unauthorized            |
-|        Location: /auth/login                |
-| <========================================== |
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-
-|       (via a browser) /auth/login           |
-| ==========================================> |
-|  (via a web socket) /auth/status?token=..   |
-| ==========================================> |
-|            (via a web socket)               |
-|             { status: 'OK' }                |
-| <========================================== |
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-|          GET /xxxx                          |
-|          Authorization: Bearer xxx          |
-| ==========================================> |
-```
-
-## Configuring authentication
-
-Note, authorization is performed on a resource level (e.g. when reading the resource).
-
-Out-of-the-box the store supports OpenID Connect configuration. You can use your Google Workspace (or whatever it is called this year) accounts with the store. This also works with Microsoft, SalesForce, Octa, and others.
-
-If you want to use different way of authenticating the user (Kerberos, etc) you unfortunately have to implement it yourself. However, we created interfaces to help you build a skeleton of your application and to plug it into to Server. Contributions are very welcome so others can use the same module.
-
-An example configuration can be as follows:
-
-```typescript
-const port = 8080;
-const pasePath = '/v1';
-const baseUri = `http://localhost:${port}${pasePath}`;
-
-const server = new Server(myStore, {
-  router: {
-    prefix: pasePath,
-  },
-  authentication: {
-    enabled: true,
-    type: 'oidc',
-    secret: 'N8GNxYsVZC', // random chars, use any online generator
-    config: {
-      issuerUri: 'https://accounts.google.com/',
-      clientId: 'your-client-id.apps.googleusercontent.com', // get it from the Google Cloud Console
-      clientSecret: 'VmBtai0wzwveE6ys8VZO', // not a real secret, generated random chars.
-      redirectBaseUri: baseUri, // important! Use your domain and register it with Google Cloud Console as the redirect URL as baseUri + '/auth/callback'
-    }
-  }
-});
-```
-
-To configure own implementation of authentication, create a class that extends the `src/authentication/Authentication.ts` class and pass the reference to as in the `authentication` property.
-
-```typescript
-// auth.ts
-import { Authentication } from '@advanced-rest-client/net-store';
-import { IUser } from '@advanced-rest-client/core';
-
-export default class Auth extends Authentication {
-  /**
-   * A function that checks whether the current request is authenticated.
-   * If so it returns the User object.
-   * 
-   * It throws when the authentication is invalid or expired.
-   * It returns an empty object when no authentication mechanism was provided.
-   * 
-   * @param request The client request.
-   */
-  async authenticate(request: http.IncomingMessage): Promise<IUser | undefined> {
-    // ...
-  }
-
-  getAuthLocation(): string {
-    return '/auth/login';
-  }
-  ...
-}
-
-
-// index.ts
-import { Server } from '@advanced-rest-client/net-store';
-import Auth from './auth.js';
-
-const server = new Server(myStore, {
-  authentication: Auth,
-});
-```
-
 ## Observing real-time changed
 
 The server exposes several endpoints for web sockets. Clients can crate a WebSocket connection to the server to observer changes to the interesting resources:
@@ -166,6 +43,14 @@ If the token is not set when making the connection on the websocket then the con
 ## REST API
 
 See [docs/api.md](docs/api.md) for API details.
+
+## Communication client <> store
+
+See [docs/communication.md](docs/communication.md) for more details.
+
+## Client authentication
+
+See [docs/authentication.md](docs/authentication.md) for more details.
 
 ## Contributions
 

@@ -150,7 +150,7 @@ export class AppSession {
    * @param sid The unauthenticated session id, if any.
    * @returns The JWT to be returned to the client.
    */
-  async generateAuthenticatedSession(uid: string, sid?: string): Promise<string> {
+  async generateAuthenticatedSession(uid: string, sid: string): Promise<string> {
     const newSid = UUID.default();
     const info: ITokenContents = {
       sid: newSid,
