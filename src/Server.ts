@@ -83,6 +83,9 @@ export class Server {
     this.logger = this.setupLogger(opts);
 
     info.mode = opts.mode === 'multi-user' ? opts.mode : 'single-user';
+    if (opts.router && opts.router.prefix) {
+      info.prefix = opts.router.prefix;
+    }
     if (info.mode === 'multi-user') {
       if (!opts.authentication) {
         throw new Error(`The "authentication" configuration is required in the "multi-user" mode.`);
@@ -155,6 +158,7 @@ export class Server {
     }
     this.auth = factory;
     this.app.use(factory.middleware);
+    this.info.authPath = factory.getAuthLocation();
     await this.setupRoutes(...customRoutes);
   }
 
