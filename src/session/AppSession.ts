@@ -285,7 +285,7 @@ export class AppSession {
     }
     const data = this.cache.get(sid);
     if (data) {
-      await store.setSessionData(sid, data);
+      await store.setSessionData(sid, data.data);
     } else {
       await store.deleteSessionData(sid);
     }
