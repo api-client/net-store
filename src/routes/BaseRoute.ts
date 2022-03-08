@@ -1,7 +1,7 @@
 import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser, UserAccessOperation, Logger } from '@api-client/core';
-import { StorePersistence, IListOptions } from '../persistence/StorePersistence.js';
+import { IUser, UserAccessOperation, Logger, IListOptions } from '@api-client/core';
+import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 import { ApiError } from '../ApiError.js';
 import { BackendInfo } from '../BackendInfo.js';

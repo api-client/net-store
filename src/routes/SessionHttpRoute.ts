@@ -22,10 +22,10 @@ export class SessionHttpRoute extends BaseRoute {
     const baseRoute = RouteBuilder.buildSessionsRoute();
     if (this.info.mode === 'multi-user') {
       router.post(baseRoute, this.handleMultiUserModeSessionCreate.bind(this));
-      router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
     } else {
       router.post(baseRoute, this.handleSingleUserModeSessionCreate.bind(this));
     }
+    router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
   }
 
   /**

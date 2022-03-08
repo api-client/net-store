@@ -7,6 +7,7 @@ export class UsersHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     router.get(RouteBuilder.buildUsersMeRoute(), this.handleMe.bind(this));
+    router.get(RouteBuilder.buildUsersRoute(), this.listUsers.bind(this));
   }
 
   /**

@@ -62,4 +62,8 @@ export class RouteBuilder {
   static buildUsersMeRoute(): string {
     return '/users/me'
   }
+
+  static buildUsersRoute(): string {
+    return '/users'
+  }
 }

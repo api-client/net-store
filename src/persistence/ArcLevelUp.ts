@@ -9,9 +9,9 @@ import {
   IUser, IWorkspace, IUserWorkspace, IHttpProjectListItem, IHttpProject, IUserSpaces, 
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
   RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger, IListOptions,
 } from '@api-client/core';
-import { IListOptions, StorePersistence } from './StorePersistence.js';
+import { StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { ApiError } from '../ApiError.js';
