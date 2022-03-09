@@ -1,8 +1,8 @@
-/* eslint-disable import/no-named-as-default-member */
-import jwt from 'jsonwebtoken';
+import { JwtPayload } from 'jsonwebtoken';
 import { uuidV4 } from '@api-client/core';
 import { ISessionConfiguration } from '../definitions.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
+import { Tokens } from './Tokens.js';
 
 export interface ITokenContents {
   /**
@@ -75,16 +75,14 @@ export class AppSession {
    * The key is the `state` parameter and the value if the key of the session.
    */
   protected auth = new Map<string, string>();
-
   /**
-   * This MUST be replaces by a secret that wont't change at the initialization time.
-   * This is a part of the authorization initialization.
+   * The secret to encode the token.
    */
-  secret = '';
+  protected secret = '';
   /**
    * Token expiration date.
    */
-  expiresIn: string | number = '7d';
+  protected expiresIn: string | number = '7d';
   /**
    * Cache life time. Default it is one hour.
    */
@@ -93,6 +91,7 @@ export class AppSession {
   protected store: StorePersistence;
 
   protected gcTimer?: NodeJS.Timer;
+  protected tokens: Tokens;
 
   constructor(store: StorePersistence, config: ISessionConfiguration = {}) {
     if (config.secret) {
@@ -102,6 +101,7 @@ export class AppSession {
       this.expiresIn = config.expiresIn;
     }
     this.store = store;
+    this.tokens = new Tokens(this.secret, this.expiresIn);
   }
 
   /**
@@ -131,8 +131,7 @@ export class AppSession {
     const info: ITokenContents = {
       sid,
     };
-    const options = this.getSignOptions();
-    const token = jwt.sign(info, this.secret, options);
+    const token = this.tokens.generate(info);
     const data:ICachedSession = {
       lastAccess: Date.now(),
       data: { authenticated: false },
@@ -155,8 +154,7 @@ export class AppSession {
     const info: ITokenContents = {
       sid: newSid,
     };
-    const options = this.getSignOptions();
-    const token = jwt.sign(info, this.secret, options);
+    const token = this.tokens.generate(info);
     if (sid) {
       await this.delete(sid);
     }
@@ -165,9 +163,18 @@ export class AppSession {
   }
 
   /**
+   * Reads the contents of the token
+   * @param token The token to read.
+   * @returns The JWT token contents.
+   */
+  readTokenContents(token: string): JwtPayload {
+    return this.tokens.readContents(token);
+  }
+
+  /**
    * A helper function to add the OAuth 2 params to the session.
    * 
-   * @param token The client issued token.
+   * @param key The session key.
    * @param state The OAuth2 state parameter
    * @param nonce The OAuth2 nonce parameter
    */
@@ -218,18 +225,6 @@ export class AppSession {
    */
   async deleteOauthSession(state: string): Promise<void> {
     this.auth.delete(state);
-  }
-
-  /**
-   * @returns JWT signing options.
-   */
-  protected getSignOptions(): jwt.SignOptions {
-    const result: jwt.SignOptions = {
-      expiresIn: this.expiresIn,
-      audience: 'urn:api-client',
-      issuer: 'urn:arc-store',
-    };
-    return result;
   }
 
   /**

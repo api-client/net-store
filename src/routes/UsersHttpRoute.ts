@@ -1,4 +1,5 @@
 import { ParameterizedContext } from 'koa';
+import { IUser } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
@@ -17,21 +18,19 @@ export class UsersHttpRoute extends BaseRoute {
    */
   protected async handleMe(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
     try {
-      if (!ctx.state.sid) {
-        ctx.status = 400;
-        ctx.set('location', RouteBuilder.buildSessionsRoute());
-        ctx.body = this.wrapError(new Error('Session not initialized'), 400);
-        return;
-      }
+      // if (!ctx.state.sid) {
+      //   ctx.status = 400;
+      //   ctx.set('location', RouteBuilder.buildSessionsRoute());
+      //   ctx.body = this.wrapError(new Error('Session not initialized'), 400);
+      //   return;
+      // }
       if (ctx.state.user) {
-        const user = { ...ctx.state.user };
-        delete user.provider;
-        ctx.body = user;
+        ctx.body = this.cleanUpUser(ctx.state.user);
         ctx.type = 'text';
         ctx.status = 200;
       } else {
         ctx.status = 401;
-        ctx.set('location', '/auth/login');
+        ctx.set('location', RouteBuilder.buildSessionsRoute());
       }
     } catch (cause) {
       this.errorResponse(ctx, cause);
@@ -49,11 +48,26 @@ export class UsersHttpRoute extends BaseRoute {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
       const result = await this.store.listSystemUsers(options, user);
+      result.data = this.cleanUpUsers(result.data as IUser[]);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }
+  }
+
+  protected cleanUpUsers(users: IUser[]): IUser[] {
+    return users.map((i) => this.cleanUpUser(i));
+  }
+
+  /**
+   * Removes server side stuff that clients should not see, like refresh tokens etc.
+   * @returns The copy of the object.
+   */
+  protected cleanUpUser(user: IUser): IUser {
+    const item = { ...user };
+      delete item.provider;
+      return item;
   }
 }

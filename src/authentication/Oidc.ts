@@ -5,7 +5,6 @@ import { URL, URLSearchParams } from 'url';
 import { randomBytes } from 'crypto';
 import { ParameterizedContext, Next } from 'koa';
 import { IUser } from '@api-client/core'
-import jwt from 'jsonwebtoken';
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';
 import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
@@ -194,14 +193,8 @@ export class Oidc extends Authentication {
    * @param token The token received from the client.
    */
   readTokenSessionId(token: string): string {
-    let contents: ITokenContents;
-    try {
-      contents = jwt.verify(token, this.session.secret) as ITokenContents;
-    } catch (e) {
-      this.logger.error('[Token validation]', e);
-      throw new ApiError(`Invalid token.`, 401);
-    }
-    return contents.sid;
+    const data = this.session.readTokenContents(token) as ITokenContents;
+    return data.sid;
   }
 
   /**

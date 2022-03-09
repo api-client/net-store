@@ -1223,13 +1223,12 @@ export class ArcLevelUp extends StorePersistence {
    * The final list won't contain the current user.
    * The user can query for a specific data utilizing the `query` filed.
    */
-  async listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse> {
+  async listSystemUsers(options?: IListOptions): Promise<IListResponse> {
     const { users } = this;
     if (!users) {
       throw new Error(`Store not initialized.`);
     }
     const state = this.readListState(options);
-    const userKey = user && user.key;
     const iterator = users.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
@@ -1243,9 +1242,6 @@ export class ArcLevelUp extends StorePersistence {
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
-        if (userKey && key === userKey) {
-          continue;
-        }
         const item = this.decodeDocument(value) as IUser;
         if ((item as any)._deleted) {
           continue;

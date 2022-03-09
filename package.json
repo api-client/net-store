@@ -1,7 +1,7 @@
 {
   "name": "@api-client/net-store",
   "description": "The ARC's HTTP data store with interfaces for authorization and a persistence layers.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "Apache-2.0",
   "type": "module",
   "main": "build/index.js",

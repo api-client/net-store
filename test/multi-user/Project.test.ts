@@ -41,6 +41,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+        await http.delete(`${baseUri}/test/reset/users`);
       });
 
       beforeEach(async () => {
@@ -125,6 +126,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+        await http.delete(`${baseUri}/test/reset/users`);
       });
 
       beforeEach(async () => {
@@ -368,6 +370,7 @@ describe('Multi user', () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
         await http.delete(`${baseUri}/test/reset/bin`);
+        await http.delete(`${baseUri}/test/reset/users`);
       });
 
       beforeEach(async () => {
@@ -458,6 +461,7 @@ describe('Multi user', () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
         await http.delete(`${baseUri}/test/reset/revisions`);
+        await http.delete(`${baseUri}/test/reset/users`);
       });
 
       beforeEach(async () => {
