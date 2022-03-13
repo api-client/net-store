@@ -143,6 +143,12 @@ export interface IOidcConfiguration {
    * **Do not set this for public OAuth providers!**
    */
   ignoreCertErrors?: boolean;
+  /**
+   * The list of domains that are allowed to register a user.
+   * If the returned user has no email or the email is in a different domain then the authentication 
+   * fails.
+   */
+  allowedDomains?: string[];
 }
 
 export interface IRouterConfiguration {

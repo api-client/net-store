@@ -561,7 +561,7 @@ export class Oidc extends Authentication {
   }
 
   protected async getUserInfo(accessToken: string): Promise<IUser> {
-    const { meta } = this;
+    const { meta, config } = this;
     if (!meta) {
       throw new ApiError('Invalid server configuration.', 500);
     }
@@ -574,6 +574,7 @@ export class Oidc extends Authentication {
     if (!info.sub) {
       throw new Error(`Invalid profile response. Unable to proceed.`);
     }
+    const { allowedDomains } = config;
     /* sub: 'user id',
       name: 'user name',
       given_name: '...',
@@ -586,11 +587,21 @@ export class Oidc extends Authentication {
       key: info.sub,
       name: info.name || 'Anonymous',
     };
-    if (info.email) {
+    const hasDomains = Array.isArray(allowedDomains) && allowedDomains.length;
+    const email = info.email as string | undefined;
+    if (email) {
+      if (hasDomains) {
+        const isAllowed = allowedDomains.some(domain => this.isDomainEmail(domain, email));
+        if (!isAllowed) {
+          throw new Error(`The email ${email} is not allowed to register. Contact your administrator for more information.`);
+        }
+      }
       result.email = [{
-        email: info.email,
+        email,
         verified: info.email_verified === true,
       }];
+    } else if (hasDomains) {
+      throw new Error(`Invalid user profile. An email is required to verify access to the domain.`);
     }
     if (info.locale) {
       result.locale = info.locale;
@@ -601,6 +612,21 @@ export class Oidc extends Authentication {
       };
     }
     return result;
+  }
+
+  /**
+   * Checks the user email is in the domain.
+   * @param domain The domain
+   * @param email The email address to test against the domain.
+   * @returns true when the email is in the domain.
+   */
+  protected isDomainEmail(domain: string, email: string): boolean {
+    let lowerDomain = domain.toLowerCase();
+    const lowerEmail = email.toLowerCase();
+    if (!lowerDomain.startsWith('@')) {
+      lowerDomain = `@${lowerDomain}`;
+    }
+    return lowerEmail.endsWith(lowerDomain);
   }
 
   protected async readDiscoveryUserInfo(accessToken: string): Promise<any> {
