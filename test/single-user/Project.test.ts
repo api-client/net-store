@@ -37,6 +37,7 @@ describe('Single user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('reads project data', async () => {
@@ -70,7 +71,7 @@ describe('Single user', () => {
       let refProject: IHttpProject;
       let user1Token: string;
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
+        user1Token = await http.createSession(baseUri);
         const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
         spaceKey = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
       });
@@ -78,6 +79,7 @@ describe('Single user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {
@@ -118,7 +120,7 @@ describe('Single user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        const result = await http.get(`${baseUri}${path}`);
+        const result = await http.get(`${baseUri}${path}`, { token: user1Token });
         assert.equal(result.status, 200, 'has 200 status code');
         const space = JSON.parse(result.body as string) as IHttpProject;
         assert.equal(space.info.name, 'Other name', 'has the applied patch');
@@ -273,7 +275,7 @@ describe('Single user', () => {
         const revPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
         await http.patch(`${baseUri}${path}`, { body: JSON.stringify(patch1), token: user1Token, });
         await http.patch(`${baseUri}${path}`, { body: JSON.stringify(patch2), token: user1Token, });
-        const result = await http.get(`${baseUri}${revPath}`);
+        const result = await http.get(`${baseUri}${revPath}`, { token: user1Token });
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.lengthOf(list.data, 2, 'has 2 patches');
         const [p1, p2] = (list.data as IRevisionInfo[]);
@@ -320,6 +322,7 @@ describe('Single user', () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
         await http.delete(`${baseUri}/test/reset/bin`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {
@@ -409,6 +412,7 @@ describe('Single user', () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
         await http.delete(`${baseUri}/test/reset/revisions`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {

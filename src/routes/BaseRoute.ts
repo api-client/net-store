@@ -3,17 +3,10 @@ import Router from '@koa/router';
 import { IUser, UserAccessOperation, Logger, IListOptions } from '@api-client/core';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
-import { ApiError } from '../ApiError.js';
+import { ApiError, IApiError } from '../ApiError.js';
 import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
 import { ProjectsCache } from '../cache/ProjectsCache.js';
-
-export interface IApiError {
-  error: boolean;
-  code: number;
-  message: string;
-  detail: string;
-}
 
 export interface ISpaceConfiguration {
   router: Router;

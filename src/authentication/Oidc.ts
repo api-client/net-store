@@ -8,9 +8,8 @@ import { IUser } from '@api-client/core'
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';
 import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
-import { IApiError } from '../routes/BaseRoute.js';
+import { ApiError, IApiError } from '../ApiError.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
-import { ApiError } from '../ApiError.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { IOpenIdProviderMetadata } from './OpenIdProviderMetadata.js';
 
@@ -140,11 +139,16 @@ export class Oidc extends Authentication {
 
   /**
    * Processes the request and returns the user object.
-   * @param request The client request. Note, it is not a Koa request as this is also used by the web sockets.
+   * @param requestOrSid The client request. Note, it is not a Koa request as this is also used by the web sockets.
    * @returns The user object or undefined when not found.
    */
-  async getSessionUser(request: http.IncomingMessage): Promise<IUser | undefined> {
-    const sid = await this.getSessionId(request);
+  async getSessionUser(requestOrSid: http.IncomingMessage | string): Promise<IUser | undefined> {
+    let sid: string | undefined;
+    if (typeof requestOrSid === 'string') {
+      sid = requestOrSid;
+    } else {
+      sid = await this.getSessionId(requestOrSid);
+    }
     if (sid) {
       const sessionValue = await this.session.get(sid);
       if (!sessionValue) {

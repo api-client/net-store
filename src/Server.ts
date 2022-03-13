@@ -18,7 +18,7 @@ import {
   IApplicationState, ITestingServerConfiguration } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication, IAuthenticationOptions } from './authentication/Authentication.js';
-import DefaultUser from './authentication/DefaultUser.js';
+// import DefaultUser from './authentication/DefaultUser.js';
 import { SingleUserAuthentication } from './authentication/SingleUserAuthentication.js';
 import { BackendInfo } from './BackendInfo.js';
 import { AppSession } from './session/AppSession.js';
@@ -321,8 +321,11 @@ export class Server {
     const factory = this.auth as Authentication;
     try {
       sessionId = await factory.getSessionId(request);
-      if (sessionId === SingleUserAuthentication.defaultSid) {
-        user = DefaultUser;
+      if (this.info.mode === 'single-user') {
+        if (!sessionId) {
+          throw new Error(`No authorization info.`);
+        }
+        user = await factory.getSessionUser(sessionId);
       } else {
         const authLocation = factory.getAuthLocation();
         if (request.url.includes(`${authLocation}?token=`)) {
@@ -340,14 +343,15 @@ export class Server {
         if (!sessionId) {
           throw new Error(`No authorization info.`);
         }
-        const sessionValue = await this.session.get(sessionId);
-        if (!sessionValue) {
-          throw new Error(`Session not established.`);
-        }
-        if (!sessionValue.authenticated) {
-          throw new Error(`Using unauthenticated session.`);
-        }
-        user = await this.store.readSystemUser(sessionValue.uid);
+        user = await factory.getSessionUser(sessionId);
+        // const sessionValue = await this.session.get(sessionId);
+        // if (!sessionValue) {
+        //   throw new Error(`Session not established.`);
+        // }
+        // if (!sessionValue.authenticated) {
+        //   throw new Error(`Using unauthenticated session.`);
+        // }
+        // user = await this.store.readSystemUser(sessionValue.uid);
       }
     } catch (e) {
       const cause = e as Error;

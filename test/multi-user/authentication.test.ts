@@ -15,6 +15,10 @@ describe('Multi user', () => {
     baseUriWs = cnf.multiUserWsBaseUri;
   });
 
+  after(async () => {
+    await http.delete(`${baseUri}/test/reset/sessions`);
+  });
+
   describe('Authentication', () => {
     it('creates authentication session', async () => {
       const token = await http.createSession(baseUri);

@@ -26,6 +26,7 @@ export class SessionHttpRoute extends BaseRoute {
       router.post(baseRoute, this.handleSingleUserModeSessionCreate.bind(this));
     }
     router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
+    router.delete(baseRoute, this.handleSessionDelete.bind(this));
   }
 
   /**
@@ -88,6 +89,22 @@ export class SessionHttpRoute extends BaseRoute {
       ctx.body = token;
       ctx.type = 'text';
       ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  /**
+   * Deletes a session in the store.
+   * Clients should use this route when the client won't be using this session anymore.
+   */
+  protected async handleSessionDelete(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    try {
+      if (!ctx.state.sid || !ctx.state.user) {
+        throw new ApiError('Not authorized', 401);
+      }
+      await this.session.delete(ctx.state.sid);
+      ctx.status = 205;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }

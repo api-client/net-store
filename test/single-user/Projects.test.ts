@@ -30,6 +30,7 @@ describe('Single user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('creates a new project', async () => {
@@ -97,6 +98,7 @@ describe('Single user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/projects`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('returns results and the page token', async () => {

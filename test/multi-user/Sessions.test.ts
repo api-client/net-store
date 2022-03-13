@@ -15,6 +15,10 @@ describe('Multi user', () => {
     });
 
     describe('POST /sessions', () => {
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/sessions`);
+      });
+
       it('creates a new session and returns the token', async () => {
         const result = await http.post(`${baseUri}/sessions`);
         assert.equal(result.status, 200, 'returns 200 status code');
@@ -28,6 +32,10 @@ describe('Multi user', () => {
     });
 
     describe('POST /sessions/renew', () => {
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/sessions`);
+      });
+
       it('returns 401 error when session not initialized', async () => {
         const result = await http.post(`${baseUri}/sessions/renew`);
         assert.equal(result.status, 401, 'has 401 status code');
@@ -56,6 +64,25 @@ describe('Multi user', () => {
         assert.include(result.headers['content-type'], 'text/plain', 'is a text/plain response');
         assert.typeOf(result.body, 'string', 'has the response body');
         assert.notEqual(result.body, token, 'has a new token');
+      });
+    });
+
+    describe('DELETE /sessions', () => {
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/sessions`);
+      });
+
+      it('deletes an existing session', async () => {
+        const token = await http.createUserToken(baseUri);
+        const r1 = await http.delete(`${baseUri}/sessions`, {
+          token,
+        });
+        assert.equal(r1.status, 205, 'has the 205 status');
+        // make any request, should not authenticate
+        const r2 = await http.get(`${baseUri}/spaces`, {
+          token,
+        });
+        assert.equal(r2.status, 401, 'has the 401 status');
       });
     });
   });

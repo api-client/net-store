@@ -29,6 +29,7 @@ describe('Single user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('reads a space info', async () => {
@@ -64,6 +65,7 @@ describe('Single user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('patches the space', async () => {
@@ -98,7 +100,7 @@ describe('Single user', () => {
           body: JSON.stringify(patch),
           token: user1Token,
         });
-        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`);
+        const result = await http.get(`${baseUri}/spaces/${srcSpace.key}`, { token: user1Token });
         assert.equal(result.status, 200, 'has 200 status code');
         const space = JSON.parse(result.body as string) as IWorkspace;
         assert.equal(space.info.name, 'Other name', 'has the applied patch');

@@ -29,6 +29,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('creates a new space', async () => {
@@ -107,6 +108,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('returns results and the page token', async () => {

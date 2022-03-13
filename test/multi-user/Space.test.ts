@@ -44,6 +44,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('reads a space info', async () => {
@@ -97,6 +98,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('patches the space', async () => {
@@ -224,6 +226,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('adds the user to the space', async () => {
@@ -441,6 +444,7 @@ describe('Multi user', () => {
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {
@@ -559,6 +563,7 @@ describe('Multi user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {

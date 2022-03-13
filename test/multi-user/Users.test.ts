@@ -30,6 +30,7 @@ describe('Multi user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('returns user session for each user', async () => {
@@ -73,6 +74,7 @@ describe('Multi user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
       });
 
       it('lists all users', async () => {

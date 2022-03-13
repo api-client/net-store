@@ -15,3 +15,10 @@ export class ApiError extends Error {
     this.code = code;
   }
 }
+
+export interface IApiError {
+  error: boolean;
+  code: number;
+  message: string;
+  detail: string;
+}

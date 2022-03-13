@@ -51,11 +51,20 @@ export abstract class Authentication {
    */
   abstract getSessionId(request: http.IncomingMessage): Promise<string | undefined>;
   /**
-   * Processes the request and returns the user object.
-   * @param request The client request. Note, it is not a Koa request as this is also used by the web sockets.
-   * @returns The user object or undefined when not found.
+   * Returns the user associated with the session.
+   * @param request The HTTP request object read the session info,
    */
   abstract getSessionUser(request: http.IncomingMessage): Promise<IUser | undefined>;
+  /**
+   * Returns the user associated with the given session id
+   */
+  abstract getSessionUser(sid: string): Promise<IUser | undefined>;
+  /**
+   * Processes the request and returns the user object.
+   * @param requestOrSid The client request. Note, it is not a Koa request as this is also used by the web sockets.
+   * @returns The user object or undefined when not found.
+   */
+  abstract getSessionUser(requestOrSid: http.IncomingMessage | string): Promise<IUser | undefined>;
   /**
    * The middleware to register on the main application.
    * The middleware should setup the `sid` and `user` on the `ctx.state` object of the Koa context.
