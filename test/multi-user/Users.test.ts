@@ -111,5 +111,44 @@ describe('Multi user', () => {
         assert.lengthOf(data, 1, 'has the query user')
       });
     });
+
+    describe('/users/user', () => {
+      let user1Token: string;
+      let user2Token: string;
+      let user2: IUser;
+
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+        user2Token = await http.createUserToken(baseUri);
+        const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
+        user2 = JSON.parse(user2Response.body as string) as IUser;
+      });
+
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
+      });
+
+      it('reads the user from the store', async () => {
+        const path = RouteBuilder.buildUserRoute(user2.key);
+        const result = await http.get(`${baseUri}${path}`, { token: user1Token });
+        assert.equal(result.status, 200, 'has the 200 status code');
+        const response = JSON.parse(result.body as string) as IUser;
+        assert.deepEqual(response, user2);
+        assert.isUndefined(response.provider, 'has no "provider"')
+      });
+
+      it('returns 404 when no user', async () => {
+        const path = RouteBuilder.buildUserRoute('other');
+        const result = await http.get(`${baseUri}${path}`, { token: user1Token });
+        assert.equal(result.status, 404, 'has the 404 status code');
+      });
+
+      it('returns 401 when no token', async () => {
+        const path = RouteBuilder.buildUserRoute(user2.key);
+        const result = await http.get(`${baseUri}${path}`);
+        assert.equal(result.status, 401, 'has the 401 status code');
+      });
+    });
   });
 });

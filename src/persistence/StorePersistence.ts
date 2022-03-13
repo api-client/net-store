@@ -273,6 +273,13 @@ export abstract class StorePersistence {
    */
   abstract patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
   /**
+   * Lists users allowed in the space.
+   * @param key The key of the space to update
+   * @param user The user that requested the list
+   * @param options Listing options.
+   */
+  abstract listSpaceUsers(key: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
+  /**
    * Lists projects that are embedded in a space.
    * 
    * @param key The key of the space that has projects.

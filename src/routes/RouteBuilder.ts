@@ -66,4 +66,8 @@ export class RouteBuilder {
   static buildUsersRoute(): string {
     return '/users'
   }
+
+  static buildUserRoute(key: string): string {
+    return `/users/${key}`
+  }
 }

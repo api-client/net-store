@@ -3,12 +3,14 @@ import { IUser } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
+import { ApiError } from '../ApiError.js';
 
 export class UsersHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     router.get(RouteBuilder.buildUsersMeRoute(), this.handleMe.bind(this));
     router.get(RouteBuilder.buildUsersRoute(), this.listUsers.bind(this));
+    router.get(RouteBuilder.buildUserRoute(':user'), this.getUser.bind(this));
   }
 
   /**
@@ -57,17 +59,25 @@ export class UsersHttpRoute extends BaseRoute {
     }
   }
 
-  protected cleanUpUsers(users: IUser[]): IUser[] {
-    return users.map((i) => this.cleanUpUser(i));
-  }
-
   /**
-   * Removes server side stuff that clients should not see, like refresh tokens etc.
-   * @returns The copy of the object.
+   * This route allows to list all users in the org which is primarily targeted for autocomplete 
+   * when sharing spaces.
+   * 
+   * Additionally the request may contain the `q` query parameter which is used to filter users by name / email.
    */
-  protected cleanUpUser(user: IUser): IUser {
-    const item = { ...user };
-      delete item.provider;
-      return item;
+  protected async getUser(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const { user: userKey } = ctx.params;
+    try {
+      this.getUserOrThrow(ctx);
+      const result = await this.store.readSystemUser(userKey);
+      if (!result) {
+        throw new ApiError(`Not found.`, 404);
+      }
+      ctx.body = this.cleanUpUser(result);
+      ctx.type = 'application/json';
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
   }
 }

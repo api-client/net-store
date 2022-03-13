@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IWorkspace, UserAccessOperation } from '@api-client/core';
+import { IWorkspace, UserAccessOperation, IUser } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
@@ -35,6 +35,7 @@ export class SpacesHttpRoute extends BaseRoute {
     
     const usersPath = RouteBuilder.buildSpaceUsersRoute(':space');
     router.patch(usersPath, this.handleSpacePatchUser.bind(this));
+    router.get(usersPath, this.handleSpaceListUsers.bind(this));
   }
 
   /**
@@ -164,6 +165,24 @@ export class SpacesHttpRoute extends BaseRoute {
       this.verifyUserAccessRecords(patches);
       await this.store.patchSpaceUsers(spaceKey, patches, user);
       ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleSpaceListUsers(ctx: ParameterizedContext): Promise<void> {
+    const { space: spaceKey } = ctx.params;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      if (!user) {
+        throw new ApiError(`Operation not allowed in a single-user mode.`, 400);
+      }
+      const options = this.collectListingParameters(ctx);
+      const result = await this.store.listSpaceUsers(spaceKey, user, options);
+      result.data = this.cleanUpUsers(result.data as IUser[]);
+      ctx.body = result;
+      ctx.type = 'application/json';
+      ctx.status = 200;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }

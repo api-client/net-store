@@ -2,7 +2,7 @@
 import { assert } from 'chai';
 import { 
   IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
-  IBackendEvent, HttpProject, AccessControlLevel,
+  IBackendEvent, HttpProject, AccessControlLevel, ISpaceUser,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
@@ -700,6 +700,91 @@ describe('Multi user', () => {
         assert.equal(ev.operation, 'deleted');
         assert.equal(ev.kind, 'ARC#HttpProject');
         assert.equal(ev.id, projectKey);
+      });
+    });
+
+    describe('List users', () => {
+      let spaces: IWorkspace[];
+      let user1Token: string;
+      let user2Token: string;
+      let user3Token: string;
+      let user4Token: string;
+      let user2Id: string;
+      let user3Id: string;
+      let user4Id: string;
+
+      // note: generate as many spaces as tests you perform
+      // not have a "fresh" (or rather consistent) records in the data store.
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+        user2Token = await http.createUserToken(baseUri);
+        user3Token = await http.createUserToken(baseUri);
+        user4Token = await http.createUserToken(baseUri);
+        const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=3`, { token: user1Token });
+        const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
+        const user3Response = await http.get(`${baseUri}/users/me`, { token: user3Token });
+        const user4Response = await http.get(`${baseUri}/users/me`, { token: user4Token });
+        spaces = JSON.parse(rawCreated.body as string);
+        user2Id = (JSON.parse(user2Response.body as string) as IUser).key;
+        user3Id = (JSON.parse(user3Response.body as string) as IUser).key;
+        user4Id = (JSON.parse(user4Response.body as string) as IUser).key;
+        // add user 2 and 4 to space #1
+        const space1records: UserAccessOperation[] = [{
+          op: 'add',
+          uid: user2Id,
+          value: 'read',
+        }, {
+          op: 'add',
+          uid: user4Id,
+          value: 'comment',
+        }];
+        await http.patch(`${baseUri}/spaces/${spaces[0].key}/users`, {
+          token: user1Token,
+          body: JSON.stringify(space1records),
+        });
+        // add user 3 to space #2
+        const space2records: UserAccessOperation[] = [{
+          op: 'add',
+          uid: user3Id,
+          value: 'write',
+        }];
+        await http.patch(`${baseUri}/spaces/${spaces[1].key}/users`, {
+          token: user1Token,
+          body: JSON.stringify(space2records),
+        });
+      });
+
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/spaces`);
+        await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/sessions`);
+      });
+
+      it('lists space users', async () => {
+        const response = await http.get(`${baseUri}/spaces/${spaces[0].key}/users`, {
+          token: user1Token,
+        });
+        assert.equal(response.status, 200, 'has the 200 status code');
+        const list = JSON.parse(response.body as string) as IListResponse;
+        assert.isUndefined(list.cursor, 'has no cursor');
+        assert.typeOf(list.data, 'array', 'has the data array');
+        assert.lengthOf(list.data, 2, 'has all users');
+        const [u1, u2] = list.data as ISpaceUser[];
+        assert.equal(u1.key, user2Id, 'has the user #1');
+        assert.equal(u1.level, 'read', 'has the level of the user #1');
+        assert.equal(u2.key, user4Id, 'has the user #2');
+        assert.equal(u2.level, 'comment', 'has the level of the user #2');
+      });
+
+      it('returns an empty list when no added users', async () => {
+        const response = await http.get(`${baseUri}/spaces/${spaces[2].key}/users`, {
+          token: user1Token,
+        });
+        assert.equal(response.status, 200, 'has the 200 status code');
+        const list = JSON.parse(response.body as string) as IListResponse;
+        assert.isUndefined(list.cursor, 'has no cursor');
+        assert.typeOf(list.data, 'array', 'has the data array');
+        assert.lengthOf(list.data, 0, 'has no users');
       });
     });
   });

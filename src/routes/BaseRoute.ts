@@ -177,4 +177,18 @@ export abstract class BaseRoute {
       }
     });
   }
+
+  protected cleanUpUsers(users: IUser[]): IUser[] {
+    return users.map((i) => this.cleanUpUser(i));
+  }
+
+  /**
+   * Removes server side stuff that clients should not see, like refresh tokens etc.
+   * @returns The copy of the object.
+   */
+  protected cleanUpUser(user: IUser): IUser {
+    const item = { ...user };
+      delete item.provider;
+      return item;
+  }
 }

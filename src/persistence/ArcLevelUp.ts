@@ -9,7 +9,7 @@ import {
   IUser, IWorkspace, IUserWorkspace, IHttpProjectListItem, IHttpProject, IUserSpaces, 
   AccessControlLevel, IAccessControl, IBackendEvent, HttpProjectKind, IRevisionInfo,
   RevisionInfoKind, WorkspaceKind, HttpProjectListItemKind, IListResponse, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger, IListOptions,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, Logger, IListOptions, ISpaceUser,
 } from '@api-client/core';
 import { StorePersistence } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
@@ -699,6 +699,57 @@ export class ArcLevelUp extends StorePersistence {
   }
 
   /**
+   * Lists users allowed in the space.
+   * @param key The key of the space to update
+   * @param user The user that requested the list
+   */
+  async listSpaceUsers(key: string, user: IUser): Promise<IListResponse> {
+    const { spaces, userSpaces, users } = this;
+    if (!spaces || !userSpaces || !users) {
+      throw new Error(`Store not initialized.`);
+    }
+    const data: ISpaceUser[] = [];
+    const result: IListResponse = {
+      data,
+    };
+    await this.checkSpaceAccess('read', key, user);
+    let raw: Bytes;
+    try {
+      raw = await spaces.get(key);
+    } catch (e) {
+      // technically won't happen because checking for write permission does that
+      throw new ApiError(`Not found.`, 404);
+    }
+    const space = this.decodeDocument(raw) as IWorkspace;
+    if (!space.users) {
+      return result;
+    }
+    const { users: uList } = space;
+    const spacesList = await this.readUsersSpaces(uList, true);
+    const requested: Record<string, AccessControlLevel> = {};
+    spacesList.forEach((info) => {
+      const accessInfo = info.spaces.find((i) => i.key === key);
+      if (!accessInfo || space.owner === info.user) {
+        // don't list an owner here.
+        return;
+      }
+      requested[info.user] = accessInfo.level;
+    });
+    const userKeys = Object.keys(requested);
+    const userResults = await users.getMany(userKeys);
+    userKeys.forEach((key, index) => {
+      const value = userResults[index];
+      if (!value) {
+        return;
+      }
+      const level = requested[key];
+      const userObject = this.decodeDocument(value) as IUser;
+      data.push({ ...userObject, level });
+    });
+    return result;
+  }
+
+  /**
    * Lists projects that are embedded in a space.
    * 
    * Project keys are defined as:
@@ -1187,8 +1238,7 @@ export class ArcLevelUp extends StorePersistence {
     } catch (e) {
       return;
     }
-    const data = this.decodeDocument(raw) as IUser;
-    return data;
+    return this.decodeDocument(raw) as IUser;
   }
 
   /**
