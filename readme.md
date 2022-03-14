@@ -52,6 +52,21 @@ See [docs/communication.md](docs/communication.md) for more details.
 
 See [docs/authentication.md](docs/authentication.md) for more details.
 
+## CLI
+
+Use the `api-store` command to start the server
+
+```sh
+api-store mode "multi-user" \
+  --port 8080 \
+  --auth-type "oidc" \
+  --oidc-issuer-uri "https://accounts.google.com/" \
+  --oidc-client-id "..." \
+  --oidc-client-secret "..." \
+  --oidc-redirect-base "https://..." \
+  --session-secret "..."
+```
+
 ## Contributions
 
 We are excited to see your contributions, especially for authentication protocols and security of the application. Fork, change, test, and send us a PR. That's all we ask :)

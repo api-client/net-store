@@ -8,6 +8,9 @@ async function copy() {
     force: true,
     recursive: true,
   });
+  await fs.cp('cli.cmd', path.join('build', 'cli.cmd'), {
+    force: true,
+  });
 }
 
 copy();

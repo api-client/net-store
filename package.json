@@ -1,13 +1,16 @@
 {
   "name": "@api-client/net-store",
   "description": "The ARC's HTTP data store with interfaces for authorization and a persistence layers.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "license": "Apache-2.0",
   "type": "module",
   "main": "build/index.js",
   "author": {
     "name": "Pawel Uchida-Psztyc",
     "email": "pawel.psztyc@gmail.com"
+  },
+  "bin": {
+    "api-store": "./build/cli.js"
   },
   "contributors": [
     "Your name can be here!"
@@ -27,6 +30,7 @@
     "@api-client/core": "^0.3.2",
     "@koa/cors": "^3.1.0",
     "@koa/router": "^10.1.1",
+    "commander": "^9.0.0",
     "ejs": "^3.1.6",
     "json8-patch": "^1.0.6",
     "jsonwebtoken": "^8.5.1",
