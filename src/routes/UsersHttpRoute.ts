@@ -47,9 +47,9 @@ export class UsersHttpRoute extends BaseRoute {
    */
   protected async listUsers(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
     try {
-      const user = this.getUserOrThrow(ctx);
+      this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
-      const result = await this.store.listSystemUsers(options, user);
+      const result = await this.store.user.list(options);
       result.data = this.cleanUpUsers(result.data as IUser[]);
       ctx.body = result;
       ctx.type = 'application/json';
@@ -69,7 +69,7 @@ export class UsersHttpRoute extends BaseRoute {
     const { user: userKey } = ctx.params;
     try {
       this.getUserOrThrow(ctx);
-      const result = await this.store.readSystemUser(userKey);
+      const result = await this.store.user.read(userKey);
       if (!result) {
         throw new ApiError(`Not found.`, 404);
       }

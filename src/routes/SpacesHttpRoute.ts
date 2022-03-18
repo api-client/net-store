@@ -45,7 +45,7 @@ export class SpacesHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
-      const result = await this.store.listUserSpaces(options, user);
+      const result = await this.store.space.list(user, options);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;
@@ -64,7 +64,7 @@ export class SpacesHttpRoute extends BaseRoute {
       if (!body || !body.key) {
         throw new ApiError('Invalid space definition.', 400);
       }
-      await this.store.createUserSpace(body.key, body, user, 'owner');
+      await this.store.space.add(body.key, body, user, 'owner');
       ctx.status = 204;
       const spacePath = RouteBuilder.buildSpaceRoute(body.key);
       ctx.set('location', spacePath);
@@ -80,7 +80,7 @@ export class SpacesHttpRoute extends BaseRoute {
     const { space } = ctx.params;
     try {
       const user = this.getUserOrThrow(ctx);
-      const result = await this.store.readUserSpace(space, user);
+      const result = await this.store.space.read(space, user);
       if (!result) {
         throw new ApiError(`Not found`, 404);
       }
@@ -104,14 +104,14 @@ export class SpacesHttpRoute extends BaseRoute {
       if (!isValid) {
         throw new ApiError(`Malformed patch information.`, 400);
       }
-      const userSpace = await this.store.readUserSpace(spaceKey, user) as any;
+      const userSpace = await this.store.space.read(spaceKey, user) as any;
       if (!userSpace) {
         throw new ApiError(`Not found`, 404);
       }
       delete userSpace.access;
       const space = userSpace as IWorkspace;
       const result = ooPatch.apply(space, patch, { reversible: true });
-      await this.store.updateUserSpace(spaceKey, result.doc as IWorkspace, patch, user);
+      await this.store.space.update(spaceKey, result.doc as IWorkspace, patch, user);
       ctx.body = {
         status: 'OK',
         revert: result.revert,
@@ -130,7 +130,7 @@ export class SpacesHttpRoute extends BaseRoute {
     const { space: spaceKey } = ctx.params;
     try {
       const user = this.getUserOrThrow(ctx);
-      await this.store.deleteUserSpace(spaceKey, user);
+      await this.store.space.delete(spaceKey, user);
       // delete all space's cached projects from the cache
       const keys: string[] = [];
       this.projectsCache.projects.forEach((p, k) => {
@@ -163,7 +163,7 @@ export class SpacesHttpRoute extends BaseRoute {
         throw new ApiError(`Expected array with patch in the body.`, 400);
       }
       this.verifyUserAccessRecords(patches);
-      await this.store.patchSpaceUsers(spaceKey, patches, user);
+      await this.store.space.patchUsers(spaceKey, patches, user);
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);
@@ -177,8 +177,7 @@ export class SpacesHttpRoute extends BaseRoute {
       if (!user) {
         throw new ApiError(`Operation not allowed in a single-user mode.`, 400);
       }
-      const options = this.collectListingParameters(ctx);
-      const result = await this.store.listSpaceUsers(spaceKey, user, options);
+      const result = await this.store.space.listUsers(spaceKey, user);
       result.data = this.cleanUpUsers(result.data as IUser[]);
       ctx.body = result;
       ctx.type = 'application/json';

@@ -70,4 +70,8 @@ export class RouteBuilder {
   static buildUserRoute(key: string): string {
     return `/users/${key}`
   }
+
+  static buildHistoryRoute(): string {
+    return `/history`;
+  }
 }

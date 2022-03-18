@@ -151,7 +151,7 @@ export abstract class BaseRoute {
    * When in multi-user environment, this throws when user information is not set.
    * Otherwise it returns user data.
    */
-  getUserOrThrow(ctx: ParameterizedContext<IApplicationState>): IUser | undefined {
+  getUserOrThrow(ctx: ParameterizedContext<IApplicationState>): IUser {
     const { user } = ctx.state;
     if (!user) {
       throw new ApiError(`The client is not authorized to access this resource.`, 401);

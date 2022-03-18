@@ -2,7 +2,7 @@ extension:
   - ts
 spec: 
   - test/**/*.test.ts
-  # - test/multi-user/Users.test.ts
+  # - test/store/LevelHistoryStore.test.ts
 require: 
   - ts-node/register
   - source-map-support/register.js

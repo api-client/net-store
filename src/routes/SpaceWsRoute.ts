@@ -22,7 +22,7 @@ export class SpaceWsRoute extends SocketRoute {
     const spaceId = this.route[1];
     let valid = false;
     try {
-      await this.store.checkSpaceAccess('read', spaceId, user);
+      await this.store.space.checkAccess('read', spaceId, user);
       valid = true;
     } catch (e) {
       // ...
@@ -59,7 +59,7 @@ export class SpaceWsRoute extends SocketRoute {
       throw new Error(`Unauthorized`);
     }
     const spaceKey = this.route[1];
-    const userSpace = await this.store.readUserSpace(spaceKey, user) as any;
+    const userSpace = await this.store.space.read(spaceKey, user) as any;
     delete userSpace.access;
     const space = userSpace as IWorkspace;
     const isValid = ooPatch.valid(patch);
@@ -67,7 +67,7 @@ export class SpaceWsRoute extends SocketRoute {
       throw new Error(`Invalid patch information.`);
     }
     const result = ooPatch.apply(space, patch, { reversible: true });
-    await this.store.updateUserSpace(spaceKey, result.doc as IWorkspace, patch, user);
+    await this.store.space.update(spaceKey, result.doc as IWorkspace, patch, user);
     // TODO: Create spaces revision history
   }
 }

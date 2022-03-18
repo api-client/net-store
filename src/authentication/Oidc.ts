@@ -155,7 +155,7 @@ export class Oidc extends Authentication {
         throw new ApiError(`Invalid state. Session does not exist.`, 500);
       }
       if (sessionValue.authenticated) {
-        return this.store.readSystemUser(sessionValue.uid);
+        return this.store.user.read(sessionValue.uid);
       }
     }
   }
@@ -179,7 +179,7 @@ export class Oidc extends Authentication {
           throw new ApiError(`Invalid state. Session does not exist.`, 500);
         }
         if (data.authenticated) {
-          ctx.state.user = await this.store.readSystemUser(data.uid);
+          ctx.state.user = await this.store.user.read(data.uid);
         }
       }
     } catch (cause) {
@@ -348,7 +348,7 @@ export class Oidc extends Authentication {
         provider.refreshToken = tokenInfo.refreshToken;
       }
       user.provider = provider;
-      await this.store.addSystemUser(user.key, user);
+      await this.store.user.add(user.key, user);
       const event = {
         status: 'OK',
       };

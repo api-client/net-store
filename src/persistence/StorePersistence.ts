@@ -1,8 +1,10 @@
 import { 
-  IUser, IWorkspace, IUserWorkspace, Workspace, AccessControlLevel, IHttpProject, IListResponse, 
-  UserAccessOperation, Logger, IListOptions,
+  IUser, IWorkspace, IUserWorkspace, AccessControlLevel, IHttpProject, IListResponse, 
+  UserAccessOperation, Logger, IListOptions, IHttpHistory, HistoryListOptions,
+  IUserSpaces, ICursorOptions,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
+import { Config } from '../lib/Config.js';
 
 export interface IListState {
   /**
@@ -32,6 +34,65 @@ export interface IListState {
   queryField?: string[];
 }
 
+export type HistoryState = HistoryListOptions & {
+  lastKey?: string;
+}
+
+export interface IHistoryStore {
+  add(history: IHttpHistory, user: IUser): Promise<string>;
+  list(user: IUser, options?: HistoryState | ICursorOptions): Promise<IListResponse>;
+  delete(key: string, user: IUser): Promise<void>;
+}
+
+export interface IUserStore {
+  add(userKey: string, user: IUser): Promise<void>;
+  read(userKey: string): Promise<IUser | undefined>;
+  read(userKeys: string[]): Promise<IListResponse>;
+  list(options?: IListOptions): Promise<IListResponse>;
+  filter(user: IUser, lowerQuery: string): boolean;
+  listMissing(keys: string[]): Promise<string[]>;
+}
+
+export interface IBinStore {
+  add(key: string, user: IUser): Promise<void>;
+  isDeleted(key: string): Promise<boolean>;
+  isSpaceDeleted(space: string): Promise<boolean>;
+  isUserDeleted(user: string): Promise<boolean>;
+  isProjectDeleted(space: string, project: string): Promise<boolean>;
+}
+export interface IRevisionsStore {
+  addProject(spaceKey: string, projectKey: string, patch: JsonPatch): Promise<void>;
+  listProject(spaceKey: string, projectKey: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
+}
+export interface IProjectsStore {
+  list(key: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
+  add(spaceKey: string, projectKey: string, project: IHttpProject, user: IUser): Promise<void>;
+  read(spaceKey: string, projectKey: string, user: IUser): Promise<IHttpProject>;
+  update(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user: IUser): Promise<void>;
+  delete(spaceKey: string, projectKey: string, user: IUser): Promise<void>;
+  checkAccess(minimumLevel: AccessControlLevel, space: string, project: string, user: IUser): Promise<AccessControlLevel>;
+}
+export interface ISpaceStore {
+  defaultSpace(owner?: string): IWorkspace;
+  readUserSpaces(userKey: string): Promise<IUserSpaces | undefined>;
+  readUsersSpaces(users: string[], fillEmpty: false): Promise<(IUserSpaces | undefined)[]>;
+  readUsersSpaces(users: string[], fillEmpty: true): Promise<IUserSpaces[]>;
+  readSpaceAccess(spaceKey: string, userKey: string): Promise<AccessControlLevel | undefined>;
+  list(user: IUser, options?: IListOptions): Promise<IListResponse>;
+  add(key: string, space: IWorkspace, user: IUser, access?: AccessControlLevel): Promise<void>;
+  read(key: string, user: IUser): Promise<IUserWorkspace|undefined>;
+  update(key: string, space: IWorkspace, patch: JsonPatch, user: IUser): Promise<void>;
+  delete(key: string, user: IUser): Promise<void>;
+  patchUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
+  listUsers(key: string, user: IUser): Promise<IListResponse>;
+  checkAccess(minimumLevel: AccessControlLevel, key: string, user: IUser): Promise<AccessControlLevel>;
+}
+export interface ISessionStore {
+  set(key: string, value: unknown): Promise<void>;
+  delete(key: string): Promise<void>;
+  read(key: string): Promise<unknown | undefined>;
+}
+
 /**
  * An abstract class that creates an interface to implement any storage layer
  * for ARC data.
@@ -41,6 +102,13 @@ export abstract class StorePersistence {
    * The default limit of items returned by the list operation.
    */
   defaultLimit = 35;
+  abstract get history(): IHistoryStore;
+  abstract get user(): IUserStore;
+  abstract get bin(): IBinStore;
+  abstract get revisions(): IRevisionsStore;
+  abstract get project(): IProjectsStore;
+  abstract get space(): ISpaceStore;
+  abstract get session(): ISessionStore;
   /**
    * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.
    */
@@ -50,18 +118,9 @@ export abstract class StorePersistence {
    */
   abstract cleanup(): Promise<void>;
 
-  constructor(protected logger: Logger) { }
+  config = new Config();
 
-  /**
-   * Creates a default space for the user. This is called when the user has no spaces created.
-   * 
-   * @param owner The owning user. When not set the `default` is set for the single-user environment.
-   * @returns The workspace to create for the user.
-   */
-  defaultSpace(owner?: string): IWorkspace {
-    const workspace = Workspace.fromName('Drafts', owner);
-    return workspace.toJSON();
-  }
+  constructor(public logger: Logger) { }
 
   /**
    * Encodes the passed document to be stored in the store.
@@ -202,189 +261,4 @@ export abstract class StorePersistence {
     }
     return result;
   }
-
-  /**
-   * Checks whether the user has read or write access to the space.
-   * 
-   * It throws errors when the user has no access or when the user has no access to the resource.
-   * 
-   * @param minimumLevel The minimum access level required for this operation.
-   * @param key The user space key.
-   * @param user The user object. When not set on the session this always throws an error.
-   */
-  abstract checkSpaceAccess(minimumLevel: AccessControlLevel, key: string, user?: IUser): Promise<AccessControlLevel>;
-  /**
-   * Similar to `checkSpaceAccess()` but it check for the access to a project.
-   * Since projects inherit access from the parent space it is mostly the same logic as in `checkSpaceAccess()` but it also tests whether the
-   * project was deleted.
-   * 
-   * @param minimumLevel The minimum access level required for this operation.
-   * @param space The user space key.
-   * @param project The project key.
-   * @param user The user object. When not set on the session this always throws an error.
-   */
-  abstract checkProjectAccess(minimumLevel: AccessControlLevel, space: string, project: string, user?: IUser): Promise<AccessControlLevel>;
-
-  /**
-   * Lists spaces of a user. When user is not set it lists all spaces as this means a single-user environment.
-   * 
-   * @param options Listing options.
-   * @param user The current user
-   */
-  abstract listUserSpaces(options?: IListOptions, user?: IUser): Promise<IListResponse>;
-  /**
-   * Creates a space in the store for a user.
-   * When user is not set it lists all spaces as this means a single-user environment.
-   * 
-   * @param key Workspace key. Note, the store may persists the value in a different key. The read operation will use the same key.
-   * @param space The space to store.
-   * @param user The current user
-   */
-  abstract createUserSpace(key: string, space: IWorkspace, user?: IUser, access?: AccessControlLevel): Promise<void>;
-  /**
-   * Reads a space for the given user.
-   * 
-   * @param key The key of the space to read.
-   * @param user Optional user object. When set it tests whether the user has access to the space.
-   */
-  abstract readUserSpace(key: string, user?: IUser): Promise<IUserWorkspace | undefined>;
-  /**
-   * Updates the user space in the store.
-   * 
-   * @param key Workspace key. Note, the store may persists the value in a different key. The read operation will use the same key.
-   * @param space The space to store.
-   * @param patch The patch object sent to the server. It is used to notify clients about the change.
-   * @param user The current user
-   */
-  abstract updateUserSpace(key: string, space: IWorkspace, patch: JsonPatch, user?: IUser): Promise<void>;
-  /**
-   * Deletes the space from the system
-   * @param key The space key
-   * @param user The current user, if any.
-   */
-  abstract deleteUserSpace(key: string, user?: IUser): Promise<void>;
-  /**
-   * Adds or removes users to/from the space.
-   * Only available in a multi-user environment.
-   * 
-   * @param key The key of the space to update
-   * @param patch The list of patch operations to perform on user access to the space.
-   * @param user The user that triggered the change.
-   */
-  abstract patchSpaceUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
-  /**
-   * Lists users allowed in the space.
-   * @param key The key of the space to update
-   * @param user The user that requested the list
-   * @param options Listing options.
-   */
-  abstract listSpaceUsers(key: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
-  /**
-   * Lists projects that are embedded in a space.
-   * 
-   * @param key The key of the space that has projects.
-   * @param options Listing options
-   * @param user Optional user for authorization.
-   */
-  abstract listSpaceProjects(key: string, options?: IListOptions, user?: IUser): Promise<IListResponse>;
-  /**
-   * Creates a project in a user space.
-   * 
-   * @param spaceKey The user space key.
-   * @param projectKey The project key
-   * @param project The project to insert.
-   * @param user Optional, user that triggers the insert.
-   */
-  abstract createSpaceProject(spaceKey: string, projectKey: string, project: IHttpProject, user?: IUser): Promise<void>;
-  /**
-   * Reads project data from the space.
-   * @param spaceKey The user space key.
-   * @param projectKey The project key
-   * @param user Optional, user for which to check the permission.
-   */
-  abstract readSpaceProject(spaceKey: string, projectKey: string, user?: IUser): Promise<IHttpProject | undefined>;
-  /**
-   * Updates a project data in the store.
-   * 
-   * Note, this is not intended to be used by clients directly. Clients must use the `PATCH` mechanism
-   * to update projects. This is for the server to finally commit the patch to the store.
-   * 
-   * @param spaceKey The user space key.
-   * @param projectKey The project key
-   * @param project The project to update.
-   * @param patch The patch object sent to the server. It is used to notify clients about the change.
-   * @param user Optional, user that triggers the update.
-   */
-  abstract updateSpaceProject(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user?: IUser): Promise<void>;
-  /**
-   * Deletes a project from a space.
-   * @param spaceKey The user space key.
-   * @param projectKey The project key
-   */
-  abstract deleteSpaceProject(spaceKey: string, projectKey: string, user?: IUser): Promise<void>;
-  /**
-   * Adds a project revision information to the store.
-   * Note, this does not check whether the user has access to the space.
-   * 
-   * @param projectKey The project key
-   * @param patch The reversible patch applied to the project.
-   */
-  abstract addProjectRevision(spaceKey: string, projectKey: string, patch: JsonPatch): Promise<void>;
-  /**
-   * Lists revisions for a project.
-   * 
-   * @param spaceKey The user space key.
-   * @param projectKey The project key
-   * @param options Listing options
-   * @param user Optional user for authorization.
-   */
-  abstract listProjectRevisions(spaceKey: string, projectKey: string, options?: IListOptions, user?: IUser): Promise<IListResponse>;
-  /**
-   * Adds a new user to the system.
-   * This is only called after a successful authentication.
-   * 
-   * @param userKey The user key.
-   * @param user The user to store.
-   */
-  abstract addSystemUser(userKey: string, user: IUser): Promise<void>;
-  /**
-   * Reads the user data from the store.
-   * 
-   * @param userKey The user key.
-   */
-  abstract readSystemUser(userKey: string): Promise<IUser | undefined>;
-  /**
-   * Reads multiple system users with one query. Typically used when the UI asks for
-   * user data to render "user pills" in the access control list.
-   * 
-   * @param userKeys The list of user keys.
-   * @returns Ordered list of users defined by the `userKeys` order.
-   * Note, when the user is not found an `undefined` is set at the position.
-   */
-  abstract readSystemUsers(userKeys: string[]): Promise<IListResponse>;
-  /**
-   * Lists the registered users.
-   * The final list won't contain the current user.
-   * The user can query for a specific data utilizing the `query` filed.
-   */
-  abstract listSystemUsers(options?: IListOptions, user?: IUser): Promise<IListResponse>;
-  /**
-   * Permanently stores session data in the data store.
-   * 
-   * @param key The session identifier
-   * @param value The value to store.
-   */
-  abstract setSessionData(key: string, value: unknown): Promise<void>;
-  /**
-   * Permanently destroys session data in the data store.
-   * 
-   * @param key The session identifier
-   */
-  abstract deleteSessionData(key: string): Promise<void>;
-  /**
-   * Reads the session data from the store.
-   * 
-   * @param key The session identifier
-   */
-  abstract readSessionData(key: string): Promise<unknown | undefined>;
 }

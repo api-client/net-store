@@ -23,7 +23,7 @@ export class ProjectWsRoute extends SocketRoute {
     const projectId = this.route[3];
     let valid = false;
     try {
-      await this.store.checkProjectAccess('read', spaceId, projectId, user);
+      await this.store.project.checkAccess('read', spaceId, projectId, user);
       valid = true;
     } catch (e) {
       // ...
@@ -69,8 +69,14 @@ export class ProjectWsRoute extends SocketRoute {
     }
     const data = await this.readProjectAndCache(space, project, user);
     const result = ooPatch.apply(data, patch, { reversible: true });
-    await this.store.updateSpaceProject(space, project, result.doc, patch, user);
-    await this.store.addProjectRevision(space, project, result.revert);
+    try {
+      await this.store.project.update(space, project, result.doc, patch, user);
+      await this.store.revisions.addProject(space, project, result.revert);
+    } catch (e) {
+      const error = e as Error;
+      this.logger.error(e);
+      this.sendError(ws, `Unable to process message. ${error.message}`);
+    }
   }
 
   protected async handleProjectDelete(ws: WebSocket): Promise<void> {
@@ -80,7 +86,13 @@ export class ProjectWsRoute extends SocketRoute {
     }
     const space = this.route[1];
     const project = this.route[3];
-    await this.store.deleteSpaceProject(space, project, user);
+    try {
+      await this.store.project.delete(space, project, user);
+    } catch (e) {
+      const error = e as Error;
+      this.logger.error(e);
+      this.sendError(ws, `Unable to process message. ${error.message}`);
+    }
   }
 
   /**
@@ -92,12 +104,12 @@ export class ProjectWsRoute extends SocketRoute {
    * @param user Optional user to test the authorization for
    * @returns The project information. It throws when project is not found.
    */
-  protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
+  protected async readProjectAndCache(space: string, project: string, user: IUser): Promise<IHttpProject> {
     const cached = this.projectsCache.get(project);
     if (cached) {
       return cached.data;
     }
-    const result = await this.store.readSpaceProject(space, project, user);
+    const result = await this.store.project.read(space, project, user);
     if (!result) {
       throw new Error('Not found.');
     }

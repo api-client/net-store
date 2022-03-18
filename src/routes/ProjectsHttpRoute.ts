@@ -34,7 +34,7 @@ export class ProjectsHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
-      const result = await this.store.listSpaceProjects(space, options, user);
+      const result = await this.store.project.list(space, user, options);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;
@@ -51,7 +51,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       if (!body || !body.key) {
         throw new ApiError('Invalid project definition.', 400);
       }
-      await this.store.createSpaceProject(space, body.key, body, user);
+      await this.store.project.add(space, body.key, body, user);
       ctx.status = 204;
       const spacePath = RouteBuilder.buildSpaceProjectRoute(space, body.key);
       ctx.set('location', spacePath);
@@ -92,8 +92,8 @@ export class ProjectsHttpRoute extends BaseRoute {
         throw new ApiError(`Invalid patch information.`, 400);
       }
       const result = ooPatch.apply(data, patch, { reversible: true });
-      await this.store.updateSpaceProject(space, project, result.doc, patch, user);
-      await this.store.addProjectRevision(space, project, result.revert);
+      await this.store.project.update(space, project, result.doc, patch, user);
+      await this.store.revisions.addProject(space, project, result.revert);
       ctx.body = {
         status: 'OK',
         revert: result.revert,
@@ -111,7 +111,7 @@ export class ProjectsHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
-      const result = await this.store.listProjectRevisions(space, project, options, user);
+      const result = await this.store.revisions.listProject(space, project, user, options);
       ctx.body = result;
       ctx.type = this.jsonType;
       ctx.status = 200;
@@ -129,7 +129,7 @@ export class ProjectsHttpRoute extends BaseRoute {
    * @param user Optional user to test the authorization for
    * @returns The project information. It throws when project is not found.
    */
-  protected async readProjectAndCache(space: string, project: string, user?: IUser): Promise<IHttpProject> {
+  protected async readProjectAndCache(space: string, project: string, user: IUser): Promise<IHttpProject> {
     const cached = this.projectsCache.get(project);
     if (cached) {
       if (cached.space !== space) {
@@ -137,7 +137,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       }
       return cached.data;
     }
-    const result = await this.store.readSpaceProject(space, project, user);
+    const result = await this.store.project.read(space, project, user);
     if (!result) {
       throw new ApiError('Not found.', 404);
     }
@@ -153,7 +153,7 @@ export class ProjectsHttpRoute extends BaseRoute {
     const project = ctx.params.project as string;
     try {
       const user = this.getUserOrThrow(ctx);
-      await this.store.deleteSpaceProject(space, project, user);
+      await this.store.project.delete(space, project, user);
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);

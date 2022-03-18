@@ -280,9 +280,9 @@ export class AppSession {
     }
     const data = this.cache.get(sid);
     if (data) {
-      await store.setSessionData(sid, data.data);
+      await store.session.set(sid, data.data);
     } else {
-      await store.deleteSessionData(sid);
+      await store.session.delete(sid);
     }
   }
 
@@ -293,7 +293,7 @@ export class AppSession {
     }
     let result: unknown | undefined;
     try {
-      result = await store.readSessionData(sid);
+      result = await store.session.read(sid);
     } catch (e) {
       // ...
     }

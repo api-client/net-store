@@ -52,6 +52,13 @@ export class SpacesWsRoute extends SocketRoute {
     if (!body || !body.key) {
       throw new Error('Invalid space definition.');
     }
-    await this.store.createUserSpace(body.key, body, user, 'owner');
+    try {
+      await this.store.space.add(body.key, body, user, 'owner');
+    } catch (e) {
+      const error = e as Error;
+      this.logger.error(e);
+      this.sendError(ws, `Unable to process the message. ${error.message}`);
+      return;
+    }
   }
 }

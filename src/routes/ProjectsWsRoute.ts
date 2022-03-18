@@ -9,7 +9,7 @@ import { SocketRoute } from './SocketRoute.js';
  * - create a project
  */
 export class ProjectsWsRoute extends SocketRoute {
-  async isAuthorized(user?: IUser): Promise<boolean> {
+  async isAuthorized(user: IUser): Promise<boolean> {
     if (!user) {
       return false;
     }
@@ -17,7 +17,7 @@ export class ProjectsWsRoute extends SocketRoute {
     const projectId = this.route[3];
     let valid = false;
     try {
-      await this.store.checkProjectAccess('read', spaceId, projectId, user);
+      await this.store.project.checkAccess('read', spaceId, projectId, user);
       valid = true;
     } catch (e) {
       // ...
@@ -44,8 +44,7 @@ export class ProjectsWsRoute extends SocketRoute {
     } catch (e) {
       const error = e as Error;
       this.logger.error(e);
-      this.sendError(ws, `Unable to process projects collection. ${error.message}`);
-      return;
+      this.sendError(ws, `Unable to process message. ${error.message}`);
     }
   }
 
@@ -58,6 +57,12 @@ export class ProjectsWsRoute extends SocketRoute {
       throw new Error('Invalid Http Project definition.');
     }
     const space = this.route[1];
-    await this.store.createSpaceProject(space, body.key, body, user);
+    try {
+      await this.store.project.add(space, body.key, body, user);
+    } catch (e) {
+      const error = e as Error;
+      this.logger.error(e);
+      this.sendError(ws, `Unable to process message. ${error.message}`);
+    }
   }
 }

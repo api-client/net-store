@@ -44,7 +44,7 @@ describe('Single user', () => {
         const result = await http.get(`${baseUri}/spaces/1234567890`, { token: user1Token });
         assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found');
+        assert.equal(info.message, 'Not found.');
       });
     });
 
@@ -120,7 +120,7 @@ describe('Single user', () => {
         });
         assert.equal(result.status, 404, 'has 404 status code');
         const info = JSON.parse(result.body as string);
-        assert.equal(info.message, 'Not found');
+        assert.equal(info.message, 'Not found.');
       });
 
       it('returns 400 when invalid patch data', async () => {
