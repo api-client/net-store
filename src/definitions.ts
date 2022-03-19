@@ -41,7 +41,7 @@ export interface IServerConfiguration {
   /**
    * The authentication configuration, if any.
    * 
-   * By default the server is installed with ARC (and other apps)
+   * By default the server is installed with API Client's (and other apps)
    * on the same machine without authentication support. All requests are treated as authenticated
    * in a single-user environment.
    * 

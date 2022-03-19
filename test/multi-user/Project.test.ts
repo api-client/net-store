@@ -3,7 +3,7 @@ import { assert } from 'chai';
 import { 
   IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, 
   IHttpProjectListItem, IHttpProject, UserAccessOperation, IUser, 
-  AccessControlLevel,
+  AccessControlLevel, HttpProjectKind, HttpProjectListItemKind,
 } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
@@ -126,7 +126,6 @@ describe('Multi user', () => {
 
       after(async () => {
         await http.delete(`${baseUri}/test/reset/spaces`);
-        await http.delete(`${baseUri}/test/reset/projects`);
         await http.delete(`${baseUri}/test/reset/users`);
         await http.delete(`${baseUri}/test/reset/sessions`);
       });
@@ -135,6 +134,10 @@ describe('Multi user', () => {
         const rawProjects = await http.post(`${baseUri}/test/generate/projects/${spaceKey}?size=1`, { token: user1Token });
         refProject = JSON.parse(rawProjects.body as string)[0] as IHttpProject;
         projectKey = refProject.key;
+      });
+
+      afterEach(async () => {
+        await http.delete(`${baseUri}/test/reset/projects`);
       });
 
       it('patches the project', async () => {
@@ -245,7 +248,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'patch');
-        assert.equal(ev.kind, 'ARC#HttpProject');
+        assert.equal(ev.kind, HttpProjectKind);
         assert.equal(ev.id, projectKey);
         assert.deepEqual(ev.data, [
           {
@@ -261,7 +264,7 @@ describe('Multi user', () => {
           {
             op: 'replace',
             path: '/info/name',
-            value: 'Changed name',
+            value: 'Changed name 6',
           }
         ];
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
@@ -272,9 +275,10 @@ describe('Multi user', () => {
         const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
         const list = JSON.parse(result.body as string) as IListResponse;
+        
         // projects list is ordered by last update time.
         const item = list.data[0] as IHttpProjectListItem;
-        assert.equal(item.name, 'Changed name');
+        assert.equal(item.name, 'Changed name 6', 'changed the name');
       });
 
       it('creates a revision history', async () => {
@@ -297,7 +301,7 @@ describe('Multi user', () => {
         // the id includes the timestamp
         assert.include(item.id, `project~${projectKey}~`);
         assert.equal(item.key, projectKey);
-        assert.equal(item.kind, 'ARC#HttpProject');
+        assert.equal(item.kind, HttpProjectKind);
         assert.typeOf(item.created, 'number');
         assert.isFalse(item.deleted);
         assert.typeOf(item.patch, 'array');
@@ -309,16 +313,16 @@ describe('Multi user', () => {
       it('creates ordered revision history', async () => {
         const patch1: JsonPatch = [
           {
-            op: 'replace',
-            path: '/info/name',
-            value: 'Changed name',
+            op: 'add',
+            path: '/info/description',
+            value: 'Change #1',
           }
         ];
         const patch2: JsonPatch = [
           {
-            op: 'add',
+            op: 'replace',
             path: '/info/description',
-            value: 'Hello',
+            value: 'Change #2',
           }
         ];
         const path = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
@@ -329,8 +333,8 @@ describe('Multi user', () => {
         const list = JSON.parse(result.body as string) as IListResponse;
         assert.lengthOf(list.data, 2, 'has 2 patches');
         const [p1, p2] = (list.data as IRevisionInfo[]);
-        assert.equal(p1.patch[0][0].op, 'add', 'the last operation is listed first');
-        assert.equal(p2.patch[0][0].op, 'replace', 'the first operation is listed last');
+        assert.equal(p1.patch[0][0].op, 'replace', 'the last operation is listed first');
+        assert.equal(p2.patch[0][0].op, 'add', 'the first operation is listed last');
       });
 
       it('updates project update time', async () => {
@@ -423,7 +427,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'deleted');
-        assert.equal(ev.kind, 'ARC#HttpProjectListItem');
+        assert.equal(ev.kind, HttpProjectListItemKind);
         assert.equal(ev.id, projectKey);
       });
 
@@ -443,7 +447,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'deleted');
-        assert.equal(ev.kind, 'ARC#HttpProject');
+        assert.equal(ev.kind, HttpProjectKind);
         assert.equal(ev.id, projectKey);
       });
     });
@@ -519,25 +523,6 @@ describe('Multi user', () => {
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
-      });
-
-      it('returns the same cursor when no more entries', async () => {
-        const httpPath = RouteBuilder.buildProjectRevisionsRoute(spaceKey, projectKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token, });
-        assert.equal(result1.status, 200, 'has the 200 status');
-        const list1 = JSON.parse(result1.body as string) as IListResponse;
-
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token, });
-        assert.equal(result2.status, 200, 'has the 200 status');
-        const list2 = JSON.parse(result2.body as string) as IListResponse;
-        assert.lengthOf(list2.data, 5, 'has the remaining');
-
-        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token, });
-        assert.equal(result3.status, 200, 'has the 200 status');
-        const list3 = JSON.parse(result3.body as string) as IListResponse;
-        assert.lengthOf(list3.data, 0, 'has no more entries');
-        
-        assert.equal(list2.cursor, list3.cursor);
       });
     });
   });

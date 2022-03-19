@@ -1,14 +1,14 @@
 /* eslint-disable no-console */
 import { DefaultLogger } from '@api-client/core';
-import { ArcLevelUp, Server } from '../index.js';
+import { StoreLevelUp, Server } from '../index.js';
 
 class DevelopmentEnvironment {
-  store: ArcLevelUp;
+  store: StoreLevelUp;
   server: Server;
 
   constructor() {
     const logger = new DefaultLogger();
-    this.store = new ArcLevelUp(logger, 'develop/dbs');
+    this.store = new StoreLevelUp(logger, 'develop/dbs');
     this.server = new Server(this.store, {
       logger,
       router: {

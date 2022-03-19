@@ -9,7 +9,7 @@ import { SocketRoute } from './SocketRoute.js';
  * The client can:
  * - observe changes to an authentication state.
  */
-export class AuthWsRoute extends SocketRoute {
+export default class AuthWsRoute extends SocketRoute {
   protected _connectionHandler(ws: WebSocket, request: http.IncomingMessage, user?: any, sid?: string): void {
     this.registerClient(ws, undefined, sid);
   }

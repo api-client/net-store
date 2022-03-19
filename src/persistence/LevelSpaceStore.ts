@@ -6,13 +6,13 @@ import { AbstractLevelDOWN, PutBatch } from 'abstract-leveldown';
 import { 
   IUser, IBackendEvent, IListResponse, IUserSpaces, AccessControlLevel, IListOptions, IAccessControl,
   Workspace, IWorkspace, IUserWorkspace, WorkspaceKind, HttpProjectKind, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation, ISpaceUser,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, ISpaceUser, ICursorOptions,
 } from '@api-client/core';
 import { JsonPatch, diff } from 'json8-patch';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { SubStore } from './SubStore.js';
-import { ArcLevelUp } from './ArcLevelUp.js';
+import { StoreLevelUp } from './StoreLevelUp.js';
 import { ApiError } from '../ApiError.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { ISpaceStore } from './StorePersistence.js';
@@ -30,7 +30,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    */
   userSpaces: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
   
-  constructor(protected parent: ArcLevelUp, db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {
+  constructor(protected parent: StoreLevelUp, db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {
     super(parent, db);
     this.spaces = sub<Bytes, Bytes>(db, 'data') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
     this.userSpaces = sub<Bytes, Bytes>(db, 'user-ref') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
@@ -133,7 +133,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param user The current user
    * @param options Listing options.
    */
-  async list(user: IUser, options?: IListOptions): Promise<IListResponse> {
+  async list(user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
     const { spaces } = this;
     let allowedSpaces: IAccessControl[] | undefined;
     const userKey = user && user.key;
@@ -151,10 +151,11 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
       allowedSpaces = info.spaces;
     }
 
-    const state = this.parent.readListState(options);
+    const state = await this.parent.readListState(options);
+    const { limit = this.parent.defaultLimit } = state;
     let lastKey: string | undefined;
     const data: IUserWorkspace[] = [];
-    let remaining = state.limit as number;
+    let remaining = limit;
     const iterator = spaces.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
@@ -191,7 +192,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     } catch (e) {
       this.parent.logger.error(e);
     }
-    const cursor = this.parent.encodeCursor(state, lastKey || state.lastKey);
+    const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,

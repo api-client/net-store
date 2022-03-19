@@ -5,7 +5,7 @@ import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 import { ApiError } from '../ApiError.js';
 
-export class UsersHttpRoute extends BaseRoute {
+export default class UsersHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     router.get(RouteBuilder.buildUsersMeRoute(), this.handleMe.bind(this));

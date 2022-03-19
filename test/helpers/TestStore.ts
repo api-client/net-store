@@ -4,9 +4,9 @@ import {
 } from '@api-client/core';
 import { DataMock } from '@pawel-up/data-mock';
 import { PutBatch } from 'abstract-leveldown';
-import { ArcLevelUp } from '../../index.js';
+import { StoreLevelUp } from '../../index.js';
 
-export class TestStore extends ArcLevelUp {
+export class TestStore extends StoreLevelUp {
   mock = new DataMock();
 
   async clearUsers(): Promise<void> {

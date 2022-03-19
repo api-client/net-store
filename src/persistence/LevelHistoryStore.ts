@@ -11,9 +11,8 @@ import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { SubStore } from './SubStore.js';
-import { ArcLevelUp, DataStoreType } from './ArcLevelUp.js';
+import { StoreLevelUp, DataStoreType } from './StoreLevelUp.js';
 import { ApiError } from '../ApiError.js';
-import { Encryption } from '../lib/Encryption.js';
 
 interface IndexKeysResult {
   keys: string[];
@@ -30,7 +29,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
   request: DataStoreType;
   app: DataStoreType;
   
-  constructor(protected parent: ArcLevelUp, db: DataStoreType) {
+  constructor(protected parent: StoreLevelUp, db: DataStoreType) {
     super(parent, db);
     this.data = sub(db, "history-data") as DataStoreType;
     this.space = sub(db, "history-space") as DataStoreType;
@@ -55,15 +54,34 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
    */
   async add(history: IHttpHistory, user: IUser): Promise<string> {
     const object = new HttpHistory(history);
+    const { space, project, request, app } = object;
+    
+    // validators
+    if (project && !space) {
+      throw new ApiError(`The "space" parameter is required when adding a project history.`, 400);
+    }
+    if (request && !space) {
+      throw new ApiError(`The "space" parameter is required when adding a request history.`, 400);
+    }
+    if (request && !project) {
+      throw new ApiError(`The "project" parameter is required when adding a request history.`, 400);
+    }
+    if (project) {
+      await this.parent.checkProjectAccess('write', space as string, project, user);
+    } else if (space) {
+      await this.parent.checkSpaceAccess('write', space, user);
+    } else if (!app) {
+      throw new ApiError(`Either the "app" or "type" parameter is required.`, 400);
+    }
     object.user = user.key;
     const date = new Date(object.created);
     const time = date.toJSON();
-    const { space, project, request, app } = object;
     const dataKey = KeyGenerator.historyDataKey(time, user.key);
     const promises: Promise<void>[] = [];
     const buff = Buffer.from(dataKey);
     const encodedKey = buff.toString('base64url');
     object.key = encodedKey;
+
     promises.push(this.data.put(dataKey, this.parent.encodeDocument(object)));
     if (space) {
       const spaceKey = KeyGenerator.historySpaceKey(time, space, user.key);
@@ -90,7 +108,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
       kind: object.kind,
     };
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildHistoryRoute(),
+      url: RouteBuilder.history(),
     };
     Clients.notify(event, filter);
     return encodedKey;
@@ -225,7 +243,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
         break;
       }
     }
-    result.cursor = await this.encodeHistoryCursor(state, lastKey);
+    result.cursor = await this.parent.cursor.encodeHistoryCursor(state, lastKey);
     return result;
   }
 
@@ -277,7 +295,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     if (!info.keys.length) {
       return result;
     }
-    result.cursor = await this.encodeHistoryCursor(state, info.lastKey);
+    result.cursor = await this.parent.cursor.encodeHistoryCursor(state, info.lastKey);
     const read = await this.data.getMany(info.keys);
     try {
       result.data = read.map((item) => this.parent.decodeDocument(item));
@@ -330,40 +348,9 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     };
   }
 
-  /**
-   * Reads the cursor received from the client by decrypting its contents.
-   * It throws an error when the cursor is invalid
-   */
-  protected async decodeHistoryCursor(cursor: string): Promise<HistoryState> {
-    const config = await this.parent.config.read();
-    const encryption = new Encryption();
-    let result: HistoryState;
-    try {
-      const data = encryption.decrypt(cursor, config.secret);
-      result = JSON.parse(data);
-    } catch (e) {
-      throw new ApiError(`Invalid page cursor.`, 400);
-    }
-    return result;
-  }
-
-  protected async encodeHistoryCursor(state: HistoryState, lastKey?: string): Promise<string> {
-    const copy: HistoryState = { ...state };
-    if (!copy.limit) {
-      copy.limit = this.parent.defaultLimit;
-    }
-    if (lastKey) {
-      copy.lastKey = lastKey;
-    }
-    const str = JSON.stringify(copy);
-    const config = await this.parent.config.read();
-    const encryption = new Encryption();
-    return encryption.encrypt(str, config.secret);
-  }
-
   protected async readHistoryListState(source: HistoryState | ICursorOptions): Promise<HistoryState> {
     if (source.cursor) {
-      return this.decodeHistoryCursor(source.cursor);
+      return this.parent.cursor.decodeHistoryCursor(source.cursor);
     }
     return { ...source } as HistoryState;
   }
@@ -454,7 +441,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
         break;
       }
     }
-    result.cursor = await this.encodeHistoryCursor(state, lastKey);
+    result.cursor = await this.parent.cursor.encodeHistoryCursor(state, lastKey);
     return result;
   }
 

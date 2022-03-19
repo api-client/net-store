@@ -4,7 +4,7 @@ import http from 'http';
 import { URL, URLSearchParams } from 'url';
 import { randomBytes } from 'crypto';
 import { ParameterizedContext, Next } from 'koa';
-import { IUser } from '@api-client/core'
+import { IUser, UserKind } from '@api-client/core'
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';
 import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
@@ -584,6 +584,7 @@ export class Oidc extends Authentication {
       email_verified: true,
       locale: '...' */
     const result: IUser = {
+      kind: UserKind,
       key: info.sub,
       name: info.name || 'Anonymous',
     };

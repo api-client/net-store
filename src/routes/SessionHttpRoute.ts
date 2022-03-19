@@ -16,7 +16,7 @@ import { SingleUserAuthentication } from '../authentication/SingleUserAuthentica
  * - delete a session
  * - validate session token
  */
-export class SessionHttpRoute extends BaseRoute {
+export default class SessionHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const baseRoute = RouteBuilder.buildSessionsRoute();

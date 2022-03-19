@@ -21,7 +21,7 @@ import { IApplicationState } from '../definitions.js';
  * - list spaces
  * - create a space
  */
-export class SpacesHttpRoute extends BaseRoute {
+export default class SpacesHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const spacesPath = RouteBuilder.buildSpacesRoute();
@@ -131,14 +131,6 @@ export class SpacesHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       await this.store.space.delete(spaceKey, user);
-      // delete all space's cached projects from the cache
-      const keys: string[] = [];
-      this.projectsCache.projects.forEach((p, k) => {
-        if (p.space === spaceKey) {
-          keys.push(k);
-        }
-      });
-      keys.forEach(k => this.projectsCache.projects.delete(k));
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);

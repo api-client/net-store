@@ -2,7 +2,7 @@
 import { assert } from 'chai';
 import { 
   IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
-  IBackendEvent, HttpProject, AccessControlLevel, ISpaceUser,
+  IBackendEvent, HttpProject, HttpProjectKind, AccessControlLevel, ISpaceUser, WorkspaceKind,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
@@ -236,10 +236,9 @@ describe('Multi user', () => {
           uid: user2Id,
           value: 'read',
         }];
-        const body = JSON.stringify(records);
         const response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
-          body,
+          body: JSON.stringify(records),
         });
         
         assert.equal(response.status, 204, 'has the 204 status code');
@@ -361,7 +360,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'updated');
-        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
         assert.deepEqual(ev.data, [
           {
@@ -394,7 +393,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'access-granted');
-        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
       });
 
@@ -511,7 +510,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'updated');
-        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
         assert.deepEqual(ev.data, [
           {
@@ -544,7 +543,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'access-removed');
-        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
       });
     });
@@ -668,7 +667,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'deleted');
-        assert.equal(ev.kind, 'ARC#Space');
+        assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, spaceKey);
       });
 
@@ -698,7 +697,7 @@ describe('Multi user', () => {
         const [ev] = messages;
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'deleted');
-        assert.equal(ev.kind, 'ARC#HttpProject');
+        assert.equal(ev.kind, HttpProjectKind);
         assert.equal(ev.id, projectKey);
       });
     });

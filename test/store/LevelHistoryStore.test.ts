@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import sinon from 'sinon';
 import { DefaultLogger, IHttpHistory, ProjectMock, IBackendEvent, ISentRequest, Workspace, HttpProject } from '@api-client/core';
-import { ArcLevelUp } from '../../src/persistence/ArcLevelUp.js';
+import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
@@ -13,12 +13,12 @@ import { ApiError } from '../../src/ApiError.js';
 const storePath = path.join('test', 'data', 'units', 'store', 'history');
 
 describe('Unit tests', () => {
-  let store: ArcLevelUp;
+  let store: StoreLevelUp;
   const mock = new ProjectMock();
 
   before(async () => {
     await fs.mkdir(storePath, { recursive: true });
-    store = new ArcLevelUp(new DefaultLogger(), storePath);
+    store = new StoreLevelUp(new DefaultLogger(), storePath);
     await store.initialize();
   });
 
@@ -27,15 +27,38 @@ describe('Unit tests', () => {
     await fs.rm(storePath, { recursive: true, force: true });
   });
 
-  describe('ArcLevelUp', () => {
+  describe('StoreLevelUp', () => {
     describe('#history', () => {
       describe('add()', () => {
-        after(async () => {
-          await DataHelper.clearAllHistory(store);
+        const user1 = mock.user.user();
+        const user2 = mock.user.user();
+        let space1Id: string;
+        let space2Id: string;
+        let project1Id: string;
+
+        before(async () => {
+          await store.user.add(user1.key, user1);
+          await store.user.add(user2.key, user2);
+          const space1 = Workspace.fromName('test1');
+          const space2 = Workspace.fromName('test2');
+          space1Id = space1.key;
+          space2Id = space2.key;
+          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
+          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          const project1 = HttpProject.fromName('test project1');
+          project1Id = project1.key;
+          await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
         });
 
-        it('adds an item to the store and updated the user', async () => {
+        after(async () => {
+          await DataHelper.clearAllHistory(store);
+          await store.user.db.clear();
+          await store.space.db.clear();
+        });
+
+        it('adds an item to the store and updates the user', async () => {
           const item = mock.history.httpHistory();
+          item.app = 'test-app';
           await store.history.add(item, DefaultUser);
           const key = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), DefaultUser.key);
           const entity = await store.history.data.get(key);
@@ -45,20 +68,22 @@ describe('Unit tests', () => {
 
         it('adds the item to the spaces store', async () => {
           const item = mock.history.httpHistory();
-          item.space = 'test-space';
-          await store.history.add(item, DefaultUser);
-          const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), DefaultUser.key);
-          const spaceKey = KeyGenerator.historySpaceKey(new Date(item.created).toJSON(), 'test-space', DefaultUser.key);
+          item.space = space1Id;
+          await store.history.add(item, user1);
+          const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), user1.key);
+          const spaceKey = KeyGenerator.historySpaceKey(new Date(item.created).toJSON(), space1Id, user1.key);
           const value = (await store.history.space.get(spaceKey)).toString();
           assert.equal(value, dataKey, 'stores the data key');
         });
 
         it('adds the item to the request store', async () => {
           const item = mock.history.httpHistory();
+          item.space = space1Id;
+          item.project = project1Id;
           item.request = 'test-request';
-          await store.history.add(item, DefaultUser);
-          const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), DefaultUser.key);
-          const requestKey = KeyGenerator.historyRequestKey(new Date(item.created).toJSON(), 'test-request', DefaultUser.key);
+          await store.history.add(item, user1);
+          const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), user1.key);
+          const requestKey = KeyGenerator.historyRequestKey(new Date(item.created).toJSON(), 'test-request', user1.key);
           const value = (await store.history.request.get(requestKey)).toString();
           assert.equal(value, dataKey, 'stores the data key');
         });
@@ -76,6 +101,7 @@ describe('Unit tests', () => {
         it('informs the WS client', async () => {
           const spy = sinon.spy(Clients, 'notify');
           const item = mock.history.httpHistory();
+          item.app = 'test-app';
           try {
             await store.history.add(item, DefaultUser);
           } finally {
@@ -90,6 +116,102 @@ describe('Unit tests', () => {
           assert.typeOf(event.data, 'object');
           assert.equal(event.kind, item.kind);
           assert.equal(filter.url, '/history');
+        });
+
+        it('throws when neither app or type is defined', async () => {
+          const item = mock.history.httpHistory();
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 400, 'has the 400 code');
+            assert.equal(error.message, 'Either the "app" or "type" parameter is required.', 'has the message');
+          }
+        });
+
+        it('throws when no space found', async () => {
+          const item = mock.history.httpHistory();
+          item.space = 'unknown';
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 404, 'has the 404 code');
+            assert.equal(error.message, 'Not found.', 'has the message');
+          }
+        });
+
+        it('throws when has no access to the space', async () => {
+          const item = mock.history.httpHistory();
+          item.space = space2Id;
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 404, 'has the 404 code');
+            assert.equal(error.message, 'Not found.', 'has the message');
+          }
+        });
+
+        it('throws when sets the project without the space', async () => {
+          const item = mock.history.httpHistory();
+          item.project = project1Id;
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 400, 'has the 400 code');
+            assert.equal(error.message, 'The "space" parameter is required when adding a project history.', 'has the message');
+          }
+        });
+
+        it('throws when sets the request without the space', async () => {
+          const item = mock.history.httpHistory();
+          item.request = 'test-request';
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 400, 'has the 400 code');
+            assert.equal(error.message, 'The "space" parameter is required when adding a request history.', 'has the message');
+          }
+        });
+
+        it('throws when sets the request without the space', async () => {
+          const item = mock.history.httpHistory();
+          item.request = 'test-request';
+          item.space = space1Id;
+          let error: ApiError | undefined;
+          try {
+            await store.history.add(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 400, 'has the 400 code');
+            assert.equal(error.message, 'The "project" parameter is required when adding a request history.', 'has the message');
+          }
         });
       });
 
@@ -692,6 +814,7 @@ describe('Unit tests', () => {
       describe('delete()', () => {
         it('marks the object deleted in the data store', async () => {
           const item = mock.history.httpHistory({ user: DefaultUser.key });
+          item.app = 'test-app';
           const id = await store.history.add(item, DefaultUser);
           await store.history.delete(id, DefaultUser);
           const key = DataHelper.getHistoryEncodedKey(item);
@@ -750,6 +873,7 @@ describe('Unit tests', () => {
           const user2 = mock.user.user();
 
           const item = mock.history.httpHistory({ user: user1.key });
+          item.app = 'test-app';
           const id = await store.history.add(item, user1);
 
           let error: ApiError | undefined;

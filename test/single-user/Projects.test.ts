@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem } from '@api-client/core';
+import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, HttpProjectListItemKind } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
@@ -78,7 +78,7 @@ describe('Single user', () => {
         
         assert.equal(ev.type, 'event');
         assert.equal(ev.operation, 'created');
-        assert.equal(ev.kind, 'ARC#HttpProjectListItem');
+        assert.equal(ev.kind, HttpProjectListItemKind);
         const item = ev.data as IHttpProjectListItem;
         assert.equal(item.name, 'test');
       });
@@ -147,25 +147,6 @@ describe('Single user', () => {
         assert.equal(result2.status, 200, 'has the 200 status');
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
-      });
-
-      it('returns the same cursor when no more entries', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
-        const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
-        assert.equal(result1.status, 200, 'has the 200 status');
-        const list1 = JSON.parse(result1.body as string) as IListResponse;
-
-        const result2 = await http.get(`${baseUri}${httpPath}?cursor=${list1.cursor}`, { token: user1Token });
-        assert.equal(result2.status, 200, 'has the 200 status');
-        const list2 = JSON.parse(result2.body as string) as IListResponse;
-        assert.lengthOf(list2.data, 5, 'has the remaining');
-
-        const result3 = await http.get(`${baseUri}${httpPath}?cursor=${list2.cursor}`, { token: user1Token });
-        assert.equal(result3.status, 200, 'has the 200 status');
-        const list3 = JSON.parse(result3.body as string) as IListResponse;
-        assert.lengthOf(list3.data, 0, 'has no more entries');
-        
-        assert.equal(list2.cursor, list3.cursor);
       });
     });
   });

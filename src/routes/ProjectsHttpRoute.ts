@@ -1,5 +1,5 @@
 import { ParameterizedContext } from 'koa';
-import { IHttpProject, IUser } from '@api-client/core';
+import { IHttpProject } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
@@ -13,7 +13,7 @@ import { RouteBuilder } from './RouteBuilder.js';
  * - list current projects (listing)
  * - create a project
  */
-export class ProjectsHttpRoute extends BaseRoute {
+export default class ProjectsHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const projectsRoute = RouteBuilder.buildSpaceProjectsRoute(':space');
@@ -39,6 +39,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       ctx.type = 'application/json';
       ctx.status = 200;
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
   }
@@ -56,6 +57,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       const spacePath = RouteBuilder.buildSpaceProjectRoute(space, body.key);
       ctx.set('location', spacePath);
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
   }
@@ -68,11 +70,12 @@ export class ProjectsHttpRoute extends BaseRoute {
     const project = ctx.params.project as string;
     try {
       const user = this.getUserOrThrow(ctx);
-      const data = await this.readProjectAndCache(space, project, user);
+      const data = await this.store.project.read(space, project, user);
       ctx.body = data;
       ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
   }
@@ -85,7 +88,7 @@ export class ProjectsHttpRoute extends BaseRoute {
     const project = ctx.params.project as string;
     try {
       const user = this.getUserOrThrow(ctx);
-      const data = await this.readProjectAndCache(space, project, user);
+      const data = await this.store.project.read(space, project, user);
       const patch = await this.readJsonBody(ctx.request) as JsonPatch;
       const isValid = ooPatch.valid(patch);
       if (!isValid) {
@@ -101,6 +104,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
   }
@@ -116,33 +120,9 @@ export class ProjectsHttpRoute extends BaseRoute {
       ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
-  }
-
-  /**
-   * If the project is cached in memory it returns the cached project. Otherwise it reads the project
-   * from the store and puts it into the cache.
-   * 
-   * @param space The key of the owning space.
-   * @param project The key of the project.
-   * @param user Optional user to test the authorization for
-   * @returns The project information. It throws when project is not found.
-   */
-  protected async readProjectAndCache(space: string, project: string, user: IUser): Promise<IHttpProject> {
-    const cached = this.projectsCache.get(project);
-    if (cached) {
-      if (cached.space !== space) {
-        throw new ApiError(`Space not found.`, 404);
-      }
-      return cached.data;
-    }
-    const result = await this.store.project.read(space, project, user);
-    if (!result) {
-      throw new ApiError('Not found.', 404);
-    }
-    this.projectsCache.set(space, project, result);
-    return result;
   }
 
   /**
@@ -156,6 +136,7 @@ export class ProjectsHttpRoute extends BaseRoute {
       await this.store.project.delete(space, project, user);
       ctx.status = 204;
     } catch (cause) {
+      this.logger.error(cause);
       this.errorResponse(ctx, cause);
     }
   }

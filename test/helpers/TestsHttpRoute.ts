@@ -20,6 +20,7 @@ export class TestsHttpRoute extends BaseRoute {
     router.delete('/test/reset/projects', this.handleDataResetProjects.bind(this));
     router.delete('/test/reset/revisions', this.handleDataResetRevisions.bind(this));
     router.delete('/test/reset/bin', this.handleDataResetBin.bind(this));
+    router.delete('/test/reset/history', this.handleDataResetHistory.bind(this));
     router.post('/test/generate/spaces', this.handleDataGenerateSpaces.bind(this));
     router.post('/test/generate/projects/:space', this.handleDataGenerateSpaceProjects.bind(this));
     router.post('/test/generate/revisions/pr/:project', this.handleDataGenerateProjectRevisions.bind(this));
@@ -73,6 +74,19 @@ export class TestsHttpRoute extends BaseRoute {
   protected async handleDataResetBin(ctx: ParameterizedContext): Promise<void> {
     try {
       await this.testStore.clearBin();
+      ctx.status = 204;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async handleDataResetHistory(ctx: ParameterizedContext): Promise<void> {
+    try {
+      await this.testStore.history.data.clear();
+      await this.testStore.history.space.clear();
+      await this.testStore.history.project.clear();
+      await this.testStore.history.request.clear();
+      await this.testStore.history.app.clear();
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);

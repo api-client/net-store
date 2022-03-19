@@ -4,7 +4,7 @@ import {
   IUserSpaces, ICursorOptions,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
-import { Config } from '../lib/Config.js';
+import { Cursor } from './Cursor.js';
 
 export interface IListState {
   /**
@@ -42,6 +42,7 @@ export interface IHistoryStore {
   add(history: IHttpHistory, user: IUser): Promise<string>;
   list(user: IUser, options?: HistoryState | ICursorOptions): Promise<IListResponse>;
   delete(key: string, user: IUser): Promise<void>;
+  read(encodedKey: string, user: IUser): Promise<IHttpHistory>;
 }
 
 export interface IUserStore {
@@ -95,7 +96,7 @@ export interface ISessionStore {
 
 /**
  * An abstract class that creates an interface to implement any storage layer
- * for ARC data.
+ * for API Client's data.
  */
 export abstract class StorePersistence {
   /**
@@ -118,7 +119,7 @@ export abstract class StorePersistence {
    */
   abstract cleanup(): Promise<void>;
 
-  config = new Config();
+  cursor = new Cursor();
 
   constructor(public logger: Logger) { }
 
@@ -155,30 +156,11 @@ export abstract class StorePersistence {
     return parsed;
   }
 
-  readListState(options: IListOptions = {}): IListState {
-    let state: IListState = {};
-    if (options.cursor) {
-      state = this.decodeCursor(options.cursor);
-    } else {
-      if (typeof options.limit === 'number') {
-        state.limit = options.limit;
-      } else {
-        state.limit = this.defaultLimit;
-      }
-      if (options.query) {
-        state.query = options.query;
-      }
-      if (Array.isArray(options.queryField) && options.queryField.length) {
-        state.queryField = options.queryField;
-      }
-      // if (options.start) {
-      //   state.start = options.start;
-      // }
-      // if (options.end) {
-      //   state.end = options.end;
-      // }
+  async readListState(source: IListOptions | ICursorOptions = {}): Promise<IListState> {
+    if (source.cursor) {
+      return this.cursor.decodeCursor(source.cursor);
     }
-    return state;
+    return { ...source } as IListState;
   }
 
   /**
@@ -200,65 +182,5 @@ export abstract class StorePersistence {
       return true;
     }
     return ['read', 'comment'].includes(access);
-  }
-
-  /**
-   * Encoded the current state of the list search into the cursor string.
-   * 
-   * @param state The state of the search.
-   * @param lastKey The last read key from the store.
-   * @returns Encoded cursor.
-   */
-  encodeCursor(state: IListState = {}, lastKey?: string): string {
-    const copy: IListState = { ...state };
-    if (!copy.limit) {
-      copy.limit = this.defaultLimit;
-    }
-    if (lastKey) {
-      copy.lastKey = lastKey;
-    }
-    const str = JSON.stringify(copy);
-    const buff = Buffer.from(str);
-    return buff.toString('base64url');
-  }
-  
-  /**
-   * Decodes the given cursor to the list state object.
-   * @param cursor The cursor to decode.
-   */
-  decodeCursor(cursor: string): IListState {
-    let buff;
-    try {
-      buff = Buffer.from(cursor, 'base64url');
-    } catch (e) {
-      throw new Error(`Invalid cursor.`);
-    }
-    const str = buff.toString();
-    let data: IListState;
-    try {
-      data = JSON.parse(str);
-    } catch (e) {
-      throw new Error(`Invalid cursor. Unable to decode.`);
-    }
-    const result: IListState = {};
-    if (data.lastKey) {
-      result.lastKey = data.lastKey;
-    }
-    if (typeof data.limit === 'number') {
-      result.limit = data.limit;
-    }
-    if (data.start) {
-      result.start = data.start;
-    }
-    if (data.end) {
-      result.end = data.end;
-    }
-    if (data.query) {
-      result.query = data.query;
-    }
-    if (Array.isArray(data.queryField) && data.queryField.length) {
-      result.queryField = data.queryField;
-    }
-    return result;
   }
 }

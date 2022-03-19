@@ -6,7 +6,6 @@ import { AppSession } from '../session/AppSession.js';
 import { ApiError, IApiError } from '../ApiError.js';
 import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
-import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 export interface ISpaceConfiguration {
   router: Router;
@@ -14,7 +13,6 @@ export interface ISpaceConfiguration {
   info: BackendInfo;
   session: AppSession;
   logger: Logger;
-  projectsCache: ProjectsCache;
 }
 
 export abstract class BaseRoute {
@@ -23,7 +21,6 @@ export abstract class BaseRoute {
   protected info: BackendInfo;
   protected session: AppSession;
   protected logger: Logger;
-  protected projectsCache: ProjectsCache;
 
   /**
    * @param init Route configuration
@@ -34,7 +31,6 @@ export abstract class BaseRoute {
     this.info = init.info;
     this.session = init.session;
     this.logger = init.logger;
-    this.projectsCache = init.projectsCache;
   }
 
   abstract setup(): Promise<void>;

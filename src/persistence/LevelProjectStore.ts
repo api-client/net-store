@@ -4,10 +4,10 @@ import { AbstractLevelDOWN, AbstractIteratorOptions } from 'abstract-leveldown';
 import sub from 'subleveldown';
 import { 
   IUser, IListResponse, IListOptions, IHttpProjectListItem, IHttpProject, IBackendEvent,
-  HttpProjectListItemKind, HttpProjectKind, AccessControlLevel,
+  HttpProjectListItemKind, HttpProjectKind, AccessControlLevel, ICursorOptions
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
-import { ArcLevelUp } from './ArcLevelUp.js';
+import { StoreLevelUp } from './StoreLevelUp.js';
 import { SubStore } from './SubStore.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { ApiError } from '../ApiError.js';
@@ -40,7 +40,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    */
   data: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
 
-  constructor(protected parent: ArcLevelUp, db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {
+  constructor(protected parent: StoreLevelUp, db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {
     super(parent, db);
     this.index = sub<string, any>(db, 'index') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
     this.data = sub<string, any>(db, 'data') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
@@ -63,9 +63,10 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param user User for authorization.
    * @param options Listing options
    */
-  async list(key: string, user: IUser, options?: IListOptions): Promise<IListResponse> {
+  async list(key: string, user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
     await this.parent.checkSpaceAccess('read', key, user);
-    const state = this.parent.readListState(options);
+    const state = await this.parent.readListState(options);
+    const { limit = this.parent.defaultLimit } = state;
     const itOpts: AbstractIteratorOptions = {
       gte: `~${key}~`,
       lte: `~${key}~~`,
@@ -80,7 +81,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     }
     let lastKey: string | undefined;
     const data: IHttpProjectListItem[] = [];
-    let remaining = state.limit as number;
+    let remaining = limit;
 
     try {
       // @ts-ignore
@@ -101,7 +102,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     }
     // sorts the results by the updated time, newest on top.
     data.sort(({ updated: a = 0 }, { updated: b = 0 }) => b - a);
-    const cursor = this.parent.encodeCursor(state, lastKey || state.lastKey);
+    const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,
@@ -162,7 +163,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
       // OK
     }
     if (exists) {
-      throw new ApiError(`A project with the identifier ${projectKey} already exists`, 400);
+      throw new ApiError(`A project with the identifier ${projectKey} already exists.`, 400);
     }
 
     // first handle the project data store
@@ -285,7 +286,6 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     data.name = value;
     data.updated = Date.now();
     await this.index.put(finalKey, this.parent.encodeDocument(data));
-
     const event: IBackendEvent = {
       type: 'event',
       operation: 'updated',

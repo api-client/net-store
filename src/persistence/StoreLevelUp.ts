@@ -32,7 +32,7 @@ export type DataStoreType = LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIt
  * TODO:
  * - https://github.com/fergiemcdowall/search-index
  */
-export class ArcLevelUp extends StorePersistence {
+export class StoreLevelUp extends StorePersistence {
   dbPath: string;
   db?: LevelUp<LevelDown, LevelDownIterator>;
 

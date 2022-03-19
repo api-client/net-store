@@ -5,7 +5,6 @@ import { IUser, Logger } from '@api-client/core';
 import Clients from './WsClients.js';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { BackendInfo } from '../BackendInfo.js';
-import { ProjectsCache } from '../cache/ProjectsCache.js';
 
 export interface ClientInfo {
   /**
@@ -23,7 +22,6 @@ export interface ISocketRouteInit {
   store: StorePersistence;
   logger: Logger;
   info: BackendInfo;
-  projectsCache: ProjectsCache;
 }
 
 export interface SocketRoute {
@@ -40,7 +38,6 @@ export abstract class SocketRoute extends EventEmitter {
   protected info: BackendInfo;
   protected store: StorePersistence; 
   protected logger: Logger;
-  protected projectsCache: ProjectsCache;
 
   server?: Server<WebSocket>;
   /**
@@ -58,7 +55,6 @@ export abstract class SocketRoute extends EventEmitter {
     this.info = init.info;
     this.store = init.store;
     this.logger = init.logger;
-    this.projectsCache = init.projectsCache;
     this._connectionHandler = this._connectionHandler.bind(this);
     this._closeHandler = this._closeHandler.bind(this);
   }

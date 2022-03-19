@@ -25,7 +25,7 @@ export class Tokens {
     const result: jwt.SignOptions = {
       expiresIn: this.expiresIn,
       audience: 'urn:api-client',
-      issuer: 'urn:arc-store',
+      issuer: 'urn:apic-store',
     };
     return result;
   }

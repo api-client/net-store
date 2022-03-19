@@ -1,5 +1,5 @@
 import { Bytes } from 'leveldown';
-import { IUser, IListResponse, IListOptions } from '@api-client/core';
+import { IUser, IListResponse, IListOptions, ICursorOptions } from '@api-client/core';
 import { SubStore } from './SubStore.js';
 import { IUserStore } from './StorePersistence.js';
 
@@ -69,8 +69,9 @@ export class LevelUserStore extends SubStore implements IUserStore {
    * The final list won't contain the current user.
    * The user can query for a specific data utilizing the `query` filed.
    */
-  async list(options?: IListOptions): Promise<IListResponse> {
-    const state = this.parent.readListState(options);
+  async list(options?: IListOptions | ICursorOptions): Promise<IListResponse> {
+    const state = await this.parent.readListState(options);
+    const { limit = this.parent.defaultLimit } = state;
     const iterator = this.db.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
@@ -79,7 +80,7 @@ export class LevelUserStore extends SubStore implements IUserStore {
     }
     let lastKey: string | undefined;
     const data: IUser[] = [];
-    let remaining = state.limit as number;
+    let remaining = limit;
     const lowerQuery = state.query ? state.query.toLowerCase() : undefined;
     try {
       // @ts-ignore
@@ -101,7 +102,7 @@ export class LevelUserStore extends SubStore implements IUserStore {
     } catch (e) {
       this.parent.logger.error(e);
     }
-    const cursor = this.parent.encodeCursor(state, lastKey || state.lastKey);
+    const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,

@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { DefaultLogger } from '@api-client/core';
-import { ArcLevelUp, Server } from '../index.js';
+import { StoreLevelUp, Server } from '../index.js';
 import Secrets from './secrets.js';
 
 const port = 8080;
@@ -8,12 +8,12 @@ const prefix = '/v1';
 const baseUri = `http://localhost:${port}${prefix}`;
 
 class DevelopmentEnvironment {
-  store: ArcLevelUp;
+  store: StoreLevelUp;
   server: Server;
 
   constructor() {
     const logger = new DefaultLogger();
-    this.store = new ArcLevelUp(logger, 'develop/auth');
+    this.store = new StoreLevelUp(logger, 'develop/auth');
     this.server = new Server(this.store, {
       mode: 'multi-user',
       logger,

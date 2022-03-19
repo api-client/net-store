@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import http from 'http';
 import { WebSocket } from 'ws';
-import { IUser, IBackendCommand, IHttpProject } from '@api-client/core';
+import { IUser, IBackendCommand } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { SocketRoute } from './SocketRoute.js';
 
@@ -14,7 +14,7 @@ import { SocketRoute } from './SocketRoute.js';
  * - patch a project
  * - delete a project (note, this will close the connection to the server)
  */
-export class ProjectWsRoute extends SocketRoute {
+export default class ProjectWsRoute extends SocketRoute {
   async isAuthorized(user?: IUser): Promise<boolean> {
     if (!user) {
       return false;
@@ -67,7 +67,7 @@ export class ProjectWsRoute extends SocketRoute {
     if (!isValid) {
       throw new Error(`Invalid patch information.`);
     }
-    const data = await this.readProjectAndCache(space, project, user);
+    const data = await this.store.project.read(space, project, user);
     const result = ooPatch.apply(data, patch, { reversible: true });
     try {
       await this.store.project.update(space, project, result.doc, patch, user);
@@ -93,27 +93,5 @@ export class ProjectWsRoute extends SocketRoute {
       this.logger.error(e);
       this.sendError(ws, `Unable to process message. ${error.message}`);
     }
-  }
-
-  /**
-   * If the project is cached in memory it returns the cached project. Otherwise it reads the project
-   * from the store and puts it into the cache.
-   * 
-   * @param space The key of the owning space.
-   * @param project The key of the project.
-   * @param user Optional user to test the authorization for
-   * @returns The project information. It throws when project is not found.
-   */
-  protected async readProjectAndCache(space: string, project: string, user: IUser): Promise<IHttpProject> {
-    const cached = this.projectsCache.get(project);
-    if (cached) {
-      return cached.data;
-    }
-    const result = await this.store.project.read(space, project, user);
-    if (!result) {
-      throw new Error('Not found.');
-    }
-    this.projectsCache.set(space, project, result);
-    return result;
   }
 }

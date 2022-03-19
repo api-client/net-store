@@ -6,7 +6,7 @@ import { RouteBuilder } from './RouteBuilder.js';
  * An HTTP route to read information about the backend configuration that is relevant
  * to the clients.
  */
-export class BackendHttpRoute extends BaseRoute {
+export default class BackendHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const baseRoute = RouteBuilder.buildBackendRoute();

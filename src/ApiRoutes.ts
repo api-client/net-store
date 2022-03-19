@@ -4,26 +4,25 @@ import { Logger } from '@api-client/core';
 import { IServerConfiguration, IApplicationState } from './definitions.js';
 import { BaseRoute, ISpaceConfiguration } from './routes/BaseRoute.js';
 import { SocketRoute, ISocketRouteInit } from './routes/SocketRoute.js';
-import { SpacesWsRoute } from './routes/SpacesWsRoute.js';
 import { RouteBuilder } from './routes/RouteBuilder.js';
-import { SpacesHttpRoute } from './routes/SpacesHttpRoute.js';
-import { SpaceWsRoute } from './routes/SpaceWsRoute.js';
-import { ProjectsHttpRoute } from './routes/ProjectsHttpRoute.js';
-import { ProjectsWsRoute } from './routes/ProjectsWsRoute.js';
-import { ProjectWsRoute } from './routes/ProjectWsRoute.js';
-import { AuthWsRoute } from './routes/AuthWsRoute.js';
-import { BackendHttpRoute } from './routes/BackendHttpRoute.js';
-import { SessionHttpRoute } from './routes/SessionHttpRoute.js';
-import { UsersHttpRoute } from './routes/UsersHttpRoute.js';
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { AppSession } from './session/AppSession.js';
 import { BackendInfo } from './BackendInfo.js';
-import { ProjectsCache } from './cache/ProjectsCache.js';
+import SpacesWsRoute from './routes/SpacesWsRoute.js';
+import SpaceWsRoute from './routes/SpaceWsRoute.js';
+import ProjectsWsRoute from './routes/ProjectsWsRoute.js';
+import ProjectWsRoute from './routes/ProjectWsRoute.js';
+import AuthWsRoute from './routes/AuthWsRoute.js';
+import SpacesHttpRoute from './routes/SpacesHttpRoute.js';
+import ProjectsHttpRoute from './routes/ProjectsHttpRoute.js';
+import BackendHttpRoute from './routes/BackendHttpRoute.js';
+import SessionHttpRoute from './routes/SessionHttpRoute.js';
+import UsersHttpRoute from './routes/UsersHttpRoute.js';
+import HistoryHttpRoute from './routes/HistoryHttpRoute.js';
 
 export class ApiRoutes {
   protected routes: BaseRoute[] = [];
   protected wsRoutes: SocketRoute[] = [];
-  protected projectsCache = new ProjectsCache();
   /**
    * @param opts Optional server configuration options.
    */
@@ -45,20 +44,19 @@ export class ApiRoutes {
    * @param customRoutes Any custom routes to initialize.
    */
   async setup(...customRoutes: typeof BaseRoute[]): Promise<void> {
-    this.projectsCache.initialize();
     const init: ISpaceConfiguration = {
       router: this.router,
       store: this.store,
       info: this.info,
       session: this.session,
       logger: this.logger,
-      projectsCache: this.projectsCache,
     };
     // static HTTP routes. WS routes are created on demand.
     this.routes.push(new SessionHttpRoute(init));
     this.routes.push(new BackendHttpRoute(init));
     this.routes.push(new SpacesHttpRoute(init));
     this.routes.push(new ProjectsHttpRoute(init));
+    this.routes.push(new HistoryHttpRoute(init));
     this.routes.push(new UsersHttpRoute(init));
     customRoutes.forEach((custom) => {
       const ctr = custom as new(init: ISpaceConfiguration) => BaseRoute;
@@ -73,7 +71,6 @@ export class ApiRoutes {
    * Signals all processes to end.
    */
   async cleanup(): Promise<void> {
-    this.projectsCache.cleanup();
     for (const item of this.routes) {
       await item.cleanup();
     }
@@ -88,12 +85,11 @@ export class ApiRoutes {
    * @returns The created route or undefined when the route is not found
    */
   getOrCreateWs(url: string): SocketRoute | undefined {
-    const { store, logger, info, projectsCache } = this;
+    const { store, logger, info } = this;
     const init: ISocketRouteInit = {
       store,
       logger,
       info,
-      projectsCache,
     };
     if (url.startsWith('/auth/login')) {
       const route = new AuthWsRoute(init);

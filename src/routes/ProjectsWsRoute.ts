@@ -8,7 +8,7 @@ import { SocketRoute } from './SocketRoute.js';
  * - observe changes to the list of projects
  * - create a project
  */
-export class ProjectsWsRoute extends SocketRoute {
+export default class ProjectsWsRoute extends SocketRoute {
   async isAuthorized(user: IUser): Promise<boolean> {
     if (!user) {
       return false;

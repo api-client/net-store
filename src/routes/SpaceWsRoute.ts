@@ -13,7 +13,7 @@ import ooPatch, { JsonPatch } from 'json8-patch';
  * - observe list of projects (listing)
  * - create a space
  */
-export class SpaceWsRoute extends SocketRoute {
+export default class SpaceWsRoute extends SocketRoute {
 
   async isAuthorized(user?: IUser): Promise<boolean> {
     if (!user) {

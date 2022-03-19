@@ -12,7 +12,7 @@ When running the store as a service over internet it is your responsibility to s
 
 ## Single- and Multi-User environment
 
-Without additional configuration the store runs in a single-user environment. There's no need to authenticate the user and access to the data is open through HTTP/socket connection. The primary use case is to install the store with ARC application alongside the application. This then acts as a local backend for the application. Replication, ACLs, and authentication is disabled in this mode.
+Without additional configuration the store runs in a single-user environment. There's no need to authenticate the user and access to the data is open through HTTP/socket connection. The primary use case is to install the store with API Client application alongside the application. This then acts as a local backend for the application. Replication, ACLs, and authentication is disabled in this mode.
 
 Once the authentication configuration is provided the store turns into the multi-user mode. In this mode client has to initialize a session first, login, and obtain authentication token from the application backend. The client can only access data after presenting a valid access token issued by the backend. See the Server Client Communication section for more details.
 

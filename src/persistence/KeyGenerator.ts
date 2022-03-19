@@ -1,5 +1,5 @@
 /**
- * The key generator for the Level DB implementation of the ARC's data store.
+ * The key generator for the Level DB implementation of the API CLient's data store.
  */
 export class KeyGenerator {
   static deletedSpaceKey(key: string): string {

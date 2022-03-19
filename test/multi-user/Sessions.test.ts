@@ -27,7 +27,7 @@ describe('Multi user', () => {
         const data = jwt.verify(result.body as string, 'EOX0Xu6aSb') as JwtPayload;
         assert.typeOf(data.sid as string, 'string', 'has the payload')
         assert.equal(data.aud as string, 'urn:api-client', 'has the aud')
-        assert.equal(data.iss as string, 'urn:arc-store', 'has the iss')
+        assert.equal(data.iss as string, 'urn:apic-store', 'has the iss')
       });
     });
 

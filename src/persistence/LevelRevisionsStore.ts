@@ -1,5 +1,5 @@
 import { AbstractIteratorOptions } from 'abstract-leveldown';
-import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, HttpProjectKind, RevisionInfoKind } from '@api-client/core';
+import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, HttpProjectKind, RevisionInfoKind, ICursorOptions } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import { SubStore } from './SubStore.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
@@ -57,9 +57,10 @@ export class LevelRevisionsStore extends SubStore implements IRevisionsStore {
    * @param options Listing options
    * @param user Optional user for authorization.
    */
-  async listProject(spaceKey: string, projectKey: string, user: IUser, options?: IListOptions): Promise<IListResponse> {
+  async listProject(spaceKey: string, projectKey: string, user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
     await this.parent.checkProjectAccess('read', spaceKey, projectKey, user);
-    const state = this.parent.readListState(options);
+    const state = await this.parent.readListState(options);
+    const { limit = this.parent.defaultLimit } = state;
     const itOpts: AbstractIteratorOptions = {
       gte: `~project~${projectKey}~`,
       lte: `~project~${projectKey}~~`,
@@ -74,7 +75,7 @@ export class LevelRevisionsStore extends SubStore implements IRevisionsStore {
     }
     let lastKey: string | undefined;
     const data: IRevisionInfo[] = [];
-    let remaining = state.limit as number;
+    let remaining = limit;
 
     try {
       // @ts-ignore
@@ -95,7 +96,7 @@ export class LevelRevisionsStore extends SubStore implements IRevisionsStore {
     }
     // // sorts from the latests to oldest
     // data.sort(({ created: a = 0 }, { created: b = 0 }) => b - a);
-    const cursor = this.parent.encodeCursor(state, lastKey || state.lastKey);
+    const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse = {
       data,
       cursor,

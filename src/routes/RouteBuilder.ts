@@ -71,7 +71,11 @@ export class RouteBuilder {
     return `/users/${key}`
   }
 
-  static buildHistoryRoute(): string {
+  static history(): string {
     return `/history`;
+  }
+
+  static historyItem(key: string): string {
+    return `/history/${key}`;
   }
 }

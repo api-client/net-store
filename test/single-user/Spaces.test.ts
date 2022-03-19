@@ -121,24 +121,6 @@ describe('Single user', () => {
         const list2 = JSON.parse(result2.body as string) as IListResponse;
         assert.lengthOf(list2.data, 5, 'has only remaining entires');
       });
-
-      it('returns the same cursor when no more entries', async () => {
-        const result1 = await http.get(`${baseUri}/spaces?limit=35`, { token: user1Token });
-        assert.equal(result1.status, 200, 'has the 200 status');
-        const list1 = JSON.parse(result1.body as string) as IListResponse;
-
-        const result2 = await http.get(`${baseUri}/spaces?cursor=${list1.cursor}`, { token: user1Token });
-        assert.equal(result2.status, 200, 'has the 200 status');
-        const list2 = JSON.parse(result2.body as string) as IListResponse;
-        assert.lengthOf(list2.data, 5, 'has the remaining');
-
-        const result3 = await http.get(`${baseUri}/spaces?cursor=${list2.cursor}`, { token: user1Token });
-        assert.equal(result3.status, 200, 'has the 200 status');
-        const list3 = JSON.parse(result3.body as string) as IListResponse;
-        assert.lengthOf(list3.data, 0, 'has no more entries');
-        
-        assert.equal(list2.cursor, list3.cursor);
-      });
     });
   });
 });

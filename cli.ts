@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
-import { ArcLevelUp, Server } from './index.js';
+import { StoreLevelUp, Server } from './index.js';
 import { UserPaths } from './src/lib/UserPaths.js';
 import { CliOptions, ICommandOptions } from './src/cli/CliOptions.js';
 import { CliConfig } from './src/cli/CliConfig.js';
@@ -41,7 +41,7 @@ $ api-store mode "multi-user" --port 8080 --auth-type "oidc" --oidc-issuer-uri "
 program.exitOverride();
 // program.allowUnknownOption();
 
-let store: ArcLevelUp | undefined;
+let store: StoreLevelUp | undefined;
 let server: Server | undefined;
 
 process.on('SIGINT', async function() {
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     const { prefix, dataPath = UserPaths.dataRoot() } = options;
     const port = CliConfig.getPort(options);
     const config = mode === 'multi-user' ? CliConfig.getMultiModeOptions(options) : CliConfig.getSingleModeOptions(options);
-    store = new ArcLevelUp(config.logger!, dataPath);
+    store = new StoreLevelUp(config.logger!, dataPath);
     server = new Server(store, config);
     await store.initialize();
     await server.initialize();

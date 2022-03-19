@@ -11,7 +11,7 @@ import { SocketRoute } from './SocketRoute.js';
  * - listen for the changes in the spaces (listing)
  * - create a space
  */
-export class SpacesWsRoute extends SocketRoute {
+export default class SpacesWsRoute extends SocketRoute {
 
   async isAuthorized(user?: IUser): Promise<boolean> {
     if (!user) {

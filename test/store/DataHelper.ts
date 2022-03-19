@@ -1,17 +1,22 @@
 import { IHttpHistory, ProjectMock, IHttpHistoryListInit } from '@api-client/core';
 import { PutBatch } from 'abstract-leveldown';
-import { DataStoreType, ArcLevelUp } from '../../src/persistence/ArcLevelUp.js';
+import { DataStoreType, StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 
 const mock = new ProjectMock();
 
 export class DataHelper {
-  static async clearAllHistory(store: ArcLevelUp): Promise<void> {
+  static async clearAllHistory(store: StoreLevelUp): Promise<void> {
     await store.history.data.clear();
     await store.history.space.clear();
     await store.history.project.clear();
     await store.history.request.clear();
     await store.history.app.clear();
+  }
+
+  static async clearAllProjects(store: StoreLevelUp): Promise<void> {
+    await store.project.data.clear();
+    await store.project.index.clear();
   }
 
   static async addHistory(store: DataStoreType, size=25, opts?: IHttpHistoryListInit): Promise<IHttpHistory[]> {
