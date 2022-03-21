@@ -1,7 +1,6 @@
 import { ParameterizedContext } from 'koa';
-import { IHttpHistory } from '@api-client/core';
+import { IHttpHistory, IHttpHistoryBulkAdd, RouteBuilder } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
-import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 import { ApiError } from '../ApiError.js';
 import { HistoryState } from '../persistence/StorePersistence.js';
@@ -11,10 +10,14 @@ export default class HistoryHttpRoute extends BaseRoute {
     const { router } = this;
 
     const basePath = RouteBuilder.history();
+    const batchCreatePath = RouteBuilder.historyBatchCreate();
+    const batchDeletePath = RouteBuilder.historyBatchDelete();
     const itemPath = RouteBuilder.historyItem(':id');
 
     router.post(basePath, this.createHandler.bind(this));
     router.get(basePath, this.listHandler.bind(this));
+    router.post(batchCreatePath, this.batchCreateHandler.bind(this));
+    router.post(batchDeletePath, this.batchDeleteHandler.bind(this));
     router.get(itemPath, this.readHandler.bind(this));
     router.delete(itemPath, this.deleteHandler.bind(this));
   }
@@ -27,8 +30,28 @@ export default class HistoryHttpRoute extends BaseRoute {
         throw new ApiError('Invalid history definition.', 400);
       }
       const key = await this.store.history.add(body, user);
+      ctx.set('location', RouteBuilder.historyItem(key));
       ctx.body = key;
       ctx.type = 'text/plain';
+      ctx.status = 200;
+    } catch (cause) {
+      this.logger.error(cause);
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async batchCreateHandler(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const body = await this.readJsonBody(ctx.request) as IHttpHistoryBulkAdd;
+      if (!body || !Array.isArray(body.log) || !body.log.length) {
+        throw new ApiError('Invalid history list definition.', 400);
+      }
+      const keys = await this.store.history.bulkAdd(body, user);
+      ctx.body = {
+        data: keys,
+      };
+      ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
       this.logger.error(cause);
@@ -69,6 +92,21 @@ export default class HistoryHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       await this.store.history.delete(id, user);
+      ctx.status = 204;
+    } catch (cause) {
+      this.logger.error(cause);
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async batchDeleteHandler(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const body = await this.readJsonBody(ctx.request) as string[];
+      if (!Array.isArray(body) || !body.length) {
+        throw new ApiError('Expected list of history identifiers.', 400);
+      }
+      await this.store.history.bulkDelete(body, user);
       ctx.status = 204;
     } catch (cause) {
       this.logger.error(cause);

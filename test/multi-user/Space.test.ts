@@ -2,13 +2,12 @@
 import { assert } from 'chai';
 import { 
   IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
-  IBackendEvent, HttpProject, HttpProjectKind, AccessControlLevel, ISpaceUser, WorkspaceKind,
+  IBackendEvent, HttpProject, HttpProjectKind, AccessControlLevel, ISpaceUser, WorkspaceKind, RouteBuilder,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
-import { RouteBuilder } from '../../index.js';
 
 describe('Multi user', () => {
   describe('/spaces/space', () => {
@@ -32,7 +31,7 @@ describe('Multi user', () => {
         await http.post(`${baseUri}/test/generate/spaces?size=4`, {
           token: user1Token,
         });
-        const basePath = RouteBuilder.buildSpacesRoute();
+        const basePath = RouteBuilder.spaces();
         const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
@@ -49,7 +48,7 @@ describe('Multi user', () => {
 
       it('reads a space info', async () => {
         const srcSpace = created[0]; 
-        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const basePath = RouteBuilder.space(srcSpace.key);
         const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
@@ -59,7 +58,7 @@ describe('Multi user', () => {
       });
 
       it('returns 404 when no space', async () => {
-        const basePath = RouteBuilder.buildSpaceRoute('1234567890');
+        const basePath = RouteBuilder.space('1234567890');
         const result = await http.get(`${baseUri}${basePath}`, {
           token: user1Token,
         });
@@ -70,7 +69,7 @@ describe('Multi user', () => {
 
       it('returns 401 when no credentials', async () => {
         const srcSpace = created[0];
-        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const basePath = RouteBuilder.space(srcSpace.key);
         const result = await http.get(`${baseUri}${basePath}`);
         assert.equal(result.status, 401, 'has 401 status code');
         const info = JSON.parse(result.body as string);
@@ -110,7 +109,7 @@ describe('Multi user', () => {
             value: 'New name',
           }
         ];
-        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const basePath = RouteBuilder.space(srcSpace.key);
         const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
@@ -130,7 +129,7 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const basePath = RouteBuilder.space(srcSpace.key);
         await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
@@ -152,7 +151,7 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        const basePath = RouteBuilder.buildSpaceRoute('1234567890');
+        const basePath = RouteBuilder.space('1234567890');
         const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
@@ -170,7 +169,7 @@ describe('Multi user', () => {
             value: 'Other name',
           }
         ];
-        const basePath = RouteBuilder.buildSpaceRoute(other[0].key);
+        const basePath = RouteBuilder.space(other[0].key);
         const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
@@ -187,7 +186,7 @@ describe('Multi user', () => {
             test: "hello"
           }
         ];
-        const basePath = RouteBuilder.buildSpaceRoute(srcSpace.key);
+        const basePath = RouteBuilder.space(srcSpace.key);
         const result = await http.patch(`${baseUri}${basePath}`, {
           body: JSON.stringify(patch),
           token: user1Token,
@@ -379,7 +378,7 @@ describe('Multi user', () => {
           value: 'read',
         }];
         const messages: IBackendEvent[] = [];
-        const wsPath = RouteBuilder.buildSpacesRoute();
+        const wsPath = RouteBuilder.spaces();
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user2Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
@@ -571,7 +570,7 @@ describe('Multi user', () => {
       });
 
       it('deletes the space', async () => {
-        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const basePath = RouteBuilder.space(spaceKey);
         const result = await http.delete(`${baseUri}${basePath}`, {
           token: user1Token,
         });
@@ -584,7 +583,7 @@ describe('Multi user', () => {
 
       it('deletes space projects from the cache', async () => {
         const project = HttpProject.fromName('test');
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const createResult = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
           token: user1Token,
@@ -594,7 +593,7 @@ describe('Multi user', () => {
         const firstRead = await http.get(projectUrl, { token: user1Token });
         assert.equal(firstRead.status, 200, 'can read the project');
 
-        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const basePath = RouteBuilder.space(spaceKey);
         const result = await http.delete(`${baseUri}${basePath}`, {
           token: user1Token,
         });
@@ -610,13 +609,13 @@ describe('Multi user', () => {
           value: 'owner',
         }];
         const body = JSON.stringify(records);
-        const usersPath = RouteBuilder.buildSpaceUsersRoute(spaceKey);
+        const usersPath = RouteBuilder.spaceUsers(spaceKey);
         const response = await http.patch(`${baseUri}${usersPath}`, {
           token: user1Token,
           body,
         });
         assert.equal(response.status, 204, 'has the 204 status code');
-        const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const basePath = RouteBuilder.space(spaceKey);
         const result = await http.delete(`${baseUri}${basePath}`, {
           token: user2Token,
         });
@@ -637,13 +636,13 @@ describe('Multi user', () => {
             value: access,
           }];
           const body = JSON.stringify(records);
-          const usersPath = RouteBuilder.buildSpaceUsersRoute(spaceKey);
+          const usersPath = RouteBuilder.spaceUsers(spaceKey);
           const response = await http.patch(`${baseUri}${usersPath}`, {
             token: user1Token,
             body,
           });
           assert.equal(response.status, 204, 'has the 204 status code');
-          const basePath = RouteBuilder.buildSpaceRoute(spaceKey);
+          const basePath = RouteBuilder.space(spaceKey);
           const result = await http.delete(`${baseUri}${basePath}`, {
             token: user2Token,
           });
@@ -653,13 +652,13 @@ describe('Multi user', () => {
 
       it('notifies spaces clients about the space delete', async () => {
         const messages: IBackendEvent[] = [];
-        const wsPath = RouteBuilder.buildSpacesRoute();
+        const wsPath = RouteBuilder.spaces();
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
 
-        const path = RouteBuilder.buildSpaceRoute(spaceKey);
+        const path = RouteBuilder.space(spaceKey);
         await http.delete(`${baseUri}${path}`, { token: user1Token, });
         
         await ws.disconnect(client);
@@ -673,7 +672,7 @@ describe('Multi user', () => {
 
       it('notifies project clients about the space delete', async () => {
         const project = HttpProject.fromName('test');
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const createResult = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
           token: user1Token,
@@ -682,14 +681,14 @@ describe('Multi user', () => {
         const projectKey = project.key;
 
         const messages: IBackendEvent[] = [];
-        const wsPath = RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey);
+        const wsPath = RouteBuilder.spaceProject(spaceKey, projectKey);
         
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
 
-        const path = RouteBuilder.buildSpaceRoute(spaceKey);
+        const path = RouteBuilder.space(spaceKey);
         await http.delete(`${baseUri}${path}`, { token: user1Token, });
         
         await ws.disconnect(client);

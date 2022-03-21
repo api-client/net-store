@@ -1,10 +1,9 @@
 import Router from '@koa/router';
 import { DefaultContext } from 'koa';
-import { Logger } from '@api-client/core';
+import { Logger, RouteBuilder } from '@api-client/core';
 import { IServerConfiguration, IApplicationState } from './definitions.js';
 import { BaseRoute, ISpaceConfiguration } from './routes/BaseRoute.js';
 import { SocketRoute, ISocketRouteInit } from './routes/SocketRoute.js';
-import { RouteBuilder } from './routes/RouteBuilder.js';
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { AppSession } from './session/AppSession.js';
 import { BackendInfo } from './BackendInfo.js';
@@ -96,7 +95,7 @@ export class ApiRoutes {
       this.addWsRoute(route, url);
       return route;
     }
-    const spacesRoute = RouteBuilder.buildSpacesRoute();
+    const spacesRoute = RouteBuilder.spaces();
     const isSpaces = url.startsWith(spacesRoute);
     if (!isSpaces) {
       return;
@@ -112,17 +111,17 @@ export class ApiRoutes {
       return route;
     }
     const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}';
-    if (this.buildRouteRegexp(RouteBuilder.buildSpaceRoute(v4reg)).test(url)) {
+    if (this.buildRouteRegexp(RouteBuilder.space(v4reg)).test(url)) {
       const route = new SpaceWsRoute(init);
       this.addWsRoute(route, url);
       return route;
     }
-    if (this.buildRouteRegexp(RouteBuilder.buildSpaceProjectsRoute(v4reg)).test(url)) {
+    if (this.buildRouteRegexp(RouteBuilder.spaceProjects(v4reg)).test(url)) {
       const route = new ProjectsWsRoute(init);
       this.addWsRoute(route, url);
       return route;
     }
-    if (this.buildRouteRegexp(RouteBuilder.buildSpaceProjectRoute(v4reg, v4reg)).test(url)) {
+    if (this.buildRouteRegexp(RouteBuilder.spaceProject(v4reg, v4reg)).test(url)) {
       const route = new ProjectWsRoute(init);
       this.addWsRoute(route, url);
       return route;

@@ -4,12 +4,11 @@ import http from 'http';
 import { URL, URLSearchParams } from 'url';
 import { randomBytes } from 'crypto';
 import { ParameterizedContext, Next } from 'koa';
-import { IUser, UserKind } from '@api-client/core'
+import { IUser, UserKind, RouteBuilder } from '@api-client/core'
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';
 import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
 import { ApiError, IApiError } from '../ApiError.js';
-import { RouteBuilder } from '../routes/RouteBuilder.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { IOpenIdProviderMetadata } from './OpenIdProviderMetadata.js';
 
@@ -265,7 +264,7 @@ export class Oidc extends Authentication {
     try {
       if (!ctx.state.sid) {
         ctx.status = 400;
-        ctx.set('location', RouteBuilder.buildSessionsRoute());
+        ctx.set('location', RouteBuilder.sessions());
         ctx.body = this.wrapError(new Error('Session not initialized'), 400);
         return;
       }

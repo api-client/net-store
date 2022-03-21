@@ -1,9 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
 import jwt from 'jsonwebtoken';
+import { RouteBuilder } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
-import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 import DefaultUser from '../authentication/DefaultUser.js';
 import { SingleUserAuthentication } from '../authentication/SingleUserAuthentication.js';
@@ -19,13 +19,13 @@ import { SingleUserAuthentication } from '../authentication/SingleUserAuthentica
 export default class SessionHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    const baseRoute = RouteBuilder.buildSessionsRoute();
+    const baseRoute = RouteBuilder.sessions();
     if (this.info.mode === 'multi-user') {
       router.post(baseRoute, this.handleMultiUserModeSessionCreate.bind(this));
     } else {
       router.post(baseRoute, this.handleSingleUserModeSessionCreate.bind(this));
     }
-    router.post(RouteBuilder.buildSessionRenewRoute(), this.handleSessionRenew.bind(this));
+    router.post(RouteBuilder.sessionRenew(), this.handleSessionRenew.bind(this));
     router.delete(baseRoute, this.handleSessionDelete.bind(this));
   }
 

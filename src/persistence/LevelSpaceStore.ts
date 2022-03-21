@@ -6,11 +6,10 @@ import { AbstractLevelDOWN, PutBatch } from 'abstract-leveldown';
 import { 
   IUser, IBackendEvent, IListResponse, IUserSpaces, AccessControlLevel, IListOptions, IAccessControl,
   Workspace, IWorkspace, IUserWorkspace, WorkspaceKind, HttpProjectKind, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation, ISpaceUser, ICursorOptions,
+  IUserAccessAddOperation, IUserAccessRemoveOperation, ISpaceUser, ICursorOptions, RouteBuilder,
 } from '@api-client/core';
 import { JsonPatch, diff } from 'json8-patch';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
-import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { SubStore } from './SubStore.js';
 import { StoreLevelUp } from './StoreLevelUp.js';
 import { ApiError } from '../ApiError.js';
@@ -256,7 +255,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
       kind: WorkspaceKind,
     };
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpacesRoute(),
+      url: RouteBuilder.spaces(),
       users: userKey === 'default' ? undefined : [userKey],
     };
     Clients.notify(event, filter);
@@ -311,7 +310,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
       id: key,
     };
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(key),
+      url: RouteBuilder.space(key),
     };
     Clients.notify(event, filter);
   }
@@ -361,13 +360,13 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     };
     // informs spaces list clients about the delete.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpacesRoute(),
+      url: RouteBuilder.spaces(),
     };
     Clients.notify(event, filter);
     // Disconnect clients connected to the space.
-    Clients.closeByUrl(RouteBuilder.buildSpaceRoute(key));
+    Clients.closeByUrl(RouteBuilder.space(key));
     // Disconnect clients connected to the space projects.
-    Clients.closeByUrl(RouteBuilder.buildSpaceProjectsRoute(key));
+    Clients.closeByUrl(RouteBuilder.spaceProjects(key));
     
     // now, inform space projects listeners that the project is also deleted
     const list = await this.parent.project.allIndexes(key);
@@ -378,7 +377,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
         kind: HttpProjectKind,
         id: project.key,
       };
-      const url = RouteBuilder.buildSpaceProjectRoute(key, project.key);
+      const url = RouteBuilder.spaceProject(key, project.key);
       const filter2: IClientFilterOptions = {
         url,
       };
@@ -502,7 +501,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
         id: key,
       };
       const filter: IClientFilterOptions = {
-        url: RouteBuilder.buildSpaceRoute(key),
+        url: RouteBuilder.space(key),
       };
       Clients.notify(event, filter);
     }
@@ -517,7 +516,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     };
     const addEvent: IBackendEvent = { ...removeEvent, operation: 'access-granted' };
     const baseFilter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpacesRoute(),
+      url: RouteBuilder.spaces(),
     };
     patch.forEach((item) => {
       const f = { ...baseFilter, users: [item.uid], };

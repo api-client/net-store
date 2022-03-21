@@ -4,7 +4,7 @@ import { AbstractLevelDOWN, AbstractIteratorOptions } from 'abstract-leveldown';
 import sub from 'subleveldown';
 import { 
   IUser, IListResponse, IListOptions, IHttpProjectListItem, IHttpProject, IBackendEvent,
-  HttpProjectListItemKind, HttpProjectKind, AccessControlLevel, ICursorOptions
+  HttpProjectListItemKind, HttpProjectKind, AccessControlLevel, ICursorOptions, RouteBuilder,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import { StoreLevelUp } from './StoreLevelUp.js';
@@ -12,7 +12,6 @@ import { SubStore } from './SubStore.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { ApiError } from '../ApiError.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
-import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { IProjectsStore } from './StorePersistence.js';
 
 /**
@@ -186,7 +185,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     };
     // informs only clients that are listening for projects change in a space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(spaceKey),
+      url: RouteBuilder.space(spaceKey),
     };
     Clients.notify(event, filter);
   }
@@ -236,7 +235,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
       id: projectKey,
     };
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey),
+      url: RouteBuilder.spaceProject(spaceKey, projectKey),
     };
     Clients.notify(event, filter);
 
@@ -295,7 +294,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     };
     // informs only clients that are listening for projects change in a space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(spaceKey),
+      url: RouteBuilder.space(spaceKey),
     };
     Clients.notify(event, filter);
   }
@@ -362,13 +361,13 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
     };
     // informs only clients that are listening for changes on the space.
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceRoute(spaceKey),
+      url: RouteBuilder.space(spaceKey),
     };
     Clients.notify(event, filter);
     const event2 = { ...event };
     event2.kind = HttpProjectKind;
     const filter2: IClientFilterOptions = {
-      url: RouteBuilder.buildSpaceProjectRoute(spaceKey, projectKey),
+      url: RouteBuilder.spaceProject(spaceKey, projectKey),
     };
     Clients.notify(event2, filter2);
     Clients.closeByUrl(filter2.url as string);

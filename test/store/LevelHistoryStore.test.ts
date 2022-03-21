@@ -2,7 +2,10 @@ import { assert } from 'chai';
 import fs from 'fs/promises';
 import path from 'path';
 import sinon from 'sinon';
-import { DefaultLogger, IHttpHistory, ProjectMock, IBackendEvent, ISentRequest, Workspace, HttpProject } from '@api-client/core';
+import { 
+  DefaultLogger, IHttpHistory, ProjectMock, IBackendEvent, ISentRequest, Workspace, HttpProject, 
+  IHttpHistoryBulkAdd, HttpHistoryKind, RouteBuilder,
+} from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
@@ -211,6 +214,131 @@ describe('Unit tests', () => {
           if (error) {
             assert.equal(error.code, 400, 'has the 400 code');
             assert.equal(error.message, 'The "project" parameter is required when adding a request history.', 'has the message');
+          }
+        });
+      });
+
+      describe('bulkAdd()', () => {
+        const user1 = mock.user.user();
+        const user2 = mock.user.user();
+        let space1Id: string;
+        let space2Id: string;
+        let project1Id: string;
+
+        before(async () => {
+          await store.user.add(user1.key, user1);
+          await store.user.add(user2.key, user2);
+          const space1 = Workspace.fromName('test1');
+          const space2 = Workspace.fromName('test2');
+          space1Id = space1.key;
+          space2Id = space2.key;
+          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
+          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          const project1 = HttpProject.fromName('test project1');
+          project1Id = project1.key;
+          await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
+        });
+
+        after(async () => {
+          await DataHelper.clearAllHistory(store);
+          await store.user.db.clear();
+          await store.space.db.clear();
+        });
+
+        it('adds app history to the store and adds the user', async () => {
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            app: 'test-app',
+            log: [log],
+          };
+          const ids = await store.history.bulkAdd(item, DefaultUser);
+          const [key] = ids;
+          const entity = await store.history.read(key, DefaultUser);
+          assert.equal(entity.user, DefaultUser.key, 'sets the user key');
+        });
+
+        it('adds the item to the spaces store', async () => {
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            space: space1Id,
+            log: [log],
+          };
+          await store.history.bulkAdd(item, user1);
+          const time = new Date(log.request!.endTime as number).toJSON();
+          const dataKey = KeyGenerator.historyDataKey(time, user1.key);
+          const spaceKey = KeyGenerator.historySpaceKey(time, space1Id, user1.key);
+          const value = (await store.history.space.get(spaceKey)).toString();
+          assert.equal(value, dataKey, 'stores the data key');
+        });
+
+        it('adds the item to the request store', async () => {
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            space: space1Id,
+            project: project1Id,
+            request: 'test-request',
+            log: [log],
+          };
+          await store.history.bulkAdd(item, user1);
+          const time = new Date(log.request!.endTime as number).toJSON();
+          const dataKey = KeyGenerator.historyDataKey(time, user1.key);
+          const requestKey = KeyGenerator.historyRequestKey(time, 'test-request', user1.key);
+          const value = (await store.history.request.get(requestKey)).toString();
+          assert.equal(value, dataKey, 'stores the data key');
+        });
+
+        it('adds the item to the app store', async () => {
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            app: 'test-app',
+            log: [log],
+          };
+          await store.history.bulkAdd(item, user1);
+          const time = new Date(log.request!.endTime as number).toJSON();
+          const dataKey = KeyGenerator.historyDataKey(time, user1.key);
+          const appKey = KeyGenerator.historyAppKey(time, 'test-app', user1.key);
+          const value = (await store.history.app.get(appKey)).toString();
+          assert.equal(value, dataKey, 'stores the data key');
+        });
+
+        it('informs the WS client', async () => {
+          const spy = sinon.spy(Clients, 'notify');
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            space: space1Id,
+            log: [log],
+          };
+          try {
+            await store.history.bulkAdd(item, user1);
+          } finally {
+            // @ts-ignore
+            Clients.notify.restore();
+          }
+          assert.isTrue(spy.calledOnce, 'Calls the notify function');
+          const event = spy.args[0][0] as IBackendEvent;
+          const filter = spy.args[0][1] as IClientFilterOptions;
+          assert.equal(event.type, 'event');
+          assert.equal(event.operation, 'created');
+          assert.typeOf(event.data, 'object');
+          assert.equal(event.kind, HttpHistoryKind);
+          assert.equal(filter.url, '/history');
+        });
+
+        it('validates the meta configuration', async () => {
+          const log = mock.projectRequest.log();
+          const item: IHttpHistoryBulkAdd = {
+            log: [log],
+          };
+          let error: ApiError | undefined;
+          try {
+            await store.history.bulkAdd(item, user1);
+          } catch (cause) {
+            error = cause as ApiError;
+          }
+          assert.ok(error, 'throws an error');
+          if (error) {
+            assert.equal(error.code, 400, 'has the 400 code');
+            assert.equal(error.message, 'Either the "app" or "type" parameter is required.', 'has the message');
           }
         });
       });
@@ -812,9 +940,34 @@ describe('Unit tests', () => {
       });
 
       describe('delete()', () => {
+        const user1 = mock.user.user();
+        const user2 = mock.user.user();
+        let space1Id: string;
+        let space2Id: string;
+        let project1Id: string;
+
+        before(async () => {
+          await store.user.add(user1.key, user1);
+          await store.user.add(user2.key, user2);
+          const space1 = Workspace.fromName('test1');
+          const space2 = Workspace.fromName('test2');
+          space1Id = space1.key;
+          space2Id = space2.key;
+          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
+          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          const project1 = HttpProject.fromName('test project1');
+          project1Id = project1.key;
+          await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
+        });
+
+        after(async () => {
+          await DataHelper.clearAllHistory(store);
+          await store.user.db.clear();
+          await store.space.db.clear();
+        });
+
         it('marks the object deleted in the data store', async () => {
-          const item = mock.history.httpHistory({ user: DefaultUser.key });
-          item.app = 'test-app';
+          const item = mock.history.httpHistory({ user: DefaultUser.key, app: 'test-app' });
           const id = await store.history.add(item, DefaultUser);
           await store.history.delete(id, DefaultUser);
           const key = DataHelper.getHistoryEncodedKey(item);
@@ -829,6 +982,66 @@ describe('Unit tests', () => {
             assert.equal(error.message, 'Not found.');
             assert.equal(error.code, 404);
           }
+        });
+
+        it('removes the space entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id });
+          const id = await store.history.add(item, user1);
+          await store.history.delete(id, user1);
+          const time = new Date(item.created).toJSON();
+          const spaceKey = KeyGenerator.historySpaceKey(time, space1Id, user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.space.get(spaceKey);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the project entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const id = await store.history.add(item, user1);
+          await store.history.delete(id, user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyProjectKey(time, project1Id, user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.project.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the request entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const id = await store.history.add(item, user1);
+          await store.history.delete(id, user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyRequestKey(time, 'test-request', user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.request.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the app entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const id = await store.history.add(item, user1);
+          await store.history.delete(id, user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyAppKey(time, 'test-app', user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.app.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
         });
 
         it('throws when not found', async () => {
@@ -887,6 +1100,153 @@ describe('Unit tests', () => {
             assert.equal(error.message, 'You are not authorized to delete this object.');
             assert.equal(error.code, 403);
           }
+        });
+
+        it('informs the WS client', async () => {
+          const item = mock.history.httpHistory({ user: DefaultUser.key });
+          item.app = 'test-app';
+          const id = await store.history.add(item, DefaultUser);
+          const spy = sinon.spy(Clients, 'notify');
+          try {
+            await store.history.delete(id, DefaultUser);
+          } finally {
+            // @ts-ignore
+            Clients.notify.restore();
+          }
+          assert.isTrue(spy.calledOnce, 'Calls the notify function');
+          const event = spy.args[0][0] as IBackendEvent;
+          const filter = spy.args[0][1] as IClientFilterOptions;
+          assert.equal(event.type, 'event');
+          assert.equal(event.operation, 'deleted');
+          assert.isUndefined(event.data);
+          assert.equal(event.kind, HttpHistoryKind);
+          assert.equal(filter.url, RouteBuilder.historyItem(id));
+        });
+      });
+
+      describe('bulkDelete()', () => {
+        const user1 = mock.user.user();
+        const user2 = mock.user.user();
+        let space1Id: string;
+        let space2Id: string;
+        let project1Id: string;
+
+        before(async () => {
+          await store.user.add(user1.key, user1);
+          await store.user.add(user2.key, user2);
+          const space1 = Workspace.fromName('test1');
+          const space2 = Workspace.fromName('test2');
+          space1Id = space1.key;
+          space2Id = space2.key;
+          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
+          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          const project1 = HttpProject.fromName('test project1');
+          project1Id = project1.key;
+          await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
+        });
+
+        after(async () => {
+          await DataHelper.clearAllHistory(store);
+          await store.user.db.clear();
+          await store.space.db.clear();
+        });
+
+        it('marks objects deleted in the data store', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const id = await store.history.add(item, user1);
+          await store.history.bulkDelete([id], user1);
+          const key = DataHelper.getHistoryEncodedKey(item);
+          let error: ApiError | undefined;
+          try {
+            await store.history.read(key, user1);
+          } catch (e) {
+            error = e as ApiError;
+          }
+          assert.ok(error, 'has the error');
+          if (error) {
+            assert.equal(error.message, 'Not found.');
+            assert.equal(error.code, 404);
+          }
+        });
+
+        it('removes the space entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id });
+          const id = await store.history.add(item, user1);
+          await store.history.bulkDelete([id], user1);
+          const time = new Date(item.created).toJSON();
+          const spaceKey = KeyGenerator.historySpaceKey(time, space1Id, user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.space.get(spaceKey);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the project entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const id = await store.history.add(item, user1);
+          await store.history.bulkDelete([id], user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyProjectKey(time, project1Id, user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.project.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the request entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const id = await store.history.add(item, user1);
+          await store.history.bulkDelete([id], user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyRequestKey(time, 'test-request', user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.request.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('removes the app entry', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const id = await store.history.add(item, user1);
+          await store.history.bulkDelete([id], user1);
+          const time = new Date(item.created).toJSON();
+          const key = KeyGenerator.historyAppKey(time, 'test-app', user1.key);
+          let data: any | undefined;
+          try {
+            data = await store.history.app.get(key);
+          } catch (e) {
+            // ...
+          }
+          assert.isUndefined(data, 'has no data');
+        });
+
+        it('informs the WS client', async () => {
+          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const id = await store.history.add(item, user1);
+          const spy = sinon.spy(Clients, 'notify');
+          try {
+            await store.history.bulkDelete([id], user1);
+          } finally {
+            // @ts-ignore
+            Clients.notify.restore();
+          }
+          assert.isTrue(spy.calledOnce, 'Calls the notify function');
+          const event = spy.args[0][0] as IBackendEvent;
+          const filter = spy.args[0][1] as IClientFilterOptions;
+          assert.equal(event.type, 'event');
+          assert.equal(event.operation, 'deleted');
+          assert.isUndefined(event.data);
+          assert.equal(event.kind, HttpHistoryKind);
+          assert.equal(filter.url, RouteBuilder.historyItem(id));
         });
       });
     });

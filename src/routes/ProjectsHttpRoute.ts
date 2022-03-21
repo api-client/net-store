@@ -1,9 +1,8 @@
 import { ParameterizedContext } from 'koa';
-import { IHttpProject } from '@api-client/core';
+import { IHttpProject, RouteBuilder } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
-import { RouteBuilder } from './RouteBuilder.js';
 
 /**
  * An HTTP route for the server that serves the information about 
@@ -16,16 +15,16 @@ import { RouteBuilder } from './RouteBuilder.js';
 export default class ProjectsHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    const projectsRoute = RouteBuilder.buildSpaceProjectsRoute(':space');
+    const projectsRoute = RouteBuilder.spaceProjects(':space');
     router.get(projectsRoute, this.handleProjectsList.bind(this));
     router.post(projectsRoute, this.handleProjectCreate.bind(this));
 
-    const projectPath = RouteBuilder.buildSpaceProjectRoute(':space', ':project');
+    const projectPath = RouteBuilder.spaceProject(':space', ':project');
     router.get(projectPath, this.handleProjectRead.bind(this));
     router.patch(projectPath, this.handleProjectPatch.bind(this));
     router.delete(projectPath, this.handleProjectDelete.bind(this));
 
-    const revisionsPath = RouteBuilder.buildProjectRevisionsRoute(':space', ':project');
+    const revisionsPath = RouteBuilder.projectRevisions(':space', ':project');
     router.get(revisionsPath, this.handleRevisionsList.bind(this));
   }
 
@@ -54,7 +53,7 @@ export default class ProjectsHttpRoute extends BaseRoute {
       }
       await this.store.project.add(space, body.key, body, user);
       ctx.status = 204;
-      const spacePath = RouteBuilder.buildSpaceProjectRoute(space, body.key);
+      const spacePath = RouteBuilder.spaceProject(space, body.key);
       ctx.set('location', spacePath);
     } catch (cause) {
       this.logger.error(cause);

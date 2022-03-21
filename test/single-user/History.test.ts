@@ -1,10 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IHttpHistory, ProjectMock, IListResponse } from '@api-client/core';
+import { IHttpHistory, ProjectMock, IListResponse, IHttpHistoryBulkAdd, RouteBuilder } from '@api-client/core';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
-import { RouteBuilder } from '../../index.js';
 
 describe('Single user', () => {
   const mock = new ProjectMock();
@@ -117,6 +116,142 @@ describe('Single user', () => {
         const body2 = result2.body as string;
         const list2 = JSON.parse(body2) as IListResponse;
         assert.lengthOf(list2.data, 0);
+      });
+    });
+  });
+
+  describe('/history/batch/create', () => {
+    let user1Token: string;
+    before(async () => {
+      user1Token = await http.createUserToken(baseUri);
+    });
+
+    after(async () => {
+      await http.delete(`${baseUri}/test/reset/sessions`);
+      await http.delete(`${baseUri}/test/reset/users`);
+      await http.delete(`${baseUri}/test/reset/history`);
+    });
+
+    it('adds the history in bulk', async () => {
+      const log = mock.projectRequest.log();
+      const item: IHttpHistoryBulkAdd = {
+        app: 'test-app',
+        log: [log],
+      };
+
+      const httpPath = RouteBuilder.historyBatchCreate();
+      const result = await http.post(`${baseUri}${httpPath}`, {
+        body: JSON.stringify(item),
+        token: user1Token,
+      });
+      assert.equal(result.status, 200, 'has 200 status');
+      const body = result.body as string;
+      const list = JSON.parse(body) as IListResponse;
+      const ids = list.data as string[];
+      assert.typeOf(ids, 'array', 'has the created ids in the body');
+
+      const readResult = await http.get(`${baseUri}${RouteBuilder.historyItem(ids[0])}`, { token: user1Token });
+      assert.equal(readResult.status, 200, 'read status is 200');
+      const readBody = readResult.body as string;
+      assert.typeOf(readBody, 'string', 'has the read body');
+      const data = JSON.parse(readBody) as IHttpHistory;
+      assert.equal(data.user, DefaultUser.key, 'sets the user key');
+    });
+  });
+
+  describe('/history/batch/delete', () => {
+    let user1Token: string;
+    before(async () => {
+      user1Token = await http.createUserToken(baseUri);
+    });
+
+    after(async () => {
+      await http.delete(`${baseUri}/test/reset/sessions`);
+      await http.delete(`${baseUri}/test/reset/users`);
+      await http.delete(`${baseUri}/test/reset/history`);
+    });
+
+    it('removes history data', async () => {
+      const item = mock.history.httpHistory({ app: 'test-app' });
+      const createResult = await http.post(`${baseUri}${RouteBuilder.history()}`, {
+        body: JSON.stringify(item),
+        token: user1Token,
+      });
+      assert.equal(createResult.status, 200, 'has 200 status');
+      const id = createResult.body as string;
+      
+      const deleteResult = await http.post(`${baseUri}${RouteBuilder.historyBatchDelete()}`, {
+        body: JSON.stringify([id]),
+        token: user1Token,
+      });
+      assert.equal(deleteResult.status, 204, 'has 204 status');
+    });
+  });
+
+  describe('/history/[key]', () => {
+    describe('GET', () => {
+      let user1Token: string;
+      let created1Id: string;
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+        const item1 = mock.history.httpHistory({ app: 'test-app' });
+        const createResult1 = await http.post(`${baseUri}${RouteBuilder.history()}`, {
+          body: JSON.stringify(item1),
+          token: user1Token,
+        });
+        assert.equal(createResult1.status, 200, 'created the app history');
+        created1Id = createResult1.body as string;
+      });
+  
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/history`);
+      });
+
+      it('returns the history object', async () => {
+        const result = await http.get(`${baseUri}${RouteBuilder.historyItem(created1Id)}`, { token: user1Token });
+        assert.equal(result.status, 200, 'has the 200 status code');
+        const body = result.body as string;
+        assert.typeOf(body, 'string', 'has the body');
+        const history = JSON.parse(body) as IHttpHistory;
+        assert.equal(history.key, created1Id, 'returns the history object')
+      });
+
+      it('returns 404 when unknown id', async () => {
+        const result = await http.get(`${baseUri}${RouteBuilder.historyItem('unknown')}`, { token: user1Token });
+        assert.equal(result.status, 404, 'has the 404 status code');
+      });
+    });
+
+    describe('Delete', () => {
+      let user1Token: string;
+      let created1Id: string;
+      before(async () => {
+        user1Token = await http.createUserToken(baseUri);
+      });
+  
+      after(async () => {
+        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${baseUri}/test/reset/users`);
+        await http.delete(`${baseUri}/test/reset/history`);
+      });
+
+      beforeEach(async () => {
+        const item1 = mock.history.httpHistory({ app: 'test-app' });
+        const createResult1 = await http.post(`${baseUri}${RouteBuilder.history()}`, {
+          body: JSON.stringify(item1),
+          token: user1Token,
+        });
+        assert.equal(createResult1.status, 200, 'created the app history');
+        created1Id = createResult1.body as string;
+      });
+
+      it('deletes a user record', async () => {
+        const deleteResult = await http.delete(`${baseUri}${RouteBuilder.historyItem(created1Id)}`, { token: user1Token });
+        assert.equal(deleteResult.status, 204, 'delete has the 204 status code');
+        const readResult = await http.get(`${baseUri}${RouteBuilder.historyItem(created1Id)}`, { token: user1Token });
+        assert.equal(readResult.status, 404, 'deleted read has the 404 status code');
       });
     });
   });

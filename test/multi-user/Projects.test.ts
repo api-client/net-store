@@ -1,10 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, HttpProjectListItemKind } from '@api-client/core';
+import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, HttpProjectListItemKind, RouteBuilder } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
-import { RouteBuilder } from '../../index.js';
 
 describe('Multi user', () => {
   describe('/spaces/space/projects', () => {
@@ -40,7 +39,7 @@ describe('Multi user', () => {
 
       it('creates a new project', async () => {
         const project = HttpProject.fromName('test');
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
           token: user1Token,
@@ -51,7 +50,7 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid workspace', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
           token: user1Token,
@@ -63,7 +62,7 @@ describe('Multi user', () => {
       });
 
       it('returns an error when no user token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
         });
@@ -74,7 +73,7 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid user token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
           token: 'abc',
@@ -87,12 +86,12 @@ describe('Multi user', () => {
 
       it('informs clients about new project', async () => {
         const messages: IBackendEvent[] = [];
-        const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const wsPath = RouteBuilder.space(spaceKey);
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}?token=${user1Token}`);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
         });
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(HttpProject.fromName('test')),
           token: user1Token,
@@ -110,13 +109,13 @@ describe('Multi user', () => {
 
       it('lists over created project', async () => {
         const project = HttpProject.fromName('test');
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const createResult = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
           token: user1Token,
         });
         assert.equal(createResult.status, 204, 'has 204 status');
-        const listPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const listPath = RouteBuilder.spaceProjects(spaceKey);
         const listResult = await http.get(`${baseUri}${listPath}`, {
           token: user1Token,
         });
@@ -146,7 +145,7 @@ describe('Multi user', () => {
       });
 
       it('returns results and the page token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
@@ -159,7 +158,7 @@ describe('Multi user', () => {
       });
 
       it('supports the limit parameter', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
@@ -169,7 +168,7 @@ describe('Multi user', () => {
       });
 
       it('paginates to the next page', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token });
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
@@ -182,7 +181,7 @@ describe('Multi user', () => {
       });
 
       it('reaches the end of pagination', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
@@ -193,7 +192,7 @@ describe('Multi user', () => {
       });
 
       it('returns an error when no user token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}`);
         assert.equal(result.status, 401, 'has 401 status');
         const body = result.body as string;
@@ -202,7 +201,7 @@ describe('Multi user', () => {
       });
 
       it('returns an error when invalid user token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}`, { token: 'abc' });
         assert.equal(result.status, 401, 'has 401 status');
         const body = result.body as string;

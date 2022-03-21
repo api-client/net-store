@@ -1,11 +1,10 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { IWorkspace, UserAccessOperation, IUser } from '@api-client/core';
+import { IWorkspace, UserAccessOperation, IUser, RouteBuilder } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import { BaseRoute } from './BaseRoute.js';
 import { ApiError } from '../ApiError.js';
-import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 
 /**
@@ -24,16 +23,16 @@ import { IApplicationState } from '../definitions.js';
 export default class SpacesHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    const spacesPath = RouteBuilder.buildSpacesRoute();
+    const spacesPath = RouteBuilder.spaces();
     router.get(spacesPath, this.handleSpacesList.bind(this));
     router.post(spacesPath, this.handleSpaceCreate.bind(this));
 
-    const spacePath = RouteBuilder.buildSpaceRoute(':space');
+    const spacePath = RouteBuilder.space(':space');
     router.get(spacePath, this.handleSpaceRead.bind(this));
     router.patch(spacePath, this.handleSpacePatch.bind(this));
     router.delete(spacePath, this.handleSpaceDelete.bind(this));
     
-    const usersPath = RouteBuilder.buildSpaceUsersRoute(':space');
+    const usersPath = RouteBuilder.spaceUsers(':space');
     router.patch(usersPath, this.handleSpacePatchUser.bind(this));
     router.get(usersPath, this.handleSpaceListUsers.bind(this));
   }
@@ -66,7 +65,7 @@ export default class SpacesHttpRoute extends BaseRoute {
       }
       await this.store.space.add(body.key, body, user, 'owner');
       ctx.status = 204;
-      const spacePath = RouteBuilder.buildSpaceRoute(body.key);
+      const spacePath = RouteBuilder.space(body.key);
       ctx.set('location', spacePath);
     } catch (cause) {
       this.errorResponse(ctx, cause);

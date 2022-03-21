@@ -1,9 +1,8 @@
 import { AbstractIteratorOptions } from 'abstract-leveldown';
-import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, HttpProjectKind, RevisionInfoKind, ICursorOptions } from '@api-client/core';
+import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, HttpProjectKind, RevisionInfoKind, ICursorOptions, RouteBuilder } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import { SubStore } from './SubStore.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
-import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { IRevisionsStore } from './StorePersistence.js';
 
@@ -44,7 +43,7 @@ export class LevelRevisionsStore extends SubStore implements IRevisionsStore {
       kind: RevisionInfoKind,
     };
     const filter: IClientFilterOptions = {
-      url: RouteBuilder.buildProjectRevisionsRoute(projectKey, spaceKey),
+      url: RouteBuilder.projectRevisions(projectKey, spaceKey),
     };
     Clients.notify(event, filter);
   }

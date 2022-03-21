@@ -1,11 +1,10 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
 import { 
-  IUser, IListResponse,
+  IUser, IListResponse, RouteBuilder,
 } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
-import { RouteBuilder } from '../../index.js';
 import { Tokens } from '../../src/session/Tokens.js';
 
 describe('Multi user', () => {
@@ -34,7 +33,7 @@ describe('Multi user', () => {
       });
 
       it('returns user session for each user', async () => {
-        const path = RouteBuilder.buildUsersMeRoute();
+        const path = RouteBuilder.usersMe();
         const result1 = await http.get(`${baseUri}${path}`, { token: user1Token });
         const result2 = await http.get(`${baseUri}${path}`, { token: user2Token });
         assert.equal(result1.status, 200, 'user #1 status is 200');
@@ -45,7 +44,7 @@ describe('Multi user', () => {
       });
 
       it('returns 401 when no token', async () => {
-        const path = RouteBuilder.buildUsersMeRoute();
+        const path = RouteBuilder.usersMe();
         const result = await http.get(`${baseUri}${path}`);
         assert.equal(result.status, 401);
       });
@@ -54,7 +53,7 @@ describe('Multi user', () => {
         const token = tokens.generate({
           invalid: true,
         });
-        const path = RouteBuilder.buildUsersMeRoute();
+        const path = RouteBuilder.usersMe();
         const result = await http.get(`${baseUri}${path}`, { token });
         assert.equal(result.status, 401);
       });
@@ -78,7 +77,7 @@ describe('Multi user', () => {
       });
 
       it('lists all users', async () => {
-        const path = RouteBuilder.buildUsersRoute();
+        const path = RouteBuilder.users();
         const result = await http.get(`${baseUri}${path}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status code');
         const response = JSON.parse(result.body as string) as IListResponse;
@@ -92,7 +91,7 @@ describe('Multi user', () => {
 
       it('queries for the user by name', async () => {
         const q = user2.name.split(' ')[0];
-        const path = RouteBuilder.buildUsersRoute();
+        const path = RouteBuilder.users();
         const result = await http.get(`${baseUri}${path}?query=${encodeURIComponent(q)}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status code');
         const response = JSON.parse(result.body as string) as IListResponse;
@@ -103,7 +102,7 @@ describe('Multi user', () => {
       it('queries for the user by email', async () => {
         const email = user2.email as any[];
         const q = (email[0].email as string).split('@')[0];
-        const path = RouteBuilder.buildUsersRoute();
+        const path = RouteBuilder.users();
         const result = await http.get(`${baseUri}${path}?query=${encodeURIComponent(q)}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status code');
         const response = JSON.parse(result.body as string) as IListResponse;
@@ -130,7 +129,7 @@ describe('Multi user', () => {
       });
 
       it('reads the user from the store', async () => {
-        const path = RouteBuilder.buildUserRoute(user2.key);
+        const path = RouteBuilder.user(user2.key);
         const result = await http.get(`${baseUri}${path}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status code');
         const response = JSON.parse(result.body as string) as IUser;
@@ -139,13 +138,13 @@ describe('Multi user', () => {
       });
 
       it('returns 404 when no user', async () => {
-        const path = RouteBuilder.buildUserRoute('other');
+        const path = RouteBuilder.user('other');
         const result = await http.get(`${baseUri}${path}`, { token: user1Token });
         assert.equal(result.status, 404, 'has the 404 status code');
       });
 
       it('returns 401 when no token', async () => {
-        const path = RouteBuilder.buildUserRoute(user2.key);
+        const path = RouteBuilder.user(user2.key);
         const result = await http.get(`${baseUri}${path}`);
         assert.equal(result.status, 401, 'has the 401 status code');
       });

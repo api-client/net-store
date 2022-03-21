@@ -1,7 +1,7 @@
 import { 
   IUser, IWorkspace, IUserWorkspace, AccessControlLevel, IHttpProject, IListResponse, 
   UserAccessOperation, Logger, IListOptions, IHttpHistory, HistoryListOptions,
-  IUserSpaces, ICursorOptions,
+  IUserSpaces, ICursorOptions, IHttpHistoryBulkAdd,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import { Cursor } from './Cursor.js';
@@ -40,8 +40,10 @@ export type HistoryState = HistoryListOptions & {
 
 export interface IHistoryStore {
   add(history: IHttpHistory, user: IUser): Promise<string>;
+  bulkAdd(info: IHttpHistoryBulkAdd, user: IUser): Promise<string[]>;
   list(user: IUser, options?: HistoryState | ICursorOptions): Promise<IListResponse>;
   delete(key: string, user: IUser): Promise<void>;
+  bulkDelete(keys: string[], user: IUser): Promise<void>;
   read(encodedKey: string, user: IUser): Promise<IHttpHistory>;
 }
 

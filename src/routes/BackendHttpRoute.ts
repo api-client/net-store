@@ -1,6 +1,6 @@
 import { ParameterizedContext } from 'koa';
+import { RouteBuilder } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
-import { RouteBuilder } from './RouteBuilder.js';
 
 /**
  * An HTTP route to read information about the backend configuration that is relevant
@@ -9,7 +9,7 @@ import { RouteBuilder } from './RouteBuilder.js';
 export default class BackendHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    const baseRoute = RouteBuilder.buildBackendRoute();
+    const baseRoute = RouteBuilder.backend();
     router.get(baseRoute, this.handleStoreInfo.bind(this));
   }
 

@@ -1,10 +1,9 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, HttpProjectListItemKind } from '@api-client/core';
+import { HttpProject, IBackendEvent, IWorkspace, IListResponse, IHttpProjectListItem, HttpProjectListItemKind, RouteBuilder } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
-import { RouteBuilder } from '../../index.js';
 
 describe('Single user', () => {
   describe('/spaces/space/projects', () => {
@@ -35,7 +34,7 @@ describe('Single user', () => {
 
       it('creates a new project', async () => {
         const spaceKey = spaces[0].key;
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const project = HttpProject.fromName('test');
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify(project),
@@ -48,7 +47,7 @@ describe('Single user', () => {
 
       it('returns an error when invalid workspace', async () => {
         const spaceKey = spaces[0].key;
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.post(`${baseUri}${httpPath}`, {
           body: JSON.stringify({}),
           token: user1Token,
@@ -61,9 +60,9 @@ describe('Single user', () => {
 
       it('informs clients about new project', async () => {
         const spaceKey = spaces[0].key;
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const messages: IBackendEvent[] = [];
-        const wsPath = RouteBuilder.buildSpaceRoute(spaceKey);
+        const wsPath = RouteBuilder.space(spaceKey);
         const client = await ws.createAndConnect(`${baseUriWs}${wsPath}`, user1Token);
         client.on('message', (data: RawData) => {
           messages.push(JSON.parse(data.toString()));
@@ -102,7 +101,7 @@ describe('Single user', () => {
       });
 
       it('returns results and the page token', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
@@ -116,7 +115,7 @@ describe('Single user', () => {
       });
 
       it('supports the limit parameter', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result = await http.get(`${baseUri}${httpPath}?limit=4`, { token: user1Token });
         assert.equal(result.status, 200, 'has the 200 status');
         const list = JSON.parse(result.body as string) as IListResponse;
@@ -126,7 +125,7 @@ describe('Single user', () => {
       });
 
       it('paginates to the next page', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result1 = await http.get(`${baseUri}${httpPath}?limit=2`, { token: user1Token });
         assert.equal(result1.status, 200, '(request1): has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;
@@ -139,7 +138,7 @@ describe('Single user', () => {
       });
 
       it('reaches the end of pagination', async () => {
-        const httpPath = RouteBuilder.buildSpaceProjectsRoute(spaceKey);
+        const httpPath = RouteBuilder.spaceProjects(spaceKey);
         const result1 = await http.get(`${baseUri}${httpPath}?limit=35`, { token: user1Token });
         assert.equal(result1.status, 200, 'has the 200 status');
         const list1 = JSON.parse(result1.body as string) as IListResponse;

@@ -1,16 +1,15 @@
 import { ParameterizedContext } from 'koa';
-import { IUser } from '@api-client/core';
+import { IUser, RouteBuilder } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
-import { RouteBuilder } from './RouteBuilder.js';
 import { IApplicationState } from '../definitions.js';
 import { ApiError } from '../ApiError.js';
 
 export default class UsersHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    router.get(RouteBuilder.buildUsersMeRoute(), this.handleMe.bind(this));
-    router.get(RouteBuilder.buildUsersRoute(), this.listUsers.bind(this));
-    router.get(RouteBuilder.buildUserRoute(':user'), this.getUser.bind(this));
+    router.get(RouteBuilder.usersMe(), this.handleMe.bind(this));
+    router.get(RouteBuilder.users(), this.listUsers.bind(this));
+    router.get(RouteBuilder.user(':user'), this.getUser.bind(this));
   }
 
   /**
@@ -22,7 +21,7 @@ export default class UsersHttpRoute extends BaseRoute {
     try {
       // if (!ctx.state.sid) {
       //   ctx.status = 400;
-      //   ctx.set('location', RouteBuilder.buildSessionsRoute());
+      //   ctx.set('location', RouteBuilder.sessions());
       //   ctx.body = this.wrapError(new Error('Session not initialized'), 400);
       //   return;
       // }
@@ -32,7 +31,7 @@ export default class UsersHttpRoute extends BaseRoute {
         ctx.status = 200;
       } else {
         ctx.status = 401;
-        ctx.set('location', RouteBuilder.buildSessionsRoute());
+        ctx.set('location', RouteBuilder.sessions());
       }
     } catch (cause) {
       this.errorResponse(ctx, cause);

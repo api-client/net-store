@@ -2,13 +2,12 @@ import { assert } from 'chai';
 import fs from 'fs/promises';
 import path from 'path';
 import sinon from 'sinon';
-import { DefaultLogger, ProjectMock, IHttpProjectListItem, Workspace, HttpProject, IBackendEvent, HttpProjectListItemKind } from '@api-client/core';
+import { DefaultLogger, ProjectMock, IHttpProjectListItem, Workspace, HttpProject, IBackendEvent, HttpProjectListItemKind, RouteBuilder } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import { DataHelper } from './DataHelper.js';
 import { ApiError } from '../../src/ApiError.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
-import { RouteBuilder } from '../../src/routes/RouteBuilder.js';
 
 const storePath = path.join('test', 'data', 'units', 'store', 'project');
 
@@ -162,7 +161,7 @@ describe('Unit tests', () => {
           assert.equal(event.operation, 'created');
           assert.typeOf(event.data, 'object');
           assert.equal(event.kind, HttpProjectListItemKind);
-          const apiPath = RouteBuilder.buildSpaceRoute(space1Id);
+          const apiPath = RouteBuilder.space(space1Id);
           assert.equal(filter.url, apiPath);
         });
       });

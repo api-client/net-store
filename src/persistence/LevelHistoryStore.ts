@@ -1,14 +1,14 @@
 /* eslint-disable import/no-named-as-default-member */
 /* eslint-disable import/no-named-as-default */
 import sub from 'subleveldown';
-import { AbstractIteratorOptions } from 'abstract-leveldown';
+import { AbstractIteratorOptions, PutBatch, DelBatch } from 'abstract-leveldown';
 import { 
   IUser, IBackendEvent, IListResponse, HttpHistory, IHttpHistory, ICursorOptions,
+  IHttpHistoryBulkAdd, HttpHistoryKind, RouteBuilder,
 } from '@api-client/core';
 import FlexSearch from 'flexsearch';
 import { IHistoryStore, HistoryState } from './StorePersistence.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
-import { RouteBuilder } from '../routes/RouteBuilder.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { SubStore } from './SubStore.js';
 import { StoreLevelUp, DataStoreType } from './StoreLevelUp.js';
@@ -53,33 +53,17 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
    * @param user The current user.
    */
   async add(history: IHttpHistory, user: IUser): Promise<string> {
+    await this.validateHistoryObject(history, user);
+
     const object = new HttpHistory(history);
     const { space, project, request, app } = object;
     
-    // validators
-    if (project && !space) {
-      throw new ApiError(`The "space" parameter is required when adding a project history.`, 400);
-    }
-    if (request && !space) {
-      throw new ApiError(`The "space" parameter is required when adding a request history.`, 400);
-    }
-    if (request && !project) {
-      throw new ApiError(`The "project" parameter is required when adding a request history.`, 400);
-    }
-    if (project) {
-      await this.parent.checkProjectAccess('write', space as string, project, user);
-    } else if (space) {
-      await this.parent.checkSpaceAccess('write', space, user);
-    } else if (!app) {
-      throw new ApiError(`Either the "app" or "type" parameter is required.`, 400);
-    }
     object.user = user.key;
     const date = new Date(object.created);
     const time = date.toJSON();
     const dataKey = KeyGenerator.historyDataKey(time, user.key);
     const promises: Promise<void>[] = [];
-    const buff = Buffer.from(dataKey);
-    const encodedKey = buff.toString('base64url');
+    const encodedKey = Buffer.from(dataKey).toString('base64url');
     object.key = encodedKey;
 
     promises.push(this.data.put(dataKey, this.parent.encodeDocument(object)));
@@ -112,6 +96,142 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     };
     Clients.notify(event, filter);
     return encodedKey;
+  }
+
+  /**
+   * Validates the history object before inserting it into the store.
+   * It also tests access to the space/project when defined.
+   */
+  private async validateHistoryObject(object: IHttpHistory | IHttpHistoryBulkAdd, user: IUser): Promise<void> {
+    const { space, project, request, app } = object;
+    // validators
+    if (project && !space) {
+      throw new ApiError(`The "space" parameter is required when adding a project history.`, 400);
+    }
+    if (request && !space) {
+      throw new ApiError(`The "space" parameter is required when adding a request history.`, 400);
+    }
+    if (request && !project) {
+      throw new ApiError(`The "project" parameter is required when adding a request history.`, 400);
+    }
+    if (project) {
+      await this.parent.checkProjectAccess('write', space as string, project, user);
+    } else if (space) {
+      await this.parent.checkSpaceAccess('write', space, user);
+    } else if (!app) {
+      throw new ApiError(`Either the "app" or "type" parameter is required.`, 400);
+    }
+  }
+
+  /**
+   * Adds history in a bulk operation.
+   * @param info The bulk add operation schema.
+   * @param user The current user.
+   */
+  async bulkAdd(info: IHttpHistoryBulkAdd, user: IUser): Promise<string[]> {
+    await this.validateHistoryObject(info, user);
+    const { space, project, request, app, log } = info;
+    if (!Array.isArray(log) || !log.length) {
+      throw new ApiError(`History log not provided.`, 400);
+    }
+    
+    const history: PutBatch[] = [];
+    const spaces: PutBatch[] = [];
+    const projects: PutBatch[] = [];
+    const requests: PutBatch[] = [];
+    const apps: PutBatch[] = [];
+    const result: string[] = [];
+    const promises: Promise<void>[] = [];
+    const eventData: IHttpHistory[] = [];
+
+    log.forEach((hLog) => {
+      const created = hLog.request?.endTime || Date.now();
+      const object = new HttpHistory({
+        created,
+        kind: HttpHistoryKind,
+        log: hLog,
+        user: user.key,
+      }).toJSON();
+      eventData.push(object);
+      const date = new Date(created);
+      const time = date.toJSON();
+      const dataKey = KeyGenerator.historyDataKey(time, user.key);
+      const encodedKey = Buffer.from(dataKey).toString('base64url');
+      object.key = encodedKey;
+      result.push(encodedKey);
+      if (space) {
+        object.space = space;
+        const spaceKey = KeyGenerator.historySpaceKey(time, space, user.key);
+        spaces.push({
+          key: spaceKey,
+          type: 'put',
+          value: dataKey,
+        });
+      }
+      if (project) {
+        object.project = project;
+        const projectKey = KeyGenerator.historyProjectKey(time, project, user.key);
+        projects.push({
+          key: projectKey,
+          type: 'put',
+          value: dataKey,
+        });
+      }
+      if (request) {
+        object.request = request;
+        const requestKey = KeyGenerator.historyRequestKey(time, request, user.key);
+        requests.push({
+          key: requestKey,
+          type: 'put',
+          value: dataKey,
+        });
+      }
+      if (app) {
+        object.app = app;
+        const appKey = KeyGenerator.historyAppKey(time, app, user.key);
+        apps.push({
+          key: appKey,
+          type: 'put',
+          value: dataKey,
+        });
+      }
+      
+      history.push({
+        key: dataKey,
+        type: 'put',
+        value: this.parent.encodeDocument(object),
+      });
+    });
+
+    promises.push(this.data.batch(history));
+    if (spaces.length) {
+      promises.push(this.space.batch(spaces));
+    }
+    if (projects.length) {
+      promises.push(this.project.batch(projects));
+    }
+    if (requests.length) {
+      promises.push(this.request.batch(requests));
+    }
+    if (apps.length) {
+      promises.push(this.app.batch(apps));
+    }
+    await Promise.all(promises);
+
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.history(),
+    };
+    eventData.forEach((item) => {
+      const event: IBackendEvent = {
+        type: 'event',
+        operation: 'created',
+        data: item,
+        kind: item.kind,
+      };
+      Clients.notify(event, filter);
+    });
+    
+    return result;
   }
 
   /**
@@ -153,7 +273,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     if (!data) {
       throw new ApiError(`Not found.`, 404);
     }
-    const { space, user: userKey, project, request } = data;
+    const { space, user: userKey, project, request, app } = data;
     if (!userKey) {
       throw new ApiError('Invalid state. The history record is missing the user key.', 500)
     }
@@ -178,7 +298,129 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
       const requestKey = KeyGenerator.historyRequestKey(time, request, userKey);
       ps.push(this.request.del(requestKey));
     }
+    if (app) {
+      const appKey = KeyGenerator.historyAppKey(time, app, userKey);
+      ps.push(this.app.del(appKey));
+    }
     await Promise.allSettled(ps);
+
+    // inform clients the object is deleted
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'deleted',
+      kind: HttpHistoryKind,
+      id: encodedKey,
+    };
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.historyItem(encodedKey),
+    };
+    Clients.notify(event, filter);
+  }
+
+  /**
+   * Deletes a history in a bulk operation.
+   * @param encodedKeys The list of history keys to delete. This is base64url encoded keys
+   * @param user The current user.
+   */
+  async bulkDelete(encodedKeys: string[], user: IUser): Promise<void> {
+    const decodedKeys = encodedKeys.map(encodedKey => Buffer.from(encodedKey, 'base64url').toString());
+    let items: (IHttpHistory | undefined)[] = [];
+    try {
+      const list = await this.data.getMany(decodedKeys);
+      items = list.map((item) => {
+        if (!item) {
+          return undefined;
+        }
+        return this.parent.decodeDocument(item) as IHttpHistory;
+      })
+    } catch (e) {
+      throw new ApiError(`Unable to read history data from the store`, 500);
+    }
+    
+    const history: PutBatch[] = [];
+    const spaces: DelBatch[] = [];
+    const projects: DelBatch[] = [];
+    const requests: DelBatch[] = [];
+    const apps: DelBatch[] = [];
+    const promises: Promise<void>[] = [];
+    const events: IBackendEvent[] = [];
+
+    for (let i = 0, len = items.length; i < len; i++) {
+      const item = items[i];
+      if (!item) {
+        continue;
+      }
+      const encodedKey = encodedKeys[i];
+      const decodedKey = decodedKeys[i];
+      const { space, user: userKey, project, request, app } = item;
+      if (!userKey) {
+        throw new ApiError('Invalid state. The history record is missing the user key.', 500)
+      }
+      if (userKey !== user.key) {
+        throw new ApiError('You are not authorized to delete this object.', 403)
+      }
+      (item as any)._deleted = true;
+      history.push({
+        key: decodedKey,
+        type: 'put',
+        value: this.parent.encodeDocument(item),
+      });
+      // now, lets take care of the indexes
+      const date = new Date(item.created);
+      const time = date.toJSON();
+      if (space) {
+        spaces.push({
+          key: KeyGenerator.historySpaceKey(time, space, userKey),
+          type: 'del',
+        });
+      }
+      if (project) {
+        projects.push({
+          key: KeyGenerator.historyProjectKey(time, project, userKey),
+          type: 'del',
+        });
+      }
+      if (request) {
+        requests.push({
+          key: KeyGenerator.historyRequestKey(time, request, userKey),
+          type: 'del',
+        });
+      }
+      if (app) {
+        apps.push({
+          key: KeyGenerator.historyAppKey(time, app, userKey),
+          type: 'del',
+        });
+      }
+      events.push({
+        type: 'event',
+        operation: 'deleted',
+        kind: HttpHistoryKind,
+        id: encodedKey,
+      });
+    }
+    
+    promises.push(this.data.batch(history));
+    if (spaces.length) {
+      promises.push(this.space.batch(spaces));
+    }
+    if (projects.length) {
+      promises.push(this.project.batch(projects));
+    }
+    if (requests.length) {
+      promises.push(this.request.batch(requests));
+    }
+    if (apps.length) {
+      promises.push(this.app.batch(apps));
+    }
+    await Promise.all(promises);
+
+    events.forEach((item) => {
+      const filter: IClientFilterOptions = {
+        url: RouteBuilder.historyItem(item.id!),
+      };
+      Clients.notify(item, filter);
+    });
   }
 
   async read(encodedKey: string, user: IUser): Promise<IHttpHistory> {
@@ -197,6 +439,8 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     if (space) {
       // when space is set then the access depends on the space access
       await this.parent.checkSpaceAccess('read', space, user);
+      // Note, we intentionally are not checking for the project access as the project may be deleted at this
+      // point and the project access checks whether the project is deleted.
     } else if (userKey) {
       // otherwise only the user can read the resource
       if (user.key !== userKey) {
