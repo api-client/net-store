@@ -1,100 +1,9 @@
-import { 
-  IUser, IWorkspace, IUserWorkspace, AccessControlLevel, IHttpProject, IListResponse, 
-  UserAccessOperation, Logger, IListOptions, IHttpHistory, HistoryListOptions,
-  IUserSpaces, ICursorOptions, IHttpHistoryBulkAdd,
-} from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { Logger, IListOptions, ICursorOptions, PermissionRole } from '@api-client/core';
 import { Cursor } from './Cursor.js';
-
-export interface IListState {
-  /**
-   * Number of items in the result.
-   */
-  limit?: number;
-  /**
-   * The key of the last item returned by the query.
-   * Used with pagination.
-   */
-  lastKey?: string;
-  /**
-   * The start key to use.
-   */
-  start?: string;
-  /**
-   * The last key to use.
-   */
-  end?: string;
-  /**
-   * Supported by some endpoints. When set it performs a query on the data store.
-   */
-  query?: string;
-  /**
-   * Only with the `query` property. Tells the system in which fields to search for the query term.
-   */
-  queryField?: string[];
-}
-
-export type HistoryState = HistoryListOptions & {
-  lastKey?: string;
-}
-
-export interface IHistoryStore {
-  add(history: IHttpHistory, user: IUser): Promise<string>;
-  bulkAdd(info: IHttpHistoryBulkAdd, user: IUser): Promise<string[]>;
-  list(user: IUser, options?: HistoryState | ICursorOptions): Promise<IListResponse>;
-  delete(key: string, user: IUser): Promise<void>;
-  bulkDelete(keys: string[], user: IUser): Promise<void>;
-  read(encodedKey: string, user: IUser): Promise<IHttpHistory>;
-}
-
-export interface IUserStore {
-  add(userKey: string, user: IUser): Promise<void>;
-  read(userKey: string): Promise<IUser | undefined>;
-  read(userKeys: string[]): Promise<IListResponse>;
-  list(options?: IListOptions): Promise<IListResponse>;
-  filter(user: IUser, lowerQuery: string): boolean;
-  listMissing(keys: string[]): Promise<string[]>;
-}
-
-export interface IBinStore {
-  add(key: string, user: IUser): Promise<void>;
-  isDeleted(key: string): Promise<boolean>;
-  isSpaceDeleted(space: string): Promise<boolean>;
-  isUserDeleted(user: string): Promise<boolean>;
-  isProjectDeleted(space: string, project: string): Promise<boolean>;
-}
-export interface IRevisionsStore {
-  addProject(spaceKey: string, projectKey: string, patch: JsonPatch): Promise<void>;
-  listProject(spaceKey: string, projectKey: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
-}
-export interface IProjectsStore {
-  list(key: string, user: IUser, options?: IListOptions): Promise<IListResponse>;
-  add(spaceKey: string, projectKey: string, project: IHttpProject, user: IUser): Promise<void>;
-  read(spaceKey: string, projectKey: string, user: IUser): Promise<IHttpProject>;
-  update(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user: IUser): Promise<void>;
-  delete(spaceKey: string, projectKey: string, user: IUser): Promise<void>;
-  checkAccess(minimumLevel: AccessControlLevel, space: string, project: string, user: IUser): Promise<AccessControlLevel>;
-}
-export interface ISpaceStore {
-  defaultSpace(owner?: string): IWorkspace;
-  readUserSpaces(userKey: string): Promise<IUserSpaces | undefined>;
-  readUsersSpaces(users: string[], fillEmpty: false): Promise<(IUserSpaces | undefined)[]>;
-  readUsersSpaces(users: string[], fillEmpty: true): Promise<IUserSpaces[]>;
-  readSpaceAccess(spaceKey: string, userKey: string): Promise<AccessControlLevel | undefined>;
-  list(user: IUser, options?: IListOptions): Promise<IListResponse>;
-  add(key: string, space: IWorkspace, user: IUser, access?: AccessControlLevel): Promise<void>;
-  read(key: string, user: IUser): Promise<IUserWorkspace|undefined>;
-  update(key: string, space: IWorkspace, patch: JsonPatch, user: IUser): Promise<void>;
-  delete(key: string, user: IUser): Promise<void>;
-  patchUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void>;
-  listUsers(key: string, user: IUser): Promise<IListResponse>;
-  checkAccess(minimumLevel: AccessControlLevel, key: string, user: IUser): Promise<AccessControlLevel>;
-}
-export interface ISessionStore {
-  set(key: string, value: unknown): Promise<void>;
-  delete(key: string): Promise<void>;
-  read(key: string): Promise<unknown | undefined>;
-}
+import { 
+  IBinStore, IHistoryStore, IListState, IPermissionStore, IProjectsStore, 
+  IRevisionsStore, ISessionStore, ISpaceStore, IUserStore, ISharedStore,
+} from './LevelStores.js';
 
 /**
  * An abstract class that creates an interface to implement any storage layer
@@ -112,6 +21,8 @@ export abstract class StorePersistence {
   abstract get project(): IProjectsStore;
   abstract get space(): ISpaceStore;
   abstract get session(): ISessionStore;
+  abstract get permission(): IPermissionStore;
+  abstract get shared(): ISharedStore;
   /**
    * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.
    */
@@ -170,8 +81,9 @@ export abstract class StorePersistence {
    * @param access The user access level.
    * @returns True when write is allowed.
    */
-  canWrite(access: AccessControlLevel): boolean {
-    return ['write', 'admin', 'owner'].includes(access);
+  canWrite(access: PermissionRole): boolean {
+    const roles: PermissionRole[] = ['owner', 'writer'];
+    return roles.includes(access);
   }
 
   /**
@@ -179,10 +91,8 @@ export abstract class StorePersistence {
    * @param access The user access level.
    * @returns True when write is allowed.
    */
-  canRead(access: AccessControlLevel): boolean {
-    if (this.canWrite(access)) {
-      return true;
-    }
-    return ['read', 'comment'].includes(access);
+  canRead(access: PermissionRole): boolean {
+    const roles: PermissionRole[] = ['owner', 'writer', 'reader', 'commenter'];
+    return roles.includes(access);
   }
 }

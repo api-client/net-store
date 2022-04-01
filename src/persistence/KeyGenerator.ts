@@ -41,4 +41,8 @@ export class KeyGenerator {
   static projectRevisionKey(key: string, time: string): string {
     return `~project~${key}~${time}~`;
   }
+
+  static sharedSpace(space: string, user: string): string {
+    return `~space~${user}~${space}~`;
+  }
 }

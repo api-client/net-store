@@ -1,7 +1,14 @@
 import { Bytes } from 'leveldown';
 import { IUser, IListResponse, IListOptions, ICursorOptions } from '@api-client/core';
 import { SubStore } from './SubStore.js';
-import { IUserStore } from './StorePersistence.js';
+import { IUserStore } from './LevelStores.js';
+
+export interface IUserListOptions {
+  /**
+   * Removes the `provider` property before returning the user.
+   */
+  removeProviderData?: boolean;
+}
 
 /**
  * The part of the store that takes care of the user data.
@@ -27,7 +34,7 @@ export class LevelUserStore extends SubStore implements IUserStore {
    * 
    * @param userKey The user key.
    */
-  async read(userKey: string): Promise<IUser | undefined>;
+  async read(userKey: string, opts?: IUserListOptions): Promise<IUser | undefined>;
   /**
    * Reads multiple system users with one query. Typically used when the UI asks for
    * user data to render "user pills" in the access control list.
@@ -36,12 +43,12 @@ export class LevelUserStore extends SubStore implements IUserStore {
    * @returns Ordered list of users defined by the `userKeys` order.
    * Note, when the user is not found an `undefined` is set at the position.
    */
-  async read(userKeys: string[]): Promise<IListResponse>;
+  async read(userKeys: string[], opts?: IUserListOptions): Promise<IListResponse<IUser | undefined>>;
 
   /**
    * Reads a user or a full list of users from the store.
    */
-  async read(init: string | string[]): Promise<IListResponse | IUser | undefined> {
+  async read(init: string | string[], opts: IUserListOptions = {}): Promise<IListResponse<IUser | undefined> | IUser | undefined> {
     if (typeof init === 'string') {
       let raw: Bytes;
       try {
@@ -49,16 +56,24 @@ export class LevelUserStore extends SubStore implements IUserStore {
       } catch (e) {
         return;
       }
-      return this.parent.decodeDocument(raw) as IUser;
+      const value = this.parent.decodeDocument(raw) as IUser;
+      if (opts.removeProviderData) {
+        delete value.provider;
+      }
+      return value;
     }
     const items = await this.db.getMany(init);
     const data: (IUser|undefined)[] = items.map((raw) => {
       if (!raw) {
         return undefined;
       }
-      return this.parent.decodeDocument(raw) as IUser;
+      const value = this.parent.decodeDocument(raw) as IUser;
+      if (opts.removeProviderData) {
+        delete value.provider;
+      }
+      return value;
     });
-    const result: IListResponse = {
+    const result: IListResponse<IUser | undefined> = {
       data,
     };
     return result;
@@ -69,7 +84,7 @@ export class LevelUserStore extends SubStore implements IUserStore {
    * The final list won't contain the current user.
    * The user can query for a specific data utilizing the `query` filed.
    */
-  async list(options?: IListOptions | ICursorOptions): Promise<IListResponse> {
+  async list(options?: IListOptions | ICursorOptions): Promise<IListResponse<IUser>> {
     const state = await this.parent.readListState(options);
     const { limit = this.parent.defaultLimit } = state;
     const iterator = this.db.iterator();
@@ -103,7 +118,7 @@ export class LevelUserStore extends SubStore implements IUserStore {
       this.parent.logger.error(e);
     }
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
-    const result: IListResponse = {
+    const result: IListResponse<IUser> = {
       data,
       cursor,
     };

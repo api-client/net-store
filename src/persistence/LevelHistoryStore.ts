@@ -7,7 +7,7 @@ import {
   IHttpHistoryBulkAdd, HttpHistoryKind, RouteBuilder,
 } from '@api-client/core';
 import FlexSearch from 'flexsearch';
-import { IHistoryStore, HistoryState } from './StorePersistence.js';
+import { IHistoryStore, HistoryState } from './LevelStores.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { SubStore } from './SubStore.js';
@@ -115,9 +115,9 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
       throw new ApiError(`The "project" parameter is required when adding a request history.`, 400);
     }
     if (project) {
-      await this.parent.checkProjectAccess('write', space as string, project, user);
+      await this.parent.project.checkAccess('writer', space as string, project, user);
     } else if (space) {
-      await this.parent.checkSpaceAccess('write', space, user);
+      await this.parent.space.checkAccess('writer', space, user);
     } else if (!app) {
       throw new ApiError(`Either the "app" or "type" parameter is required.`, 400);
     }
@@ -438,7 +438,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     const { space, user: userKey } = data;
     if (space) {
       // when space is set then the access depends on the space access
-      await this.parent.checkSpaceAccess('read', space, user);
+      await this.parent.space.checkAccess('reader', space, user);
       // Note, we intentionally are not checking for the project access as the project may be deleted at this
       // point and the project access checks whether the project is deleted.
     } else if (userKey) {
@@ -508,13 +508,13 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     let info: IndexKeysResult | undefined;
     if (type === 'space') {
       this.validateStateId(state);
-      await this.parent.checkSpaceAccess('read', state.id, user);
+      await this.parent.space.checkAccess('reader', state.id, user);
       const it = this.getIteratorOptions(state.id, user, state.user);
       info = await this.listStoreDataKeys(this.space, it, state);
     } else if (type === 'project') {
       this.validateStateId(state);
       this.validateStateSpace(state);
-      await this.parent.checkProjectAccess('read', state.space, state.id, user);
+      await this.parent.project.checkAccess('reader', state.space, state.id, user);
       // it the read won't throw an error then the project exists in the space.
       await this.parent.project.read(state.space, state.id, user);
       const it = this.getIteratorOptions(state.id, user, state.user);
@@ -522,7 +522,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     } else if (type === 'request') {
       this.validateStateId(state);
       this.validateStateSpace(state);
-      await this.parent.checkSpaceAccess('read', state.space, user);
+      await this.parent.space.checkAccess('reader', state.space, user);
       const it = this.getIteratorOptions(state.id, user, state.user);
       info = await this.listStoreDataKeys(this.request, it, state);
     } else if (type === 'app') {
@@ -640,7 +640,7 @@ export class LevelHistoryStore extends SubStore implements IHistoryStore {
     }
 
     if (spaceId) {
-      await this.parent.checkSpaceAccess('read', spaceId, user);
+      await this.parent.space.checkAccess('reader', spaceId, user);
     }
 
     const itOpts: AbstractIteratorOptions = {

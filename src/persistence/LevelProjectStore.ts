@@ -4,7 +4,7 @@ import { AbstractLevelDOWN, AbstractIteratorOptions } from 'abstract-leveldown';
 import sub from 'subleveldown';
 import { 
   IUser, IListResponse, IListOptions, IHttpProjectListItem, IHttpProject, IBackendEvent,
-  HttpProjectListItemKind, HttpProjectKind, AccessControlLevel, ICursorOptions, RouteBuilder,
+  HttpProjectListItemKind, HttpProjectKind, ICursorOptions, RouteBuilder, PermissionRole,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import { StoreLevelUp } from './StoreLevelUp.js';
@@ -12,7 +12,7 @@ import { SubStore } from './SubStore.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import { ApiError } from '../ApiError.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
-import { IProjectsStore } from './StorePersistence.js';
+import { IProjectsStore } from './LevelStores.js';
 
 /**
  * @deprecated This must be moved to the list options.
@@ -63,7 +63,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param options Listing options
    */
   async list(key: string, user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
-    await this.parent.checkSpaceAccess('read', key, user);
+    await this.parent.space.checkAccess('reader', key, user);
     const state = await this.parent.readListState(options);
     const { limit = this.parent.defaultLimit } = state;
     const itOpts: AbstractIteratorOptions = {
@@ -151,7 +151,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param user Optional, user that triggers the insert.
    */
   async add(spaceKey: string, projectKey: string, project: IHttpProject, user: IUser): Promise<void> {
-    await this.parent.checkSpaceAccess('write', spaceKey, user);
+    await this.parent.space.checkAccess('writer', spaceKey, user);
     const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     // Project changes are only allowed through `PATCH`.
     let exists = false;
@@ -198,7 +198,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    */
   async read(spaceKey: string, projectKey: string, user: IUser): Promise<IHttpProject> {
     // check if the user has read access to the space.
-    await this.parent.checkProjectAccess('read', spaceKey, projectKey, user);
+    await this.checkAccess('reader', spaceKey, projectKey, user);
     const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     let raw: Bytes;
     try {
@@ -223,7 +223,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param user Optional, user that triggers the update.
    */
   async update(spaceKey: string, projectKey: string, project: IHttpProject, patch: JsonPatch, user: IUser): Promise<void> {
-    await this.parent.checkProjectAccess('write', spaceKey, projectKey, user);
+    await this.checkAccess('writer', spaceKey, projectKey, user);
     const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     await this.data.put(finalKey, this.parent.encodeDocument(project));
     // send notification to the project listeners
@@ -324,7 +324,7 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param projectKey The project key
    */
   async delete(spaceKey: string, projectKey: string, user: IUser): Promise<void> {
-    await this.parent.checkProjectAccess('write', spaceKey, projectKey, user);
+    await this.checkAccess('writer', spaceKey, projectKey, user);
     const finalKey = KeyGenerator.projectKey(spaceKey, projectKey);
     
     // 1. update project data to include the _deleted flag
@@ -381,9 +381,9 @@ export class LevelProjectStore extends SubStore implements IProjectsStore {
    * @param minimumLevel The minimum access level required for this operation.
    * @param user The user object. When not set on the session this always throws an error.
    */
-  async checkAccess(minimumLevel: AccessControlLevel, space: string, project: string, user: IUser): Promise<AccessControlLevel> {
+  async checkAccess(minimumLevel: PermissionRole, space: string, project: string, user: IUser): Promise<PermissionRole> {
     // check if the user has read access to the space.
-    const access = await this.parent.checkSpaceAccess(minimumLevel, space, user);
+    const access = await this.parent.space.checkAccess(minimumLevel, space, user);
     const projectDeleted = await this.parent.bin.isProjectDeleted(space, project);
     // TODO: this should check whether the project actually belongs to the project
     // To do so we would have to have a store that keeps information about that relationship

@@ -2,8 +2,9 @@
 import { assert } from 'chai';
 import { 
   IRevisionInfo, IBackendEvent, IWorkspace, IListResponse, 
-  IHttpProjectListItem, IHttpProject, UserAccessOperation, IUser, 
-  AccessControlLevel, HttpProjectKind, HttpProjectListItemKind, RouteBuilder,
+  IHttpProjectListItem, HttpProject, IHttpProject, AccessOperation, IUser, 
+  PermissionRole, HttpProjectKind, HttpProjectListItemKind, RouteBuilder,
+  Workspace,
 } from '@api-client/core';
 import ooPatch, { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
@@ -84,19 +85,20 @@ describe('Multi user', () => {
         assert.equal(info.message, 'The client is not authorized to access this resource.');
       });
 
-      const levels: AccessControlLevel[] = [
-        'read',
-        'comment',
-        'write',
+      const levels: PermissionRole[] = [
+        'reader',
+        'commenter',
+        'writer',
         'owner',
       ];
       
       levels.forEach((access) => {
-        it(`can read share space project with ${access} level`, async () => {
-          const records: UserAccessOperation[] = [{
+        it(`can read shared space project with ${access} level`, async () => {
+          const records: AccessOperation[] = [{
             op: 'add',
-            uid: user2Id,
+            id: user2Id,
             value: access,
+            type: 'user',
           }];
           const body = JSON.stringify(records);
           const usersPath = RouteBuilder.spaceUsers(spaceKey);
@@ -109,6 +111,42 @@ describe('Multi user', () => {
           const result = await http.get(`${baseUri}${path}`, { token: user2Token });
           assert.equal(result.status, 200, 'has 200 status code');
         });
+      });
+
+      it('reads a project from a space with an implicit access', async () => {
+        // add user 2 to the space
+        const records: AccessOperation[] = [{
+          op: 'add',
+          id: user2Id,
+          value: 'writer',
+          type: 'user',
+        }];
+        const body = JSON.stringify(records);
+        const usersPath = RouteBuilder.spaceUsers(spaceKey);
+        const response = await http.patch(`${baseUri}${usersPath}`, {
+          token: user1Token,
+          body,
+        });
+        assert.equal(response.status, 204, 'has the 204 status code');
+
+        // create child space in the shared space by user 1.
+        const space = Workspace.fromName('child');
+        const response2 = await http.post(`${baseUri}${RouteBuilder.space(spaceKey)}`, {
+          token: user1Token,
+          body: JSON.stringify(space),
+        });
+        assert.equal(response2.status, 204, 'created child space');
+
+        // create a project in the child space by user 1
+        const project = HttpProject.fromName('child');
+        const response3 = await http.post(`${baseUri}${RouteBuilder.spaceProjects(space.key)}`, {
+          token: user1Token,
+          body: JSON.stringify(project),
+        });
+        assert.equal(response3.status, 204, 'created child project');
+        // read the project by user 2.
+        const result = await http.get(`${baseUri}${RouteBuilder.spaceProject(space.key, project.key)}`, { token: user2Token });
+        assert.equal(result.status, 200, 'read the child project');
       });
     });
 

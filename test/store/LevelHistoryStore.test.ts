@@ -10,7 +10,7 @@ import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
-import { DataHelper } from './DataHelper.js';
+import { DataHelper } from '../helpers/DataHelper.js';
 import { ApiError } from '../../src/ApiError.js';
 
 const storePath = path.join('test', 'data', 'units', 'store', 'history');
@@ -46,8 +46,8 @@ describe('Unit tests', () => {
           const space2 = Workspace.fromName('test2');
           space1Id = space1.key;
           space2Id = space2.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
+          await store.space.add(space2Id, space2.toJSON(), user2);
           const project1 = HttpProject.fromName('test project1');
           project1Id = project1.key;
           await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
@@ -108,8 +108,7 @@ describe('Unit tests', () => {
           try {
             await store.history.add(item, DefaultUser);
           } finally {
-            // @ts-ignore
-            Clients.notify.restore();
+            spy.restore();
           }
           assert.isTrue(spy.calledOnce, 'Calls the notify function');
           const event = spy.args[0][0] as IBackendEvent;
@@ -232,8 +231,8 @@ describe('Unit tests', () => {
           const space2 = Workspace.fromName('test2');
           space1Id = space1.key;
           space2Id = space2.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
+          await store.space.add(space2Id, space2.toJSON(), user2);
           const project1 = HttpProject.fromName('test project1');
           project1Id = project1.key;
           await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
@@ -311,8 +310,7 @@ describe('Unit tests', () => {
           try {
             await store.history.bulkAdd(item, user1);
           } finally {
-            // @ts-ignore
-            Clients.notify.restore();
+            spy.restore();
           }
           assert.isTrue(spy.calledOnce, 'Calls the notify function');
           const event = spy.args[0][0] as IBackendEvent;
@@ -361,7 +359,7 @@ describe('Unit tests', () => {
             assert.lengthOf(list.data, 35, 'has the default list size');
           });
 
-          it('lists all requests to the limit', async () => {
+          it('lists all requests with the limit', async () => {
             const list = await store.history.list(DefaultUser, { limit: 4, type: 'user' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
             assert.typeOf(list.data, 'array', 'has the data');
@@ -398,8 +396,8 @@ describe('Unit tests', () => {
             const space2 = Workspace.fromName('test2');
             space1Id = space1.key;
             space2Id = space2.key;
-            await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-            await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+            await store.space.add(space1Id, space1.toJSON(), user1);
+            await store.space.add(space2Id, space2.toJSON(), user2);
 
             const c1 = await DataHelper.addHistory(store.history.data, 20, { space: space1Id, user: user1.key });
             const c2 = await DataHelper.addHistory(store.history.data, 20, { space: space1Id, user: user2.key });
@@ -484,8 +482,8 @@ describe('Unit tests', () => {
             const space2 = Workspace.fromName('test2');
             space1Id = space1.key;
             space2Id = space2.key;
-            await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-            await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+            await store.space.add(space1Id, space1.toJSON(), user1);
+            await store.space.add(space2Id, space2.toJSON(), user2);
             const project1 = HttpProject.fromName('test project1');
             const project2 = HttpProject.fromName('test project2');
             project1Id = project1.key;
@@ -590,7 +588,7 @@ describe('Unit tests', () => {
             await store.user.add(user.key, user);
             const space = Workspace.fromName('test');
             spaceId = space.key;
-            await store.space.add(spaceId, space.toJSON(), user, 'owner');
+            await store.space.add(spaceId, space.toJSON(), user);
 
             const c1 = await DataHelper.addHistory(store.history.data, 20, { request: requestId, user: user.key, space: spaceId });
             const c2 = await DataHelper.addHistory(store.history.data, 20, { request: requestId, user: 'other-user', space: spaceId });
@@ -662,7 +660,7 @@ describe('Unit tests', () => {
             await store.user.add(user.key, user);
             const space = Workspace.fromName('test');
             spaceId = space.key;
-            await store.space.add(spaceId, space.toJSON(), user, 'owner');
+            await store.space.add(spaceId, space.toJSON(), user);
             const project = HttpProject.fromName('test project');
             projectId = project.key;
             store.project.add(spaceId, projectId, project.toJSON(), user);
@@ -861,8 +859,8 @@ describe('Unit tests', () => {
           const space2 = Workspace.fromName('test2');
           space1Id = space1.key;
           space2Id = space2.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
+          await store.space.add(space2Id, space2.toJSON(), user2);
 
           history1 = mock.history.httpHistory({ user: user1.key, space: space1Id });
           history2 = mock.history.httpHistory({ user: user2.key });
@@ -953,8 +951,8 @@ describe('Unit tests', () => {
           const space2 = Workspace.fromName('test2');
           space1Id = space1.key;
           space2Id = space2.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
+          await store.space.add(space2Id, space2.toJSON(), user2);
           const project1 = HttpProject.fromName('test project1');
           project1Id = project1.key;
           await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
@@ -1110,8 +1108,7 @@ describe('Unit tests', () => {
           try {
             await store.history.delete(id, DefaultUser);
           } finally {
-            // @ts-ignore
-            Clients.notify.restore();
+            spy.restore();
           }
           assert.isTrue(spy.calledOnce, 'Calls the notify function');
           const event = spy.args[0][0] as IBackendEvent;
@@ -1138,8 +1135,8 @@ describe('Unit tests', () => {
           const space2 = Workspace.fromName('test2');
           space1Id = space1.key;
           space2Id = space2.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
-          await store.space.add(space2Id, space2.toJSON(), user2, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
+          await store.space.add(space2Id, space2.toJSON(), user2);
           const project1 = HttpProject.fromName('test project1');
           project1Id = project1.key;
           await store.project.add(space1Id, project1Id, project1.toJSON(), user1);
@@ -1236,8 +1233,7 @@ describe('Unit tests', () => {
           try {
             await store.history.bulkDelete([id], user1);
           } finally {
-            // @ts-ignore
-            Clients.notify.restore();
+            spy.restore();
           }
           assert.isTrue(spy.calledOnce, 'Calls the notify function');
           const event = spy.args[0][0] as IBackendEvent;

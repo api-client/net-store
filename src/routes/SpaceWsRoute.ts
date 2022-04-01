@@ -22,7 +22,7 @@ export default class SpaceWsRoute extends SocketRoute {
     const spaceId = this.route[1];
     let valid = false;
     try {
-      await this.store.space.checkAccess('read', spaceId, user);
+      await this.store.space.checkAccess('reader', spaceId, user);
       valid = true;
     } catch (e) {
       // ...

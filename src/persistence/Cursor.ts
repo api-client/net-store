@@ -1,6 +1,6 @@
 import { Config } from '../lib/Config.js';
 import { Encryption } from '../lib/Encryption.js';
-import { IListState, HistoryState } from './StorePersistence.js';
+import { IListState, HistoryState } from './LevelStores.js';
 import { ApiError } from '../ApiError.js';
 
 /**

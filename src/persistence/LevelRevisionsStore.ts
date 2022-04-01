@@ -4,7 +4,7 @@ import { JsonPatch } from 'json8-patch';
 import { SubStore } from './SubStore.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { KeyGenerator } from './KeyGenerator.js';
-import { IRevisionsStore } from './StorePersistence.js';
+import { IRevisionsStore } from './LevelStores.js';
 
 /**
  * The part of the store that takes care of the project revision data.
@@ -57,7 +57,7 @@ export class LevelRevisionsStore extends SubStore implements IRevisionsStore {
    * @param user Optional user for authorization.
    */
   async listProject(spaceKey: string, projectKey: string, user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
-    await this.parent.checkProjectAccess('read', spaceKey, projectKey, user);
+    await this.parent.project.checkAccess('reader', spaceKey, projectKey, user);
     const state = await this.parent.readListState(options);
     const { limit = this.parent.defaultLimit } = state;
     const itOpts: AbstractIteratorOptions = {

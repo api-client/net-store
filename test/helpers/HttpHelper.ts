@@ -43,7 +43,6 @@ export default class HttpHelper {
       }
       const isSsl = url.startsWith('https:');
       const lib = isSsl ? https : http;
-      // console.log(`${method} ${url}`);
       const request = lib.request(url, {
         method,
         headers,
@@ -113,7 +112,6 @@ export default class HttpHelper {
    */
   async createSession(baseUri: string): Promise<string> {
     const url = `${baseUri}/sessions`;
-    // console.log('Create session: ', url);
     const result = await this.post(url);
     jwt.verify(result.body as string, 'EOX0Xu6aSb');
     return result.body as string;
@@ -127,7 +125,6 @@ export default class HttpHelper {
    */
   async getAuthSessionEndpoint(baseUri: string, token: string): Promise<string> {
     const url = `${baseUri}/auth/login`;
-    // console.log('Create auth session: ', url);
     const result = await this.post(url, {
       token,
     });

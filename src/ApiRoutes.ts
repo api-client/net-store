@@ -18,6 +18,7 @@ import BackendHttpRoute from './routes/BackendHttpRoute.js';
 import SessionHttpRoute from './routes/SessionHttpRoute.js';
 import UsersHttpRoute from './routes/UsersHttpRoute.js';
 import HistoryHttpRoute from './routes/HistoryHttpRoute.js';
+import SharedHttpRoute from './routes/SharedHttpRoute.js';
 
 export class ApiRoutes {
   protected routes: BaseRoute[] = [];
@@ -57,6 +58,7 @@ export class ApiRoutes {
     this.routes.push(new ProjectsHttpRoute(init));
     this.routes.push(new HistoryHttpRoute(init));
     this.routes.push(new UsersHttpRoute(init));
+    this.routes.push(new SharedHttpRoute(init));
     customRoutes.forEach((custom) => {
       const ctr = custom as new(init: ISpaceConfiguration) => BaseRoute;
       this.routes.push(new ctr(init));

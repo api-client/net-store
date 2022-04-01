@@ -53,7 +53,7 @@ export default class SpacesWsRoute extends SocketRoute {
       throw new Error('Invalid space definition.');
     }
     try {
-      await this.store.space.add(body.key, body, user, 'owner');
+      await this.store.space.add(body.key, body, user);
     } catch (e) {
       const error = e as Error;
       this.logger.error(e);

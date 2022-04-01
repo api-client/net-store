@@ -23,7 +23,7 @@ export default class ProjectWsRoute extends SocketRoute {
     const projectId = this.route[3];
     let valid = false;
     try {
-      await this.store.project.checkAccess('read', spaceId, projectId, user);
+      await this.store.project.checkAccess('reader', spaceId, projectId, user);
       valid = true;
     } catch (e) {
       // ...

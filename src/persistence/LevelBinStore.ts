@@ -2,7 +2,7 @@ import { IUser } from '@api-client/core';
 import { SubStore } from './SubStore.js';
 import { KeyGenerator } from './KeyGenerator.js';
 import DefaultUser from '../authentication/DefaultUser.js';
-import { IBinStore } from './StorePersistence.js';
+import { IBinStore } from './LevelStores.js';
 
 export interface IBinItem {
   /**

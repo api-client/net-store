@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IUser, IHttpHistory, ProjectMock, IListResponse, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder } from '@api-client/core';
+import { IUser, IHttpHistory, ProjectMock, IListResponse, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 
@@ -51,7 +51,7 @@ describe('Multi user', () => {
 
     describe('GET', () => {
       // detailed tests are performed in the unit tests
-      // This tests passing parameters to the store and HTTP responses.
+      // These tests passing parameters to the store and HTTP responses.
       let user1Token: string;
       before(async () => {
         user1Token = await http.createUserToken(baseUri);
@@ -230,9 +230,10 @@ describe('Multi user', () => {
           token: user1Token,
           body: JSON.stringify([{
             op: 'add',
-            uid: user2Id,
-            value: 'read',
-          }]),
+            id: user2Id,
+            value: 'reader',
+            type: 'user',
+          } as AccessOperation]),
         });
         assert.equal(addUserResponse.status, 204, 'added the user 2 to the space 1');
       });
@@ -333,9 +334,10 @@ describe('Multi user', () => {
           token: user1Token,
           body: JSON.stringify([{
             op: 'add',
-            uid: user2Id,
-            value: 'read',
-          }]),
+            id: user2Id,
+            value: 'reader',
+            type: 'user',
+          } as AccessOperation]),
         });
         assert.equal(addUserResponse.status, 204, 'added the user 2 to the space 1');
       });

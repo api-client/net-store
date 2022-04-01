@@ -1,8 +1,8 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
 import { 
-  IWorkspace, IUser, IListResponse, UserAccessOperation, IUserWorkspace, 
-  IBackendEvent, HttpProject, HttpProjectKind, AccessControlLevel, ISpaceUser, WorkspaceKind, RouteBuilder,
+  IWorkspace, IUser, IListResponse, AccessOperation, PermissionRole, PermissionKind,
+  IBackendEvent, HttpProject, HttpProjectKind, WorkspaceKind, RouteBuilder,
 } from '@api-client/core';
 import { JsonPatch } from 'json8-patch';
 import getConfig from '../helpers/getSetup.js';
@@ -203,6 +203,7 @@ describe('Multi user', () => {
       let user1Token: string;
       let user2Token: string;
       let user3Token: string;
+      let user1Id: string;
       let user2Id: string;
       let user3Id: string;
 
@@ -214,10 +215,12 @@ describe('Multi user', () => {
         user3Token = await http.createUserToken(baseUri);
         const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=6`, { token: user1Token });
         const rawOther = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user2Token });
+        const user1Response = await http.get(`${baseUri}/users/me`, { token: user1Token });
         const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
         const user3Response = await http.get(`${baseUri}/users/me`, { token: user3Token });
         u1spaces = JSON.parse(rawCreated.body as string);
         u2spaces = JSON.parse(rawOther.body as string);
+        user1Id = (JSON.parse(user1Response.body as string) as IUser).key;
         user2Id = (JSON.parse(user2Response.body as string) as IUser).key;
         user3Id = (JSON.parse(user3Response.body as string) as IUser).key;
       });
@@ -230,10 +233,11 @@ describe('Multi user', () => {
 
       it('adds the user to the space', async () => {
         const { key } = u1spaces[0];
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
@@ -241,27 +245,29 @@ describe('Multi user', () => {
         });
         
         assert.equal(response.status, 204, 'has the 204 status code');
-        const u2spacesResponse = await http.get(`${baseUri}/spaces`, {
+        const spaceResponse = await http.get(`${baseUri}/spaces/${key}`, {
           token: user2Token,
         });
-        assert.equal(u2spacesResponse.status, 200, 'has the 200 status code');
-        const list = JSON.parse(u2spacesResponse.body as string) as IListResponse;
-        const data = list.data as IUserWorkspace[];
-        assert.lengthOf(data, 2, 'the user has 2 workspaces');
-        const added = data.find(i => i.key === key) as IUserWorkspace;
-        const owned = data.find(i => i.key === u2spaces[0].key) as IUserWorkspace;
         
-        assert.equal(added.access, 'read', 'has the set access level');
-        assert.deepEqual(added.users, [user2Id], 'has the user on the workspace users');
-        assert.ok(owned, 'has the owned space');
+        assert.equal(spaceResponse.status, 200, 'has the 200 status code');
+        const added = JSON.parse(spaceResponse.body as string) as IWorkspace;
+
+        const { permissions } = added;
+        assert.typeOf(permissions, 'array', 'has the permissions array')
+        assert.lengthOf(permissions, 1, 'has the added permission')
+        const [p] = permissions;
+        
+        assert.equal(p.role, 'reader', 'has the set access level');
+        assert.deepEqual(p.owner, user2Id, 'has the user on the workspace users');
       });
 
       it('returns error when has no access to the space', async () => {
         const { key } = u2spaces[0];
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const body = JSON.stringify(records);
         const response = await http.patch(`${baseUri}/spaces/${key}/users`, {
@@ -273,16 +279,18 @@ describe('Multi user', () => {
         assert.equal(info.message, 'Not found.');
       });
 
-      it('returns error a user does not exist', async () => {
+      it('returns error the user does not exist', async () => {
         const { key } = u1spaces[1];
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }, {
           op: 'add',
-          uid: 'other',
-          value: 'read',
+          id: 'other',
+          value: 'reader',
+          type: 'user',
         }];
         const body = JSON.stringify(records);
         const response = await http.patch(`${baseUri}/spaces/${key}/users`, {
@@ -291,16 +299,17 @@ describe('Multi user', () => {
         });
         assert.equal(response.status, 400, 'has the 400 status code');
         const info = JSON.parse(response.body as string);
-        assert.equal(info.message, 'Some users not found in the system: other.');
+        assert.equal(info.message, 'User "other" not found.');
       });
 
       it('returns error when has no access to write to the space', async () => {
         // step 1. Add read access to the user #2
         const { key } = u1spaces[1];
-        const a1records: UserAccessOperation[] = [{
+        const a1records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const a1response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
@@ -309,10 +318,11 @@ describe('Multi user', () => {
         assert.equal(a1response.status, 204, 'has the 204 status code');
 
         // step 1. Add any access to the user #3
-        const a2records: UserAccessOperation[] = [{
+        const a2records: AccessOperation[] = [{
           op: 'add',
-          uid: user3Id,
-          value: 'comment',
+          id: user3Id,
+          value: 'commenter',
+          type: 'user',
         }];
         const a2response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user2Token,
@@ -324,10 +334,11 @@ describe('Multi user', () => {
       });
 
       it('returns error when the space does not exist', async () => {
-        const a1records: UserAccessOperation[] = [{
+        const a1records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const a1response = await http.patch(`${baseUri}/spaces/something/users`, {
           token: user1Token,
@@ -340,10 +351,11 @@ describe('Multi user', () => {
 
       it('informs space change via the web socket', async () => {
         const { key } = u1spaces[3];
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const messages: IBackendEvent[] = [];
         const client = await ws.createAndConnect(`${baseUriWs}/spaces/${key}`, user1Token);
@@ -361,21 +373,43 @@ describe('Multi user', () => {
         assert.equal(ev.operation, 'updated');
         assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
-        assert.deepEqual(ev.data, [
-          {
-            "op": "add",
-            "path": "/users",
-            "value": [user2Id]
-          }
-        ]);
+
+        const patches = ev.data as JsonPatch;
+
+        // expecting 2 patches: #1 for permissionIds and #2 for permissions
+
+        assert.typeOf(patches, 'array', 'has the patches');
+        assert.lengthOf(patches, 2, 'has both patches');
+
+        const idsPatch = patches.find(i => i.path === '/permissionIds') as any;
+        const permsPatch = patches.find(i => i.path === '/permissions') as any;
+
+        assert.equal(idsPatch.op, 'replace', 'permissionIds patch has the operation');
+        assert.lengthOf(idsPatch.value, 1, 'permissionIds patch has the value');
+        
+        assert.deepEqual(permsPatch, {
+          op: "replace",
+          path: "/permissions",
+          value: [
+            {
+              addingUser: user1Id,
+              key: idsPatch.value[0],
+              kind: PermissionKind,
+              owner: user2Id,
+              role: "reader",
+              type: "user",
+            }
+          ]
+        });
       });
 
       it('informs the added user about new permission', async () => {
         const { key } = u1spaces[4];
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const messages: IBackendEvent[] = [];
         const wsPath = RouteBuilder.spaces();
@@ -400,10 +434,11 @@ describe('Multi user', () => {
         const { key } = u1spaces[5];
 
         // step 1. Add read access to the user #2
-        const a1records: UserAccessOperation[] = [{
+        const a1records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }];
         const a1response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
@@ -412,10 +447,11 @@ describe('Multi user', () => {
         assert.equal(a1response.status, 204, 'has the 204 status code');
 
         // step 2. Add write access to the user #2
-        const a2records: UserAccessOperation[] = [{
+        const a2records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'write',
+          id: user2Id,
+          value: 'writer',
+          type: 'user',
         }];
         const a2response = await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
@@ -426,9 +462,15 @@ describe('Multi user', () => {
         // step 3. Should have write access.
         const getResponse = await http.get(`${baseUri}/spaces/${key}`, { token: user2Token });
         assert.equal(getResponse.status, 200, 'has the 200 status code');
-        const body = JSON.parse(getResponse.body as string) as IUserWorkspace;
-        assert.equal(body.access, 'write');
-        assert.deepEqual(body.users, [user2Id]);
+        const body = JSON.parse(getResponse.body as string) as IWorkspace;
+
+        const { permissions } = body;
+        assert.typeOf(permissions, 'array', 'has the permissions array')
+        assert.lengthOf(permissions, 1, 'has the added permission')
+        const [p] = permissions;
+
+        assert.equal(p.role, 'writer', 'has the set access level');
+        assert.deepEqual(p.owner, user2Id, 'has the user on the workspace users');
       });
     });
 
@@ -456,11 +498,12 @@ describe('Multi user', () => {
         user2Id = (JSON.parse(user2Response.body as string) as IUser).key;
       });
 
-      async function grantSpace(spaceId: string, uid: string, token?: string): Promise<void> {
-        const records: UserAccessOperation[] = [{
+      async function grantSpace(spaceId: string, id: string, token?: string): Promise<void> {
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid,
-          value: 'read',
+          id,
+          value: 'reader',
+          type: 'user',
         }];
         const response = await http.patch(`${baseUri}/spaces/${spaceId}/users`, {
           token,
@@ -472,10 +515,11 @@ describe('Multi user', () => {
       it('removes a user from the working space', async () => {
         const { key } = u1spaces[0];
         await grantSpace(key, user2Id, user1Token);
-        const patches: UserAccessOperation[] = [
+        const patches: AccessOperation[] = [
           {
             op: 'remove',
-            uid: user2Id,
+            id: user2Id,
+            type: 'user',
           },
         ];
         const response = await http.patch(`${baseUri}/spaces/${key}/users`, {
@@ -489,10 +533,12 @@ describe('Multi user', () => {
 
       it('informs about space change via the web socket', async () => {
         const { key } = u1spaces[0];
-        const patches: UserAccessOperation[] = [
+        await grantSpace(key, user2Id, user1Token);
+        const ops: AccessOperation[] = [
           {
             op: 'remove',
-            uid: user2Id,
+            id: user2Id,
+            type: 'user',
           },
         ];
         const messages: IBackendEvent[] = [];
@@ -502,7 +548,7 @@ describe('Multi user', () => {
         });
         await http.patch(`${baseUri}/spaces/${key}/users`, {
           token: user1Token,
-          body: JSON.stringify(patches),
+          body: JSON.stringify(ops),
         });
         await ws.disconnect(client);
         assert.lengthOf(messages, 1, 'received one event');
@@ -511,21 +557,35 @@ describe('Multi user', () => {
         assert.equal(ev.operation, 'updated');
         assert.equal(ev.kind, WorkspaceKind);
         assert.equal(ev.id, key);
-        assert.deepEqual(ev.data, [
-          {
-            "op": "add",
-            "path": "/users",
-            "value": []
-          }
-        ]);
+
+        const patches = ev.data as JsonPatch;
+
+        // expecting 2 patches: #1 for permissionIds and #2 for permissions
+
+        assert.typeOf(patches, 'array', 'has the patches');
+        assert.lengthOf(patches, 2, 'has both patches');
+
+        const idsPatch = patches.find(i => i.path === '/permissionIds') as any;
+        const permsPatch = patches.find(i => i.path === '/permissions') as any;
+
+        assert.equal(idsPatch.op, 'replace', 'permissionIds patch has the operation');
+        assert.deepEqual(idsPatch.value, [], 'permissionIds patch has the value');
+        
+        assert.deepEqual(permsPatch, {
+          op: "replace",
+          path: "/permissions",
+          value: [],
+        });
       });
 
-      it('informs the removed user about new permission', async () => {
+      it('informs the removed user about updated permission', async () => {
         const { key } = u1spaces[0];
-        const records: UserAccessOperation[] = [
+        await grantSpace(key, user2Id, user1Token);
+        const records: AccessOperation[] = [
           {
             op: 'remove',
-            uid: user2Id,
+            id: user2Id,
+            type: 'user',
           },
         ];
         const messages: IBackendEvent[] = [];
@@ -603,10 +663,11 @@ describe('Multi user', () => {
       });
 
       it('deletes the space by a shared user as owner', async () => {
-        const records: UserAccessOperation[] = [{
+        const records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
+          id: user2Id,
           value: 'owner',
+          type: 'user',
         }];
         const body = JSON.stringify(records);
         const usersPath = RouteBuilder.spaceUsers(spaceKey);
@@ -622,18 +683,19 @@ describe('Multi user', () => {
         assert.equal(result.status, 204, 'has the 204 status code.');
       });
 
-      const levels: AccessControlLevel[] = [
-        'read',
-        'comment',
-        'write',
+      const levels: PermissionRole[] = [
+        'reader',
+        'commenter',
+        'writer',
       ];
 
       levels.forEach((access) => {
         it(`does not delete the space by a shared user with ${access} access`, async () => {
-          const records: UserAccessOperation[] = [{
+          const records: AccessOperation[] = [{
             op: 'add',
-            uid: user2Id,
+            id: user2Id,
             value: access,
+            type: 'user',
           }];
           const body = JSON.stringify(records);
           const usersPath = RouteBuilder.spaceUsers(spaceKey);
@@ -727,24 +789,27 @@ describe('Multi user', () => {
         user3Id = (JSON.parse(user3Response.body as string) as IUser).key;
         user4Id = (JSON.parse(user4Response.body as string) as IUser).key;
         // add user 2 and 4 to space #1
-        const space1records: UserAccessOperation[] = [{
+        const space1records: AccessOperation[] = [{
           op: 'add',
-          uid: user2Id,
-          value: 'read',
+          id: user2Id,
+          value: 'reader',
+          type: 'user',
         }, {
           op: 'add',
-          uid: user4Id,
-          value: 'comment',
+          id: user4Id,
+          value: 'commenter',
+          type: 'user',
         }];
         await http.patch(`${baseUri}/spaces/${spaces[0].key}/users`, {
           token: user1Token,
           body: JSON.stringify(space1records),
         });
         // add user 3 to space #2
-        const space2records: UserAccessOperation[] = [{
+        const space2records: AccessOperation[] = [{
           op: 'add',
-          uid: user3Id,
-          value: 'write',
+          id: user3Id,
+          value: 'writer',
+          type: 'user',
         }];
         await http.patch(`${baseUri}/spaces/${spaces[1].key}/users`, {
           token: user1Token,
@@ -767,11 +832,9 @@ describe('Multi user', () => {
         assert.isUndefined(list.cursor, 'has no cursor');
         assert.typeOf(list.data, 'array', 'has the data array');
         assert.lengthOf(list.data, 2, 'has all users');
-        const [u1, u2] = list.data as ISpaceUser[];
+        const [u1, u2] = list.data as IUser[];
         assert.equal(u1.key, user2Id, 'has the user #1');
-        assert.equal(u1.level, 'read', 'has the level of the user #1');
         assert.equal(u2.key, user4Id, 'has the user #2');
-        assert.equal(u2.level, 'comment', 'has the level of the user #2');
       });
 
       it('returns an empty list when no added users', async () => {

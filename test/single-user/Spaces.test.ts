@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { Workspace, IUserWorkspace, IWorkspace, WorkspaceKind, IListResponse } from '@api-client/core';
+import { Workspace, IWorkspace, WorkspaceKind, IListResponse } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 
@@ -59,8 +59,8 @@ describe('Single user', () => {
         const result = await http.get(url.toString(), { token: user1Token, });
         assert.equal(result.status, 200, 'has 200 status');
         
-        const space = JSON.parse(result.body as string) as IUserWorkspace;
-        assert.equal(space.access, 'owner');
+        const space = JSON.parse(result.body as string) as IWorkspace;
+        assert.equal(space.owner, 'default');
       });
     });
 

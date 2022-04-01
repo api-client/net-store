@@ -3,7 +3,7 @@ import { IHttpHistory, IHttpHistoryBulkAdd, RouteBuilder } from '@api-client/cor
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
 import { ApiError } from '../ApiError.js';
-import { HistoryState } from '../persistence/StorePersistence.js';
+import { HistoryState } from '../persistence/LevelStores.js';
 
 export default class HistoryHttpRoute extends BaseRoute {
   async setup(): Promise<void> {

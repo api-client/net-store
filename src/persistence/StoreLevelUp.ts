@@ -4,9 +4,7 @@ import levelUp, { LevelUp } from 'levelup';
 import leveldown, { LevelDownIterator, LevelDown, Bytes } from 'leveldown';
 import sub from 'subleveldown';
 import { AbstractLevelDOWN } from 'abstract-leveldown';
-import { 
-  IUser, AccessControlLevel, Logger
-} from '@api-client/core';
+import { Logger } from '@api-client/core';
 import { StorePersistence } from './StorePersistence.js';
 import { LevelHistoryStore } from './LevelHistoryStore.js';
 import { LevelSessionStore } from './LevelSessionStore.js';
@@ -15,6 +13,8 @@ import { LevelBinStore } from './LevelBinStore.js';
 import { LevelRevisionsStore } from './LevelRevisionsStore.js';
 import { LevelProjectStore } from './LevelProjectStore.js';
 import { LevelSpaceStore } from './LevelSpaceStore.js';
+import { LevelPermissionStore } from './LevelPermissionStore.js';
+import { LevelSharedStore } from './LevelSharedStore.js';
 
 const sessionSymbol = Symbol('session');
 const historySymbol = Symbol('history');
@@ -23,6 +23,8 @@ const binSymbol = Symbol('bin');
 const revisionsSymbol = Symbol('revisions');
 const projectSymbol = Symbol('project');
 const spaceSymbol = Symbol('space');
+const permissionSymbol = Symbol('permission');
+const sharedSymbol = Symbol('shared');
 
 export type DataStoreType = LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
 
@@ -126,7 +128,31 @@ export class StoreLevelUp extends StorePersistence {
     }
     return ref;
   }
-  
+
+  [permissionSymbol]: LevelPermissionStore;
+  /**
+   * A store for store permissions.
+   */
+  get permission(): LevelPermissionStore {
+    const ref = this[permissionSymbol];
+    if (!ref) {
+      throw new Error(`Store not initialized.`);
+    }
+    return ref;
+  }
+
+  [sharedSymbol]: LevelSharedStore;
+  /**
+   * A store that references shared objects with the current user.
+   */
+  get shared(): LevelSharedStore {
+    const ref = this[sharedSymbol];
+    if (!ref) {
+      throw new Error(`Store not initialized.`);
+    }
+    return ref;
+  }
+
   /**
    * @param path The path where to store the data bases.
    */
@@ -162,6 +188,12 @@ export class StoreLevelUp extends StorePersistence {
 
     const spaces = sub<Bytes, Bytes>(db, 'spaces') as DataStoreType;
     this[spaceSymbol] = new LevelSpaceStore(this, spaces);
+
+    const permissions = sub<Bytes, Bytes>(db, 'permissions') as DataStoreType;
+    this[permissionSymbol] = new LevelPermissionStore(this, permissions);
+
+    const shared = sub<Bytes, Bytes>(db, 'shared') as DataStoreType;
+    this[sharedSymbol] = new LevelSharedStore(this, shared);
   }
 
   /**
@@ -175,31 +207,8 @@ export class StoreLevelUp extends StorePersistence {
     await this.revisions.cleanup();
     await this.project.cleanup();
     await this.space.cleanup();
+    await this.permission.cleanup();
+    await this.shared.cleanup();
     await this.db?.close();
-  }
-
-  /**
-   * Checks whether the user has read or write access to the space.
-   * 
-   * It throws errors when the user has no access or when the user has no access to the resource.
-   * 
-   * @param minimumLevel The minimum access level required for this operation.
-   * @param key The user space key.
-   * @param user The user object. When not set on the session this always throws an error.
-   */
-  async checkSpaceAccess(minimumLevel: AccessControlLevel, key: string, user: IUser): Promise<AccessControlLevel> {
-    return this.space.checkAccess(minimumLevel, key, user);
-  }
-
-  /**
-   * Similar to `checkSpaceAccess()` but it check for the access to a project.
-   * Since projects inherit access from the parent space it is mostly the same logic as in `checkSpaceAccess()` but it also tests whether the
-   * project was deleted.
-   * 
-   * @param minimumLevel The minimum access level required for this operation.
-   * @param user The user object. When not set on the session this always throws an error.
-   */
-  async checkProjectAccess(minimumLevel: AccessControlLevel, space: string, project: string, user: IUser): Promise<AccessControlLevel> {
-    return this.project.checkAccess(minimumLevel, space, project, user);
   }
 }

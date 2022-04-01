@@ -1,6 +1,6 @@
 import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser, UserAccessOperation, Logger, IListOptions } from '@api-client/core';
+import { IUser, AccessOperation, Logger, IListOptions } from '@api-client/core';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 import { ApiError, IApiError } from '../ApiError.js';
@@ -59,7 +59,7 @@ export abstract class BaseRoute {
       error: true,
       code,
       message: cause.message,
-      detail: detail || 'The server misbehave. That is all we know.'
+      detail: detail || 'There was an error. That is all we know.'
     };
   }
 
@@ -113,7 +113,7 @@ export abstract class BaseRoute {
   }
 
   protected collectListingParameters(ctx: ParameterizedContext): IListOptions {
-    const { cursor, limit, query, queryField } = ctx.query;
+    const { cursor, limit, query, queryField, parent } = ctx.query;
     const options: IListOptions = {};
     if (typeof cursor === 'string' && cursor) {
       options.cursor = cursor;
@@ -137,6 +137,12 @@ export abstract class BaseRoute {
     if (queryField) {
       options.queryField = queryField as string[];
     }
+    if (Array.isArray(parent)) {
+      throw new ApiError(`The "parent" parameter cannot be an array`, 400);
+    }
+    if (typeof parent === 'string') {
+      options.parent = parent;
+    }
     return options;
   }
 
@@ -158,18 +164,22 @@ export abstract class BaseRoute {
   /**
    * Verifies the user access records.
    */
-  verifyUserAccessRecords(records: UserAccessOperation[]): void {
+  verifyUserAccessRecords(records: AccessOperation[]): void {
     records.forEach((info, index) => {
-      const { op, uid } = info;
-      if (!uid) {
-        throw new ApiError(`Invalid access definition. Missing "uid" at position: ${index}.`, 400);
+      const { op, id, type } = info;
+      if (!['user', 'group', 'anyone'].includes(type)) {
+        throw new ApiError(`Invalid access definition. Invalid "type" at position: ${index}.`, 400);
+      }
+      if (!['add', 'remove'].includes(op)) {
+        throw new ApiError(`Invalid access definition. Invalid "op" value at position: ${index}.`, 400);
+      }
+      if (type !== 'anyone' && !id) {
+        throw new ApiError(`Invalid access definition. Missing "id" at position: ${index}.`, 400);
       }
       if (op === 'add') {
         if (!info.value) {
           throw new ApiError(`Invalid access definition. Missing "value" at position: ${index}.`, 400);
         }
-      } else if (op !== 'remove') {
-        throw new ApiError(`Invalid access definition. Invalid "op" value at position: ${index}.`, 400);
       }
     });
   }

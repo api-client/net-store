@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import { DefaultLogger, ProjectMock, IHttpProjectListItem, Workspace, HttpProject, IBackendEvent, HttpProjectListItemKind, RouteBuilder } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
-import { DataHelper } from './DataHelper.js';
+import { DataHelper } from '../helpers/DataHelper.js';
 import { ApiError } from '../../src/ApiError.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
 
@@ -44,13 +44,13 @@ describe('Unit tests', () => {
           await store.user.add(user5.key, user5);
           const space1 = Workspace.fromName('test1');
           space1Id = space1.key;
-          await store.space.add(space1Id, space1.toJSON(), user1, 'owner');
+          await store.space.add(space1Id, space1.toJSON(), user1);
           // add user #3 read access to the space
-          await store.space.patchUsers(space1Id, [{ op: 'add', uid: user3.key, value: 'read' }], user1);
+          await store.space.patchAccess(space1Id, [{ op: 'add', id: user3.key, value: 'reader', type: 'user' }], user1);
           // add user #4 comment access to the space
-          await store.space.patchUsers(space1Id, [{ op: 'add', uid: user4.key, value: 'comment' }], user1);
+          await store.space.patchAccess(space1Id, [{ op: 'add', id: user4.key, value: 'commenter', type: 'user' }], user1);
           // add user #5 write access to the space
-          await store.space.patchUsers(space1Id, [{ op: 'add', uid: user5.key, value: 'write' }], user1);
+          await store.space.patchAccess(space1Id, [{ op: 'add', id: user5.key, value: 'writer', type: 'user' }], user1);
         });
 
         after(async () => {
@@ -151,8 +151,7 @@ describe('Unit tests', () => {
           try {
             await store.project.add(space1Id, project.key, project, user1);
           } finally {
-            // @ts-ignore
-            Clients.notify.restore();
+            spy.restore();
           }
           assert.isTrue(spy.calledOnce, 'Calls the notify function');
           const event = spy.args[0][0] as IBackendEvent;

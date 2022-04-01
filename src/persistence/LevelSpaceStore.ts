@@ -1,45 +1,28 @@
 /* eslint-disable import/no-named-as-default */
-import { LevelUp } from 'levelup';
-import { LevelDownIterator, Bytes } from 'leveldown';
-import sub from 'subleveldown';
-import { AbstractLevelDOWN, PutBatch } from 'abstract-leveldown';
+import { Bytes } from 'leveldown';
+// import { PutBatch } from 'abstract-leveldown';
 import { 
-  IUser, IBackendEvent, IListResponse, IUserSpaces, AccessControlLevel, IListOptions, IAccessControl,
-  Workspace, IWorkspace, IUserWorkspace, WorkspaceKind, HttpProjectKind, UserAccessOperation,
-  IUserAccessAddOperation, IUserAccessRemoveOperation, ISpaceUser, ICursorOptions, RouteBuilder,
+  IUser, IBackendEvent, IListResponse, IListOptions,
+  Workspace, IWorkspace, WorkspaceKind, HttpProjectKind, AccessOperation,
+  ICursorOptions, RouteBuilder, IAccessAddOperation, IAccessRemoveOperation,
+  PermissionRole,
 } from '@api-client/core';
-import { JsonPatch, diff } from 'json8-patch';
+import ooPatch, { JsonPatch, diff } from 'json8-patch';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { SubStore } from './SubStore.js';
-import { StoreLevelUp } from './StoreLevelUp.js';
 import { ApiError } from '../ApiError.js';
 import { KeyGenerator } from './KeyGenerator.js';
-import { ISpaceStore } from './StorePersistence.js';
+import { ISpaceStore } from './LevelStores.js';
+import { IAddSpaceOptions } from '../routes/RouteOptions.js';
 
 /**
  * The part of the store that takes care of the user spaces data.
  */
 export class LevelSpaceStore extends SubStore implements ISpaceStore {
-  /**
-   * The data store for user spaces.
-   */
-  spaces: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
-  /**
-   * Each key is the User id. The value is the access list to the workspaces the user has access to.
-   */
-  userSpaces: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
-  
-  constructor(protected parent: StoreLevelUp, db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {
-    super(parent, db);
-    this.spaces = sub<Bytes, Bytes>(db, 'data') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
-    this.userSpaces = sub<Bytes, Bytes>(db, 'user-ref') as LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
-  }
-
   async cleanup(): Promise<void> {
-    await this.spaces.close();
-    await this.userSpaces.close();
     await this.db.close();
   }
+
   /**
    * Creates a default space for the user. This is called when the user has no spaces created.
    * 
@@ -50,81 +33,6 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     const workspace = Workspace.fromName('Drafts', owner);
     return workspace.toJSON();
   }
-  /**
-   * Reads the `IUserSpaces` from the document that keeps track of which spaces the user has access to.
-   * 
-   * @param userKey The user id to get the info from.
-   */
-  async readUserSpaces(userKey: string): Promise<IUserSpaces | undefined> {
-    const { userSpaces } = this;
-    let raw: Bytes | undefined;
-    try {
-      raw = await userSpaces.get(userKey);
-    } catch (e) {
-      return;
-    }
-    return this.parent.decodeDocument(raw) as IUserSpaces;
-  }
-  /**
-   * Reads user spaces information for multiple users.
-   * 
-   * @param users The list of user keys.
-   * @returns The ordered list of user spaces. When the user does not exist it returns `undefined` at that index.
-   */
-  async readUsersSpaces(users: string[], fillEmpty: false): Promise<(IUserSpaces | undefined)[]>;
-  /**
-   * Reads user spaces information for multiple users.
-   * 
-   * @param users The list of user keys.
-   * @returns The ordered list of user spaces. When the user does not exist it creates a new record at that index.
-   */
-  async readUsersSpaces(users: string[], fillEmpty: true): Promise<IUserSpaces[]>;
-
-  /**
-   * Reads user spaces information for multiple users.
-   * @param users The list of user keys.
-   * @param fillEmpty When set it creates an empty object when does not exist.
-   */
-  async readUsersSpaces(users: string[], fillEmpty = false): Promise<(IUserSpaces | undefined)[]> {
-    const { userSpaces } = this;
-    const raw = await userSpaces.getMany(users);
-    const result: (IUserSpaces | undefined)[] = raw.map((item, index) => {
-      if (!item) {
-        if (fillEmpty) {
-          return {
-            user: users[index],
-            spaces: [],
-          };
-        }
-        return;
-      }
-      return this.parent.decodeDocument(item) as IUserSpaces;
-    });
-    return result;
-  }
-
-  /**
-   * Reads from the data store the access the user has to a space.
-   * 
-   * @param spaceKey The space key to check the access to.
-   * @param userKey The current user key
-   * @returns The access level for the space or undefined when the user has no access to it.
-   */
-  async readSpaceAccess(spaceKey: string, userKey: string): Promise<AccessControlLevel | undefined> {
-    const { userSpaces } = this;
-    if (!userSpaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    let info = await this.readUserSpaces(userKey);
-    if (!info) {
-      return undefined;
-    }
-    const access = (info.spaces || []).find(i => i.key === spaceKey);
-    if (!access) {
-      return undefined;
-    }
-    return access.level;
-  }
 
   /**
    * Lists spaces of a user. When user is not set it lists all spaces as this means a single-user environment.
@@ -133,29 +41,12 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param options Listing options.
    */
   async list(user: IUser, options?: IListOptions | ICursorOptions): Promise<IListResponse> {
-    const { spaces } = this;
-    let allowedSpaces: IAccessControl[] | undefined;
-    const userKey = user && user.key;
-    let info = await this.readUserSpaces(userKey);
-    if (!info) {
-      // the user has no spaces. We gonna create a default one for the user.
-      const space = this.defaultSpace(userKey);
-      await this.add(space.key, space, user, 'owner');
-      info = await this.readUserSpaces(userKey);
-      if (!info) {
-        throw new Error(`Unable to create a default space.`);
-      }
-      allowedSpaces = info.spaces;
-    } else {
-      allowedSpaces = info.spaces;
-    }
-
     const state = await this.parent.readListState(options);
-    const { limit = this.parent.defaultLimit } = state;
+    const { limit = this.parent.defaultLimit, parent } = state;
     let lastKey: string | undefined;
-    const data: IUserWorkspace[] = [];
+    const data: IWorkspace[] = [];
     let remaining = limit;
-    const iterator = spaces.iterator();
+    const iterator = this.db.iterator();
     if (state.lastKey) {
       iterator.seek(state.lastKey);
       // @ts-ignore
@@ -164,24 +55,36 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
-        let allowedSpace;
-        if (allowedSpaces) {
-          allowedSpace = allowedSpaces.find(allowed => allowed.key === key);
-          if (!allowedSpace) {
+        const obj = JSON.parse(value) as IWorkspace;
+        if (obj.deleted) {
+          continue;
+        }
+        if (obj.parents && obj.parents.length) {
+          // this space is a sub-space
+          if (!parent) {
+            // not listing children right now.
+            continue;
+          }
+          // search only for the direct parent (last object on the parents list).
+          if (obj.parents[obj.parents.length - 1] !== parent) {
+            continue;
+          }
+        } else if (parent) {
+          continue;
+        }
+        // note, we are only listing for owners here. Shared spaces are available through the `shared` route / store.
+        // however, sub-space listing is handled by this logic.
+        if (!parent && obj.owner !== user.key) {
+          continue;
+        }
+        obj.permissions = await this.parent.permission.list(obj.permissionIds);
+        if (parent) {
+          const access = await this.parent.permission.readFileAccess(obj, user.key, async (id) => this.get(id));
+          if (!access) {
             continue;
           }
         }
-        let access: AccessControlLevel;
-        if (allowedSpace) {
-          access = allowedSpace.level;
-        } else {
-          access = 'owner';
-        }
-        const obj = JSON.parse(value);
-        if (obj._deleted) {
-          continue;
-        }
-        data.push({ ...obj, access });
+        data.push(obj);
         lastKey = key;
         remaining -= 1;
         if (!remaining) {
@@ -200,22 +103,15 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
   }
 
   /**
-   * Creates a space in the store for a user.
-   * When user is not set it lists all spaces as this means a single-user environment.
+   * Creates a space in the store for the current user.
    * 
    * @param key Workspace key.
    * @param space The user space definition.
    * @param user The current user
    */
-  async add(key: string, space: IWorkspace, user: IUser, access: AccessControlLevel = 'read'): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    const value = this.parent.encodeDocument(space);
-    let exists = false;
+  async add(key: string, space: IWorkspace, user: IUser, opts: IAddSpaceOptions = {}): Promise<void> {let exists = false;
     try {
-      await spaces.get(key);
+      await this.db.get(key);
       exists = true;
     } catch (e) {
       // OK
@@ -223,31 +119,26 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     if (exists) {
       throw new ApiError(`A space with the identifier ${key} already exists`, 400);
     }
-    await spaces.put(key, value);
-    const userKey = user && user.key || 'default';
-    let raw: Bytes | undefined;
-    try {
-      raw = await userSpaces.get(userKey);
-    } catch (e) {
-      // 
-    }
-    let info: IUserSpaces;
-    if (!raw) {
-      info = {
-        spaces: [],
-        user: userKey,
-      };
+    if (opts.parent) {
+      // checks write access to the parent space.
+      await this.checkAccess('writer', opts.parent, user);
+      const parent = await this.get(opts.parent, false);
+      if (!parent) {
+        throw new ApiError(`The parent space does not exists: ${opts.parent}`, 400);
+      }
+      const parents: string[] = [...parent.parents, parent.key];
+      space.parents = parents;
     } else {
-      info = this.parent.decodeDocument(raw) as IUserSpaces;
+      space.parents = [];
     }
-    if (!info.spaces) {
-      info.spaces = [];
-    }
-    info.spaces.push({
-      key,
-      level: access,
-    });
-    await userSpaces.put(userKey, this.parent.encodeDocument(info));
+
+    space.permissions = [];
+    space.permissionIds = [];
+    space.owner = user.key;
+
+    const value = this.parent.encodeDocument(space);
+    await this.db.put(key, value);
+    
     const event: IBackendEvent = {
       type: 'event',
       operation: 'created',
@@ -256,7 +147,7 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
     };
     const filter: IClientFilterOptions = {
       url: RouteBuilder.spaces(),
-      users: userKey === 'default' ? undefined : [userKey],
+      users: user.key === 'default' ? undefined : [user.key],
     };
     Clients.notify(event, filter);
   }
@@ -269,25 +160,73 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param user Optional user object. When set it tests whether the user has access to the space.
    * @returns The user space or undefined when not found.
    */
-  async read(key: string, user: IUser): Promise<IUserWorkspace|undefined> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
-      throw new Error(`Store not initialized.`);
+  async read(key: string, user: IUser): Promise<IWorkspace|undefined> {
+    await this.checkAccess('reader', key, user);
+    const space = await this.get(key);
+    if (!space || space.deleted) {
+      return undefined;
     }
-    const access = await this.checkAccess('read', key, user);
+    return space;
+  }
+
+  /**
+   * Reads the space without checking for user role.
+   * @param key The key of the space.
+   * @param includePermissions Whether to read space permissions. Default to true.
+   * @returns The space of undefined when not found.
+   */
+  async get(key: string, includePermissions=true): Promise<IWorkspace|undefined> {
     let raw: Bytes;
     try {
-      raw = await spaces.get(key);
+      raw = await this.db.get(key);
     } catch (e) {
       return;
     }
     const space = this.parent.decodeDocument(raw) as IWorkspace;
-    const userSpace = { ...space, access } as IUserWorkspace;
-    return userSpace;
+    if (includePermissions && space.permissionIds.length) {
+      space.permissions = await this.parent.permission.list(space.permissionIds);
+    } else {
+      space.permissions = [];
+    }
+    return space;
+  }
+
+  /**
+   * Applies a patch information to the space.
+   * 
+   * This method throws when the user is not authorized, space does not exists, or
+   * when the patch information is invalid.
+   * 
+   * @param key The space key
+   * @param patch The patch to apply
+   * @param user The patching user
+   * @returns The revert information of the patch.
+   */
+  async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
+    const isValid = ooPatch.valid(patch);
+    if (!isValid) {
+      throw new ApiError(`Malformed patch information.`, 400);
+    }
+    const prohibited: string[] = ['/permissions', '/permissionIds', '/deleted', '/deletedTime', '/deletingUser', '/parents', '/key', '/kind', '/owner'];
+    const invalid = patch.find(p => {
+      return prohibited.some(path => p.path.startsWith(path));
+    });
+    if (invalid) {
+      throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
+    }
+    const space = await this.read(key, user);
+    if (!space) {
+      throw new ApiError(`Not found`, 404);
+    }
+    const result = ooPatch.apply(space, patch, { reversible: true });
+    await this.update(key, result.doc, patch, user);
+    return result.revert;
   }
 
   /**
    * Writes to the user space.
+   * 
+   * Note, this function should not be used by API routes directly.
    * 
    * @param space The updated space object.
    * @param key The space key
@@ -295,13 +234,9 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param user Optional user to check access to the space.
    */
   async update(key: string, space: IWorkspace, patch: JsonPatch, user: IUser): Promise<void> {
-    const { spaces } = this;
-    if (!spaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    await this.checkAccess('write', key, user);
+    await this.checkAccess('writer', key, user);
     const value = this.parent.encodeDocument(space);
-    await spaces.put(key, value);
+    await this.db.put(key, value);
     const event: IBackendEvent = {
       type: 'event',
       operation: 'patch',
@@ -321,35 +256,24 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param user The current user
    */
   async delete(key: string, user: IUser): Promise<void> {
-    const { spaces } = this;
-    if (!spaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    const access = await this.checkAccess('write', key, user);
+    const access = await this.checkAccess('writer', key, user);
 
-    // 1. update the space to include the _deleted flag
-    // 2. Inset the space key to the bin store.
-
-    let dataRaw: Bytes;
-    try {
-      dataRaw = await spaces.get(key);
-    } catch (e) {
+    const space = await this.get(key);
+    if (!space) {
       throw new ApiError(`Not found.`, 404);
     }
-    const data = this.parent.decodeDocument(dataRaw) as any;
-    if (user && access !== 'owner') {
-      const space = data as IWorkspace;
-      if (space.owner !== user.key) {
-        throw new ApiError(`Unauthorized to delete the space.`, 403)
-      }
+    if (access !== 'owner') {
+      throw new ApiError(`Unauthorized to delete the space.`, 403)
     }
-
-    data._deleted = true;
+    space.deleted = true;
+    space.deletedTime = Date.now();
+    space.deletingUser = user.key;
     const deletedKey = KeyGenerator.deletedSpaceKey(key);
 
     // persist the data
     await this.parent.bin.add(deletedKey, user);
-    await spaces.put(key, this.parent.encodeDocument(data));
+    await this.db.put(key, this.parent.encodeDocument(space));
+    await this.parent.shared.deleteByTarget(space.key);
 
     // inform clients the space is deleted
     const event: IBackendEvent = {
@@ -394,103 +318,35 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * @param patch The list of patch operations to perform on user access to the space.
    * @param user The user that triggered the change.
    */
-  async patchUsers(key: string, patch: UserAccessOperation[], user: IUser): Promise<void> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    await this.checkAccess('write', key, user);
-    let raw: Bytes;
-    try {
-      raw = await spaces.get(key);
-    } catch (e) {
-      // technically won't happen because checking for write permission does that
+  async patchAccess(key: string, patch: AccessOperation[], user: IUser): Promise<void> {
+    await this.checkAccess('writer', key, user);
+    
+    const space = await this.get(key);
+    if (!space) {
       throw new ApiError(`Not found.`, 404);
     }
-
-    const adding: IUserAccessAddOperation[] = [];
-    const removing: IUserAccessRemoveOperation[] = [];
-
-    patch.forEach((item) => {
-      if (item.op === 'remove') {
-        removing.push(item);
-      } else if (item.op === 'add') {
-        adding.push(item);
-      }
-    });
-
-    const addingIds = adding.map(i => i.uid);
-    const removingIds = removing.map(i => i.uid);
-    const allIds = Array.from(new Set(addingIds.concat(removingIds)));
-
-    // check whether all adding users are in the data store (removing is OK).
-    if (adding.length) {
-      const missingUsers = await this.parent.user.listMissing(addingIds);
-      if (missingUsers.length) {
-        throw new ApiError(`Some users not found in the system: ${missingUsers.join(', ')}.`, 400);
-      }
-    }
-
-    const space = this.parent.decodeDocument(raw) as IWorkspace;
-    // the copy is to generate the patch to the listeners.
-    const copy = this.parent.decodeDocument(raw) as IWorkspace;
-    if (!space.users) {
-      space.users = [];
-    }
-    const { users: uList } = space;
-
-    const spacesList = await this.readUsersSpaces(allIds, true);
-    const putList: PutBatch[] = [];
-
-    // update the space's user list. We gonna do this on the main patch array to preserve order of operations.
-    patch.forEach((item) => {
-      const index = uList.indexOf(item.uid);
-      // I am casting this to the IUserSpaces interface as this must be here after calling `readUsersSpaces(.., true)`.
-      const spaceInfo = spacesList.find(i => i.user === item.uid) as IUserSpaces;
-      if (item.op === 'remove') {
-        if (index >= 0) {
-          uList.splice(index, 1);
-        }
-        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
-        if (spaceIndex >= 0) {
-          spaceInfo.spaces.splice(spaceIndex, 1);
-        }
-        putList.push({
-          key: item.uid,
-          type: 'put',
-          value: this.parent.encodeDocument(spaceInfo),
-        });
-      } else if (item.op === 'add') {
-        if (index < 0) {
-          uList.push(item.uid);
-        }
-        const spaceIndex = spaceInfo.spaces.findIndex(i => i.key === key);
-        if (spaceIndex >= 0) {
-          // the client requested to update user's access level
-          spaceInfo.spaces[spaceIndex].level = item.value;
-        } else {
-          // we are adding access level
-          // Note, from the client notification perspective, whether we are updating or adding permissions, the client need to pull changes
-          // to the space from the server anyway.
-          spaceInfo.spaces.push({
-            level: item.value,
-            key,
-          });
-        }
-        putList.push({
-          key: item.uid,
-          type: 'put',
-          value: this.parent.encodeDocument(spaceInfo),
-        });
-      }
-    });
-
-    // Now store the data
-    await spaces.put(key, this.parent.encodeDocument(space));
-    await userSpaces.batch(putList);
+    const copy = JSON.parse(JSON.stringify(space)) as IWorkspace;
     
-    // JSON-patch library takes care of the difference to the object.
+    // we do every operation separately as they may be about the same user.
+
+    for (const info of patch) {
+      if (info.op === 'add') {
+        await this.addPermission(space, info, user);
+      } else if (info.op === 'remove') {
+        await this.removePermission(space, info, user);
+      } else {
+        throw new Error(`Unknown operation: ${(info as AccessOperation).op}`);
+      }
+    }
+
+    const resultingSpace: IWorkspace = { ...space, permissions: [] };
+    
+    await this.db.put(key, this.parent.encodeDocument(resultingSpace));
+
+    // JSON-patch library takes care of the difference to the object
     const diffPatch = diff(copy, space);
+    // note, we add the `permissions` field to the patch as the client already has this field filled up.
+    
     // we inform about the space change only when there was an actual change (may not be when updating permissions only).
     if (diffPatch.length) {
       const event: IBackendEvent = {
@@ -505,79 +361,74 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
       };
       Clients.notify(event, filter);
     }
+  }
 
-    // we need to separately notify clients about adding and removing the access.
-    // we do this iterating over the original patch to preserve the order of operations
-    const removeEvent: IBackendEvent = {
+  async addPermission(space: IWorkspace, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
+    if (!['user', 'group', 'anyone'].includes(operation.type)) {
+      throw new Error(`Unknown permission type: ${operation.type}`);
+    }
+    // 1. check if group/user exists and throw when not.
+    // 2. check whether the permission for the user/group/anyone exists. If so, update it.
+    // 3. else, add new permission.
+
+    switch (operation.type) {
+      case 'user': await this.addUserPermission(space, operation, addingUser); break;
+      case 'group': await this.addGroupPermission(space, operation, addingUser); break;
+      case 'anyone': await this.parent.permission.addAnyonePermission(space, operation, addingUser.key); break;
+    }
+  }
+
+  private async addUserPermission(space: IWorkspace, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
+    await this.parent.permission.addUserPermission(space, operation, addingUser.key);
+    await this.parent.shared.addSpace(space, operation.id!);
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'access-granted',
+      kind: WorkspaceKind,
+      id: space.key,
+    };
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.spaces(),
+      users: [operation.id!],
+    };
+    Clients.notify(event, filter);
+  }
+
+  private async addGroupPermission(space: IWorkspace, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
+    await this.parent.permission.addGroupPermission(space, operation, addingUser.key);
+    // TODO: Notify group users.
+  }
+
+  async removePermission(space: IWorkspace, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
+    switch (operation.type) {
+      case 'user': await this.removeUserPermission(space, operation, removingUser); break;
+      case 'group': await this.removeGroupPermission(space, operation, removingUser); break;
+      case 'anyone': await this.parent.permission.removeAnyonePermission(space, operation, removingUser.key); break;
+      default:
+        throw new Error(`Unknown permission type: ${operation.type}`);
+    }
+  }
+
+  private async removeUserPermission(space: IWorkspace, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
+    await this.parent.permission.removeUserPermission(space, operation, removingUser.key);
+    await this.parent.shared.removeSpace(space.key, operation.id!);
+    const event: IBackendEvent = {
       type: 'event',
       operation: 'access-removed',
       kind: WorkspaceKind,
-      id: key,
+      id: space.key,
     };
-    const addEvent: IBackendEvent = { ...removeEvent, operation: 'access-granted' };
-    const baseFilter: IClientFilterOptions = {
-      url: RouteBuilder.spaces(),
-    };
-    patch.forEach((item) => {
-      const f = { ...baseFilter, users: [item.uid], };
-      if (item.op === 'remove') {
-        Clients.notify(removeEvent, f);
-      } else if (item.op === 'add') {
-        Clients.notify(addEvent, f);
-      }
-    });
+    const f = { url: RouteBuilder.spaces(), users: [operation.id!], };
+    Clients.notify(event, f);
   }
 
-  /**
-   * Lists users allowed in the space.
-   * @param key The key of the space to update
-   * @param user The user that requested the list
-   */
-  async listUsers(key: string, user: IUser): Promise<IListResponse> {
-    const { spaces, userSpaces } = this;
-    if (!spaces || !userSpaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    const data: ISpaceUser[] = [];
-    const result: IListResponse = {
-      data,
-    };
-    await this.checkAccess('read', key, user);
-    let raw: Bytes;
-    try {
-      raw = await spaces.get(key);
-    } catch (e) {
-      // technically won't happen because checking for write permission does that
-      throw new ApiError(`Not found.`, 404);
-    }
-    const space = this.parent.decodeDocument(raw) as IWorkspace;
-    if (!space.users) {
-      return result;
-    }
-    const { users: uList } = space;
-    const spacesList = await this.readUsersSpaces(uList, true);
-    const requested: Record<string, AccessControlLevel> = {};
-    spacesList.forEach((info) => {
-      const accessInfo = info.spaces.find((i) => i.key === key);
-      if (!accessInfo || space.owner === info.user) {
-        // don't list an owner here.
-        return;
-      }
-      requested[info.user] = accessInfo.level;
-    });
-    const userKeys = Object.keys(requested);
-    const userResults = await this.parent.user.db.getMany(userKeys);
-    userKeys.forEach((key, index) => {
-      const value = userResults[index];
-      if (!value) {
-        return;
-      }
-      const level = requested[key];
-      const userObject = this.parent.decodeDocument(value) as IUser;
-      data.push({ ...userObject, level });
-    });
-    return result;
+  private async removeGroupPermission(space: IWorkspace, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
+    await this.parent.permission.removeGroupPermission(space, operation, removingUser.key);
+    // TODO: Notify group users.
   }
+
+  async checkAccess(minimumLevel: PermissionRole, key: string, user: IUser): Promise<PermissionRole>;
+  async checkAccess(minimumLevel: PermissionRole, space: IWorkspace, user: IUser): Promise<PermissionRole>;
 
   /**
    * Checks whether the user has read or write access to the space.
@@ -585,34 +436,41 @@ export class LevelSpaceStore extends SubStore implements ISpaceStore {
    * It throws errors when the user has no access or when the user has no access to the resource.
    * 
    * @param minimumLevel The minimum access level required for this operation.
-   * @param key The user space key.
+   * @param keyOrSpace The user space key or the space object.
    * @param user The user object. When not set on the session this always throws an error.
    */
-  async checkAccess(minimumLevel: AccessControlLevel, key: string, user: IUser): Promise<AccessControlLevel> {
+  async checkAccess(minimumLevel: PermissionRole, keyOrSpace: string | IWorkspace, user: IUser): Promise<PermissionRole> {
     if (!user) {
       throw new ApiError(`Authentication required.`, 401)
     }
-    const levels: AccessControlLevel[] = ["read", "comment", "write", "owner", "admin"];
-    const { spaces } = this;
-    if (!spaces) {
-      throw new Error(`Store not initialized.`);
-    }
-    const isDeleted = await this.parent.bin.isSpaceDeleted(key);
-    if (isDeleted) {
+    const role = await this.parent.permission.readFileAccess(keyOrSpace, user.key, async (id) => this.get(id));
+    if (!role) {
       throw new ApiError(`Not found.`, 404);
     }
-    const access  = await this.parent.space.readSpaceAccess(key, user.key);
-    if (!access) {
-      // no access is like 404.
-      throw new ApiError(`Not found.`, 404);
-      // throw new ApiError(`Not authorized to read this space.`, 403);
-    }
-    const currentAccessIndex = levels.indexOf(access);
-    const requestedAccessIndex = levels.indexOf(minimumLevel);
-    // the current must be at least at the index of requested.
-    if (currentAccessIndex < requestedAccessIndex) {
+    const sufficient = this.parent.permission.hasRole(minimumLevel, role);
+    if (!sufficient) {
       throw new ApiError(`Insufficient permissions to access this resource.`, 403);
     }
-    return access;
+    return role;
+  }
+
+  /**
+   * Lists users allowed in the space.
+   * @param key The key of the space to update
+   * @param user The user that requested the list
+   */
+  async listUsers(key: string, user: IUser): Promise<IListResponse<IUser | undefined>> {
+    await this.checkAccess('reader', key, user);
+    const ids: string[] = [];
+    const space = await this.get(key) as IWorkspace;
+    space.permissions.forEach((p) => {
+      const { type } = p;
+      if (type === 'user') {
+        if (p.owner) {
+          ids.push(p.owner);
+        }
+      }
+    });
+    return this.parent.user.read(ids, { removeProviderData: true });
   }
 }

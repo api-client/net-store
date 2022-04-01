@@ -1,6 +1,6 @@
 import { Bytes } from 'leveldown';
 import { SubStore } from './SubStore.js';
-import { ISessionStore } from './StorePersistence.js';
+import { ISessionStore } from './LevelStores.js';
 
 /**
  * The part of the store that takes care of the session data.
