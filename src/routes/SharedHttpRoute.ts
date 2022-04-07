@@ -1,8 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { RouteBuilder } from '@api-client/core';
+import { RouteBuilder, ApiError } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
-import { ApiError } from '../ApiError.js';
 
 /**
  * A route that handles shared items.
@@ -13,7 +12,7 @@ import { ApiError } from '../ApiError.js';
 export default class SharedHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
-    const spacesRoute = RouteBuilder.sharedSpaces();
+    const spacesRoute = RouteBuilder.shared();
     router.get(spacesRoute, this.listSpacesRoute.bind(this));
   }
 
@@ -25,7 +24,8 @@ export default class SharedHttpRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
-      const result = await this.store.shared.listSpaces(user, options);
+      const kinds = this.listKinds(ctx);
+      const result = await this.store.shared.list(kinds, user, options);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;

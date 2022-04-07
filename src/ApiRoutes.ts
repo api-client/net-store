@@ -7,18 +7,16 @@ import { SocketRoute, ISocketRouteInit } from './routes/SocketRoute.js';
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { AppSession } from './session/AppSession.js';
 import { BackendInfo } from './BackendInfo.js';
-import SpacesWsRoute from './routes/SpacesWsRoute.js';
-import SpaceWsRoute from './routes/SpaceWsRoute.js';
-import ProjectsWsRoute from './routes/ProjectsWsRoute.js';
-import ProjectWsRoute from './routes/ProjectWsRoute.js';
+import SpacesWsRoute from './routes/FilesWsRoute.js';
 import AuthWsRoute from './routes/AuthWsRoute.js';
-import SpacesHttpRoute from './routes/SpacesHttpRoute.js';
-import ProjectsHttpRoute from './routes/ProjectsHttpRoute.js';
+import FilesHttpRoute from './routes/FilesHttpRoute.js';
+import FileWsRoute from './routes/FileWsRoute.js';
 import BackendHttpRoute from './routes/BackendHttpRoute.js';
 import SessionHttpRoute from './routes/SessionHttpRoute.js';
 import UsersHttpRoute from './routes/UsersHttpRoute.js';
 import HistoryHttpRoute from './routes/HistoryHttpRoute.js';
 import SharedHttpRoute from './routes/SharedHttpRoute.js';
+import HistoryWsRoute from './routes/HistoryWsRoute.js';
 
 export class ApiRoutes {
   protected routes: BaseRoute[] = [];
@@ -54,8 +52,7 @@ export class ApiRoutes {
     // static HTTP routes. WS routes are created on demand.
     this.routes.push(new SessionHttpRoute(init));
     this.routes.push(new BackendHttpRoute(init));
-    this.routes.push(new SpacesHttpRoute(init));
-    this.routes.push(new ProjectsHttpRoute(init));
+    this.routes.push(new FilesHttpRoute(init));
     this.routes.push(new HistoryHttpRoute(init));
     this.routes.push(new UsersHttpRoute(init));
     this.routes.push(new SharedHttpRoute(init));
@@ -97,7 +94,12 @@ export class ApiRoutes {
       this.addWsRoute(route, url);
       return route;
     }
-    const spacesRoute = RouteBuilder.spaces();
+    if (url === RouteBuilder.history()) {
+      const route = new HistoryWsRoute(init);
+      this.addWsRoute(route, url);
+      return route;
+    }
+    const spacesRoute = RouteBuilder.files();
     const isSpaces = url.startsWith(spacesRoute);
     if (!isSpaces) {
       return;
@@ -112,19 +114,9 @@ export class ApiRoutes {
       this.addWsRoute(route, url);
       return route;
     }
-    const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}';
-    if (this.buildRouteRegexp(RouteBuilder.space(v4reg)).test(url)) {
-      const route = new SpaceWsRoute(init);
-      this.addWsRoute(route, url);
-      return route;
-    }
-    if (this.buildRouteRegexp(RouteBuilder.spaceProjects(v4reg)).test(url)) {
-      const route = new ProjectsWsRoute(init);
-      this.addWsRoute(route, url);
-      return route;
-    }
-    if (this.buildRouteRegexp(RouteBuilder.spaceProject(v4reg, v4reg)).test(url)) {
-      const route = new ProjectWsRoute(init);
+    const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}(?:\\?alt=.*)';
+    if (this.buildRouteRegexp(RouteBuilder.file(v4reg)).test(url)) {
+      const route = new FileWsRoute(init);
       this.addWsRoute(route, url);
       return route;
     }
@@ -144,7 +136,7 @@ export class ApiRoutes {
     }
     const parts = urlValue.split('/').slice(1);
     instance.route = parts;
-    instance.routeUrl = urlValue;
+    instance.routeUrl = url;
     instance.createServer();
     instance.once('close', () => {
       const index = this.wsRoutes.indexOf(instance);

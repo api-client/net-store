@@ -1,4 +1,4 @@
-import { IWorkspace, IHttpProject } from '@api-client/core';
+import { IWorkspace } from '@api-client/core';
 import { StoreLevelUp } from '../../index.js';
 import { DataHelper } from './DataHelper.js';
 
@@ -11,13 +11,12 @@ export class TestStore extends StoreLevelUp {
     await this.session.db.clear();
   }
 
-  async clearSpaces(): Promise<void> {
-    await this.space.db.clear();
+  async clearFiles(): Promise<void> {
+    await this.file.db.clear();
   }
 
   async clearProjects(): Promise<void> {
-    await this.project.index.clear();
-    await this.project.data.clear();
+    await this.project.db.clear();
   }
 
   async clearRevisions(): Promise<void> {
@@ -28,13 +27,13 @@ export class TestStore extends StoreLevelUp {
     await this.bin.db.clear();
   }
 
-  async generateSpaces(size=25, owner?: string): Promise<IWorkspace[]> {
-    return DataHelper.generateSpaces(this, size, owner);
+  async generateSpaces(owner: string, size=25): Promise<IWorkspace[]> {
+    return DataHelper.generateFiles(this, owner, size);
   }
 
-  async generateProjects(spaceKey: string, size=25): Promise<IHttpProject[]> {
-    return DataHelper.generateProjects(this, spaceKey, size);
-  }
+  // async generateProjects(spaceKey: string, size=25): Promise<IHttpProject[]> {
+  //   return DataHelper.generateProjects(this, spaceKey, size);
+  // }
 
   async generateRevisions(projectKey: string, size=25): Promise<void> {
     return DataHelper.generateRevisions(this, projectKey, size);

@@ -6,15 +6,15 @@ import sub from 'subleveldown';
 import { AbstractLevelDOWN } from 'abstract-leveldown';
 import { Logger } from '@api-client/core';
 import { StorePersistence } from './StorePersistence.js';
-import { LevelHistoryStore } from './LevelHistoryStore.js';
-import { LevelSessionStore } from './LevelSessionStore.js';
-import { LevelUserStore } from './LevelUserStore.js';
-import { LevelBinStore } from './LevelBinStore.js';
-import { LevelRevisionsStore } from './LevelRevisionsStore.js';
-import { LevelProjectStore } from './LevelProjectStore.js';
-import { LevelSpaceStore } from './LevelSpaceStore.js';
-import { LevelPermissionStore } from './LevelPermissionStore.js';
-import { LevelSharedStore } from './LevelSharedStore.js';
+import { Sessions } from './level/Session.js';
+import { User } from './level/User.js';
+import { Revisions } from './level/Revisions.js';
+import { Project } from './level/Project.js';
+import { PermissionStore } from './level/PermissionStore.js';
+import { History } from './level/History.js';
+import { Bin } from './level/Bin.js';
+import { Shared } from './level/Shared.js';
+import { Files } from './level/Files.js';
 
 const sessionSymbol = Symbol('session');
 const historySymbol = Symbol('history');
@@ -22,7 +22,7 @@ const userSymbol = Symbol('user');
 const binSymbol = Symbol('bin');
 const revisionsSymbol = Symbol('revisions');
 const projectSymbol = Symbol('project');
-const spaceSymbol = Symbol('space');
+const fileSymbol = Symbol('file');
 const permissionSymbol = Symbol('permission');
 const sharedSymbol = Symbol('shared');
 
@@ -38,11 +38,11 @@ export class StoreLevelUp extends StorePersistence {
   dbPath: string;
   db?: LevelUp<LevelDown, LevelDownIterator>;
 
-  [historySymbol]: LevelHistoryStore;
+  [historySymbol]: History;
   /**
    * History store.
    */
-  get history(): LevelHistoryStore {
+  get history(): History {
     const ref = this[historySymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -50,11 +50,11 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [sessionSymbol]: LevelSessionStore;
+  [sessionSymbol]: Sessions;
   /**
    * Session store.
    */
-  get session(): LevelSessionStore {
+  get session(): Sessions {
     const ref = this[sessionSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -62,11 +62,11 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [userSymbol]: LevelUserStore;
+  [userSymbol]: User;
   /**
    * User store.
    */
-  get user(): LevelUserStore {
+  get user(): User {
     const ref = this[userSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -74,7 +74,7 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [binSymbol]: LevelBinStore;
+  [binSymbol]: Bin;
   /**
    * A store that keeps track of deleted items. It has a reference to the deleted item
    * with additional metadata like when the object was deleted and by whom.
@@ -85,7 +85,7 @@ export class StoreLevelUp extends StorePersistence {
    * 
    * This store can also be used to list deleted items from a particular place (space, project, etc.)
    */
-  get bin(): LevelBinStore {
+  get bin(): Bin {
     const ref = this[binSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -93,11 +93,11 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [revisionsSymbol]: LevelRevisionsStore;
+  [revisionsSymbol]: Revisions;
   /**
    * A store that keeps revisions of patched objects.
    */
-  get revisions(): LevelRevisionsStore {
+  get revisions(): Revisions {
     const ref = this[revisionsSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -105,11 +105,11 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [projectSymbol]: LevelProjectStore;
+  [projectSymbol]: Project;
   /**
    * A store that keeps user project objects.
    */
-  get project(): LevelProjectStore {
+  get project(): Project {
     const ref = this[projectSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -117,23 +117,23 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [spaceSymbol]: LevelSpaceStore;
+  [fileSymbol]: Files;
   /**
-   * A store that keeps user space objects.
+   * A store that keeps user file objects.
    */
-  get space(): LevelSpaceStore {
-    const ref = this[spaceSymbol];
+  get file(): Files {
+    const ref = this[fileSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
     }
     return ref;
   }
 
-  [permissionSymbol]: LevelPermissionStore;
+  [permissionSymbol]: PermissionStore;
   /**
    * A store for store permissions.
    */
-  get permission(): LevelPermissionStore {
+  get permission(): PermissionStore {
     const ref = this[permissionSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -141,11 +141,11 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [sharedSymbol]: LevelSharedStore;
+  [sharedSymbol]: Shared;
   /**
    * A store that references shared objects with the current user.
    */
-  get shared(): LevelSharedStore {
+  get shared(): Shared {
     const ref = this[sharedSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
@@ -169,31 +169,31 @@ export class StoreLevelUp extends StorePersistence {
     this.db = db;
     
     const history = sub<string, any>(db, "history") as DataStoreType;
-    this[historySymbol] = new LevelHistoryStore(this, history);
+    this[historySymbol] = new History(this, history);
     
     const sessions = sub<string, any>(db, 'sessions') as DataStoreType;
-    this[sessionSymbol] = new LevelSessionStore(this, sessions);
+    this[sessionSymbol] = new Sessions(this, sessions);
     
     const users = sub<string, any>(db, 'users') as DataStoreType;
-    this[userSymbol] = new LevelUserStore(this, users);
+    this[userSymbol] = new User(this, users);
 
     const bin = sub<string, any>(db, 'bin') as DataStoreType;
-    this[binSymbol] = new LevelBinStore(this, bin);
+    this[binSymbol] = new Bin(this, bin);
 
     const revisions = sub<string, any>(db, 'revisions') as DataStoreType;
-    this[revisionsSymbol] = new LevelRevisionsStore(this, revisions);
+    this[revisionsSymbol] = new Revisions(this, revisions);
 
     const projects = sub<Bytes, Bytes>(db, 'projects') as DataStoreType;
-    this[projectSymbol] = new LevelProjectStore(this, projects);
+    this[projectSymbol] = new Project(this, projects);
 
-    const spaces = sub<Bytes, Bytes>(db, 'spaces') as DataStoreType;
-    this[spaceSymbol] = new LevelSpaceStore(this, spaces);
+    const files = sub<Bytes, Bytes>(db, 'files') as DataStoreType;
+    this[fileSymbol] = new Files(this, files);
 
     const permissions = sub<Bytes, Bytes>(db, 'permissions') as DataStoreType;
-    this[permissionSymbol] = new LevelPermissionStore(this, permissions);
+    this[permissionSymbol] = new PermissionStore(this, permissions);
 
     const shared = sub<Bytes, Bytes>(db, 'shared') as DataStoreType;
-    this[sharedSymbol] = new LevelSharedStore(this, shared);
+    this[sharedSymbol] = new Shared(this, shared);
   }
 
   /**
@@ -206,7 +206,7 @@ export class StoreLevelUp extends StorePersistence {
     await this.bin.cleanup();
     await this.revisions.cleanup();
     await this.project.cleanup();
-    await this.space.cleanup();
+    await this.file.cleanup();
     await this.permission.cleanup();
     await this.shared.cleanup();
     await this.db?.close();

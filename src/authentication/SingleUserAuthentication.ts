@@ -1,10 +1,9 @@
-import { IUser } from '@api-client/core';
+import { IUser, ApiError, IApiError } from '@api-client/core';
 import { ParameterizedContext, DefaultState, DefaultContext, Next } from 'koa';
 import http from 'http';
 import { Authentication } from './Authentication.js';
 import DefaultUser from './DefaultUser.js'
 import { ITokenContents } from '../session/AppSession.js';
-import { ApiError, IApiError } from '../ApiError.js';
 
 export class SingleUserAuthentication extends Authentication {
   static get defaultSid(): string {

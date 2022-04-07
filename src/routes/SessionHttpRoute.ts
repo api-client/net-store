@@ -1,9 +1,8 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
 import jwt from 'jsonwebtoken';
-import { RouteBuilder } from '@api-client/core';
+import { RouteBuilder, ApiError } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
-import { ApiError } from '../ApiError.js';
 import { IApplicationState } from '../definitions.js';
 import DefaultUser from '../authentication/DefaultUser.js';
 import { SingleUserAuthentication } from '../authentication/SingleUserAuthentication.js';

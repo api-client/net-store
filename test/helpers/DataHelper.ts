@@ -1,12 +1,13 @@
 import { 
   IHttpHistory, ProjectMock, IHttpHistoryListInit, IWorkspace, Workspace,
-  IHttpProject, HttpProject, IRevisionInfo, HttpProjectKind, IHttpProjectListItem,
-  Permission, PermissionRole, PermissionType, IUser,
+  IRevisionInfo, HttpProjectKind, Project, HttpProject,
+  Permission, PermissionRole, PermissionType, IUser, IHttpProject,
 } from '@api-client/core';
 import { PutBatch } from 'abstract-leveldown';
 import { DataStoreType, StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
-import { ISharedLink } from '../../src/persistence/LevelSharedStore.js';
+import { ISharedLink } from '../../src/persistence/level/AbstractShared.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
+import { IFileAddOptions } from '../../src/persistence/level/AbstractFiles.js';
 
 const mock = new ProjectMock();
 
@@ -31,12 +32,11 @@ export class DataHelper {
   }
 
   static async clearAllProjects(store: StoreLevelUp): Promise<void> {
-    await store.project.data.clear();
-    await store.project.index.clear();
+    await store.project.db.clear();
   }
 
-  static async clearSpaces(store: StoreLevelUp): Promise<void> {
-    await store.space.db.clear();
+  static async clearFiles(store: StoreLevelUp): Promise<void> {
+    await store.file.db.clear();
   }
 
   static async clearRevisions(store: StoreLevelUp): Promise<void> {
@@ -45,6 +45,16 @@ export class DataHelper {
 
   static async clearBin(store: StoreLevelUp): Promise<void> {
     await store.bin.db.clear();
+  }
+
+  static async addProject(store: StoreLevelUp, project: HttpProject, user: IUser, parent?: string): Promise<void> {
+    const opts: IFileAddOptions = {};
+    if (parent) {
+      opts.parent = parent;
+    }
+    const file = Project.fromProject(project).toJSON();
+    await store.file.add(file.key, file, user, opts);
+    await store.project.add(project.key, project.toJSON());
   }
 
   static async addHistory(store: DataStoreType, size=25, opts?: IHttpHistoryListInit): Promise<IHttpHistory[]> {
@@ -162,7 +172,7 @@ export class DataHelper {
     }
   }
 
-  static async generateSpaces(store: StoreLevelUp, size=25, owner?: string): Promise<IWorkspace[]> {
+  static async generateFiles(store: StoreLevelUp, owner: string, size=25): Promise<IWorkspace[]> {
     const data: PutBatch[] = [];
     const result: IWorkspace[] = [];
     for (let i = 0; i < size; i++) {
@@ -175,37 +185,36 @@ export class DataHelper {
         value: JSON.stringify(workspace),
       });
     }
-    await store.space.db.batch(data);
+    await store.file.db.batch(data);
     return result;
   }
 
-  static async generateProjects(store: StoreLevelUp, spaceKey: string, size=25): Promise<IHttpProject[]> {
-    const data: PutBatch[] = [];
-    const index: PutBatch[] = [];
+  static async generateProjects(store: StoreLevelUp, owner: string, size=25, parent?: string): Promise<IHttpProject[]> {
+    const files: PutBatch[] = [];
+    const projects: PutBatch[] = [];
     const result: IHttpProject[] = [];
     for (let i = 0; i < size; i++) {
       const name = mock.lorem.word();
       const project = HttpProject.fromName(name);
-      const finalKey = `~${spaceKey}~${project.key}~`;
+      const file = Project.fromProject(project).toJSON();
+      file.owner = owner;
+      if (parent) {
+        file.parents = [parent];
+      }
       result.push(project.toJSON());
-      data.push({
+      files.push({
         type: 'put',
-        key: finalKey,
+        key: project.key,
+        value: JSON.stringify(file),
+      });
+      projects.push({
+        type: 'put',
+        key: project.key,
         value: JSON.stringify(project),
       });
-      const item: IHttpProjectListItem = {
-        key: project.key,
-        name: project.info.name || 'Unnamed project',
-        updated: Date.now(),
-      };
-      index.push({
-        type: 'put',
-        key: finalKey,
-        value: JSON.stringify(item),
-      });
     }
-    await store.project.index.batch(index);
-    await store.project.data.batch(data);
+    await store.project.db.batch(projects);
+    await store.file.db.batch(files);
 
     return result;
   }
@@ -216,7 +225,7 @@ export class DataHelper {
     let created = Date.now();
     for (let i = 0; i < size; i++) {
       created += mock.types.number({ min: 1, max: 10000 });
-      const id = `~project~${projectKey}~${created}~`;
+      const id = `~media~${projectKey}~${created}~`;
       const patch: any = {
         op: 'replace',
         path: '/info/name',
@@ -229,6 +238,11 @@ export class DataHelper {
         created,
         deleted: false,
         patch,
+        modification: {
+          time: created,
+          byMe: false,
+          user: mock.types.uuid(),
+        },
       };
       result.push(info);
       data.push({
@@ -257,11 +271,13 @@ export class DataHelper {
         role: role || mock.random.pickOne(roles),
         owner: tid,
       }).toJSON();
+      
       workspace.permissionIds.push(permission.key);
       workspace.permissions.push(permission);
 
       const shared: ISharedLink = {
         id: workspace.key,
+        kind: workspace.kind,
         uid: tid,
       };
 
@@ -269,7 +285,7 @@ export class DataHelper {
       spacesData.push({
         type: 'put',
         key: workspace.key,
-        value: JSON.stringify(workspace),
+        value: JSON.stringify({ ...workspace, permission: []}),
       });
       permissionData.push({
         type: 'put',
@@ -278,11 +294,12 @@ export class DataHelper {
       });
       sharedData.push({
         type: 'put',
-        key: KeyGenerator.sharedSpace(workspace.key, tid),
+        key: KeyGenerator.sharedFile(workspace.kind, workspace.key, tid),
         value: JSON.stringify(shared),
       });
     }
-    await store.space.db.batch(spacesData);
+    
+    await store.file.db.batch(spacesData);
     await store.permission.db.batch(permissionData);
     await store.shared.db.batch(sharedData);
     return result;

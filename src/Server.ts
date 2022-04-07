@@ -317,7 +317,8 @@ export class Server {
     
     let user: IUser | undefined;
     let sessionId: string | undefined;
-    
+
+    const wsPath = this.readNormalizedPath(request.url);
     const factory = this.auth as Authentication;
     try {
       sessionId = await factory.getSessionId(request);
@@ -368,13 +369,8 @@ export class Server {
       socket.destroy();
       return;
     }
-    let url = request.url.substring(prefix.length);
-    if (url.includes('?')) {
-      // clears the URL from any query parameters. Authentication uses QP to set session.
-      const index = url.indexOf('?');
-      url = url.substring(0, index);
-    }
-    const route = this.apiHandler.getOrCreateWs(url);
+    const route = this.apiHandler.getOrCreateWs(wsPath);
+    
     if (!route || !route.server) {
       this.logger.error('Route not found.');
       socket.write('HTTP/1.1 404 Not found\r\n\r\n');
@@ -397,5 +393,23 @@ export class Server {
     server.handleUpgrade(request, socket, head, (ws) => {
       server.emit('connection', ws, request, user, sessionId);
     });
+  }
+
+  protected readNormalizedPath(url: string): string {
+    let wsPath = url;
+    try {
+      const parser = new URL(url, 'http://localhost');
+      const alt = parser.searchParams.get('alt');
+      parser.search = '';
+      if (alt) {
+        parser.searchParams.set('alt', alt);
+      }
+      const prefix = this.opts.router && this.opts.router.prefix ? this.opts.router.prefix : '';
+      parser.pathname = parser.pathname.replace(prefix, '');
+      wsPath = `${parser.pathname}${parser.search}`;
+    } catch (e) {
+      this.logger.error(e);
+    }
+    return wsPath;
   }
 }

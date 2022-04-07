@@ -1,9 +1,17 @@
 import { Logger, IListOptions, ICursorOptions, PermissionRole } from '@api-client/core';
 import { Cursor } from './Cursor.js';
 import { 
-  IBinStore, IHistoryStore, IListState, IPermissionStore, IProjectsStore, 
-  IRevisionsStore, ISessionStore, ISpaceStore, IUserStore, ISharedStore,
-} from './LevelStores.js';
+  IListState,
+} from './State.js';
+import { IBinStore } from './level/AbstractBin.js';
+import { IFilesStore } from './level/AbstractFiles.js';
+import { ISharedStore } from './level/AbstractShared.js';
+import { IHistoryStore } from './level/AbstractHistory.js';
+import { IPermissionStore } from './level/AbstractPermission.js';
+import { IRevisionsStore } from './level/AbstractRevisions.js';
+import { ISessionStore } from './level/AbstractSessions.js';
+import { IUserStore } from './level/AbstractUser.js';
+import { IProjectsStore } from './level/AbstractProject.js';
 
 /**
  * An abstract class that creates an interface to implement any storage layer
@@ -12,6 +20,7 @@ import {
 export abstract class StorePersistence {
   /**
    * The default limit of items returned by the list operation.
+   * @default 35
    */
   defaultLimit = 35;
   abstract get history(): IHistoryStore;
@@ -19,10 +28,11 @@ export abstract class StorePersistence {
   abstract get bin(): IBinStore;
   abstract get revisions(): IRevisionsStore;
   abstract get project(): IProjectsStore;
-  abstract get space(): ISpaceStore;
   abstract get session(): ISessionStore;
   abstract get permission(): IPermissionStore;
   abstract get shared(): ISharedStore;
+  abstract get file(): IFilesStore;
+
   /**
    * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.
    */

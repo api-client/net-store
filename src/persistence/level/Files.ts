@@ -1,0 +1,474 @@
+import { Bytes } from 'leveldown';
+import { 
+  IUser, IBackendEvent, IListResponse, IListOptions, PermissionRole, IFile, ApiError,
+  AccessOperation, RouteBuilder, IAccessAddOperation, IAccessRemoveOperation, WorkspaceKind,
+} from '@api-client/core';
+import ooPatch, { JsonPatch, diff } from 'json8-patch';
+import { SubStore } from '../SubStore.js';
+import { IFileAddOptions, IFilesStore } from './AbstractFiles.js';
+import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
+import { KeyGenerator } from '../KeyGenerator.js';
+import { validateKinds } from './Validator.js';
+
+/**
+ * The Files store operates on all objects that extends the `IFile` interface.
+ * 
+ * Architectonically, a space is a folder that contains other spaces or files.
+ * An example of a file is Project (which is closely related to the HttpProject).
+ * 
+ * When an application is creating or listing objects they list spaces and all
+ * objects that the application support. This gives a flexibility to share the concept
+ * of a space onto different applications in the API Client suite. Each application 
+ * defined which types, other than a space, it wants to list. The store returns 
+ * the final list that consists of the spaces and requested file types.
+ * File types are defined by the `kind` discriminator of the IFile interface.
+ * 
+ * Note, from the store perspective, there's no difference between a file or a space.
+ * Files do not hold reference to its children so all objects works the same way.
+ * 
+ * For the typing system, the definitions below must include all supported kinds.
+ * 
+ * All events about changes are sent to specific users in the /spaces route.
+ */
+export class Files extends SubStore implements IFilesStore {
+  async cleanup(): Promise<void> {
+    await this.db.close();
+  }
+
+  async list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>> {
+    validateKinds(kinds);
+    const state = await this.parent.readListState(options);
+    const { limit = this.parent.defaultLimit, parent } = state;
+    let lastKey: string | undefined;
+    const data: IFile[] = [];
+    let remaining = limit;
+    const iterator = this.db.iterator();
+    if (state.lastKey) {
+      iterator.seek(state.lastKey);
+      // @ts-ignore
+      await iterator.next();
+    }
+    const targetKinds = [...kinds, WorkspaceKind];
+    try {
+      // @ts-ignore
+      for await (const [key, value] of iterator) {
+        const obj = JSON.parse(value) as IFile;
+        if (obj.deleted || !targetKinds.includes(obj.kind)) {
+          continue;
+        }
+        if (obj.parents && obj.parents.length) {
+          // this file is a file located under another file
+          if (!parent) {
+            // not listing children right now.
+            continue;
+          }
+          // search only for the direct parent (last object on the parents list).
+          if (obj.parents[obj.parents.length - 1] !== parent) {
+            continue;
+          }
+        } else if (parent) {
+          continue;
+        }
+        // note, we are only listing for owners here. Shared files are available through the `shared` route / store.
+        // however, sub-file listing is handled by this logic.
+        if (!parent && obj.owner !== user.key) {
+          continue;
+        }
+        obj.permissions = await this.parent.permission.list(obj.permissionIds);
+        if (parent) {
+          const access = await this.parent.permission.readFileAccess(obj, user.key, async (id) => this.get(id));
+          if (!access) {
+            continue;
+          }
+        }
+        if (obj.lastModified) {
+          obj.lastModified.byMe = obj.lastModified.user === user.key;
+        }
+        data.push(obj);
+        lastKey = key;
+        remaining -= 1;
+        if (!remaining) {
+          break;
+        }
+      }
+    } catch (e) {
+      this.parent.logger.error(e);
+    }
+    const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
+    const result: IListResponse<IFile> = {
+      data,
+      cursor,
+    };
+    return result;
+  }
+
+  async add(key: string, file: IFile, user: IUser, opts: IFileAddOptions = {}): Promise<IFile> {
+    let exists = false;
+    try {
+      await this.db.get(key);
+      exists = true;
+    } catch (e) {
+      // OK
+    }
+    if (exists) {
+      throw new ApiError(`An object with the identifier ${key} already exists.`, 400);
+    }
+
+    if (opts.parent) {
+      // checks write access to the parent file.
+      await this.checkAccess('writer', opts.parent, user);
+      const parent = await this.get(opts.parent, false) as IFile; // previous line throws 404 when file does not exist.
+      const parents: string[] = [...parent.parents, parent.key];
+      file.parents = parents;
+    } else {
+      file.parents = [];
+    }
+
+    file.permissions = [];
+    file.permissionIds = [];
+    file.owner = user.key;
+    this.setModified(file, user);
+
+    const value = this.parent.encodeDocument(file);
+    await this.db.put(key, value);
+
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'created',
+      data: file,
+      kind: file.kind,
+      id: file.key,
+    };
+    let users: string[] = [];
+    if (opts.parent) {
+      event.parent = opts.parent;
+      users = await this.fileUserIds(opts.parent);
+    }
+    users.push(user.key);
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.files(),
+      users,
+    };
+    Clients.notify(event, filter);
+    return file;
+  }
+
+  async read(key: string, user: IUser): Promise<IFile> {
+    await this.checkAccess('reader', key, user);
+    return this.get(key) as Promise<IFile>; // check permission throws when no file or was deleted
+  }
+
+  /**
+   * Reads the file without checking for user role.
+   * @param key The key of the file.
+   * @param includePermissions Whether to read file's permissions. Default to true.
+   * @returns The file of undefined when not found.
+   */
+  async get(key: string, includePermissions=true): Promise<IFile|undefined> {
+    let raw: Bytes;
+    try {
+      raw = await this.db.get(key);
+    } catch (e) {
+      return;
+    }
+    const file = this.parent.decodeDocument(raw) as IFile;
+    if (includePermissions && file.permissionIds.length) {
+      file.permissions = await this.parent.permission.list(file.permissionIds);
+    } else {
+      file.permissions = [];
+    }
+    return file;
+  }
+
+  async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
+    const isValid = ooPatch.valid(patch);
+    if (!isValid) {
+      throw new ApiError(`Malformed patch information.`, 400);
+    }
+    const prohibited: string[] = [
+      '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', '/kind', '/owner', '/lastModified'
+    ];
+    const invalid = patch.find(p => {
+      return prohibited.some(path => p.path.startsWith(path));
+    });
+    if (invalid) {
+      throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
+    }
+    const file = await this.read(key, user);
+    const result = ooPatch.apply(file, patch, { reversible: true });
+    await this.update(key, result.doc, patch, user);
+    return result.revert;
+  }
+
+  async update(key: string, file: IFile, patch: JsonPatch, user: IUser): Promise<void> {
+    await this.checkAccess('writer', key, user);
+    this.setModified(file, user);
+    await this.db.put(key, this.parent.encodeDocument(file));
+
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'patch',
+      data: patch,
+      kind: file.kind,
+      id: key,
+    };
+    if (file.parents && file.parents.length) {
+      event.parent = file.parents[file.parents.length - 1];
+    }
+    const users = await this.fileUserIds(key);
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.files(),
+      users,
+    };
+    Clients.notify(event, filter);
+  }
+
+  async delete(key: string, user: IUser): Promise<void> {
+    const access = await this.checkAccess('writer', key, user);
+
+    const file = await this.get(key);
+    if (!file) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    if (access !== 'owner') {
+      throw new ApiError(`Unauthorized to delete the object.`, 403)
+    }
+    file.deleted = true;
+    file.deletedInfo = {
+      byMe: false,
+      time: Date.now(),
+      name: user.name,
+      user: user.key,
+    };
+    const deletedKey = KeyGenerator.deletedKey(file.kind, key);
+
+    // persist the data
+    await this.parent.bin.add(deletedKey, user);
+    await this.db.put(key, this.parent.encodeDocument(file));
+    await this.parent.shared.deleteByTarget(file.key);
+
+    // inform clients the file is deleted
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'deleted',
+      kind: file.kind,
+      id: key,
+    };
+    if (file.parents && file.parents.length) {
+      event.parent = file.parents[file.parents.length - 1];
+    }
+    const users = await this.fileUserIds(key);
+    // informs spaces list clients about the delete.
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.files(),
+      users,
+    };
+    Clients.notify(event, filter);
+    // Disconnect clients connected to the file.
+    Clients.closeByUrl(RouteBuilder.file(key));
+  }
+
+  /**
+   * Sets the `lastModified` info on the file
+   * @param file The file to mutate
+   * @param user The user modifying the file.
+   */
+  private setModified(file: IFile, user: IUser): void {
+    file.lastModified = {
+      byMe: false,
+      time: Date.now(),
+      user: user.key,
+      name: user.name,
+    };
+  }
+
+  async patchAccess(key: string, patch: AccessOperation[], user: IUser): Promise<void> {
+    await this.checkAccess('writer', key, user);
+    
+    const file = await this.get(key);
+    if (!file) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    const copy = JSON.parse(JSON.stringify(file)) as IFile;
+    const users = await this.fileUserIds(key);
+
+    // we do every operation separately as they may be about the same user.
+
+    for (const info of patch) {
+      if (info.op === 'add') {
+        await this.addPermission(file, info, user, users);
+      } else if (info.op === 'remove') {
+        await this.removePermission(file, info, user, users);
+      } else {
+        throw new Error(`Unknown operation: ${(info as AccessOperation).op}`);
+      }
+    }
+
+    this.setModified(file, user);
+    await this.db.put(key, this.parent.encodeDocument({ ...file, permissions: [] }));
+
+    // JSON-patch library takes care of the difference to the object
+    const diffPatch = diff(copy, file);
+    // note, we add the `permissions` field to the patch as the client already has this field filled up.
+    
+    // we inform about the space change only when there was an actual change (may not be when updating permissions only).
+    if (diffPatch.length) {
+      const event: IBackendEvent = {
+        type: 'event',
+        operation: 'patch',
+        data: diffPatch,
+        kind: file.kind,
+        id: key,
+      };
+      if (file.parents && file.parents.length) {
+        event.parent = file.parents[file.parents.length - 1];
+      }
+      const updatedUsers = await this.fileUserIds(key);
+      const filter: IClientFilterOptions = {
+        url: RouteBuilder.files(),
+        users: updatedUsers,
+      };
+      Clients.notify(event, filter);
+    }
+  }
+
+  async addPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser, users: string[]): Promise<void> {
+    switch (operation.type) {
+      case 'user': await this.addUserPermission(file, operation, addingUser, users); break;
+      case 'group': await this.addGroupPermission(file, operation, addingUser); break;
+      case 'anyone': await this.parent.permission.addAnyonePermission(file, operation, addingUser.key); break;
+      default:
+        throw new Error(`Unknown permission type: ${operation.type}`);
+    }
+  }
+
+  async removePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser, users: string[]): Promise<void> {
+    switch (operation.type) {
+      case 'user': await this.removeUserPermission(file, operation, removingUser, users); break;
+      case 'group': await this.removeGroupPermission(file, operation, removingUser); break;
+      case 'anyone': await this.parent.permission.removeAnyonePermission(file, operation, removingUser.key); break;
+      default:
+        throw new Error(`Unknown permission type: ${operation.type}`);
+    }
+  }
+
+  private async addUserPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser, users: string[]): Promise<void> {
+    const permission = await this.parent.permission.addUserPermission(file, operation, addingUser.key);
+    await this.parent.shared.add(file, operation.id!);
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'access-granted',
+      kind: file.kind,
+      data: permission,
+      id: file.key,
+    };
+    if (file.parents && file.parents.length) {
+      event.parent = file.parents[file.parents.length - 1];
+    }
+    const filter: IClientFilterOptions = {
+      url: RouteBuilder.files(),
+      users: [...users, operation.id!],
+    };
+    Clients.notify(event, filter);
+  }
+
+  private async addGroupPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
+    await this.parent.permission.addGroupPermission(file, operation, addingUser.key);
+    // TODO: Notify group users.
+  }
+
+  private async removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser, users: string[]): Promise<void> {
+    await this.parent.permission.removeUserPermission(file, operation, removingUser.key);
+    await this.parent.shared.remove(file, operation.id!);
+    const event: IBackendEvent = {
+      type: 'event',
+      operation: 'access-removed',
+      kind: file.kind,
+      id: file.key,
+    };
+    if (file.parents && file.parents.length) {
+      event.parent = file.parents[file.parents.length - 1];
+    }
+    const f = { url: RouteBuilder.files(), users };
+    Clients.notify(event, f);
+  }
+
+  private async removeGroupPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
+    await this.parent.permission.removeGroupPermission(file, operation, removingUser.key);
+    // TODO: Notify group users.
+  }
+
+  checkAccess(minimumLevel: PermissionRole, key: string, user: IUser): Promise<PermissionRole>;
+  checkAccess(minimumLevel: PermissionRole, file: IFile, user: IUser): Promise<PermissionRole>;
+  
+  async checkAccess(minimumLevel: PermissionRole, keyOrFile: string | IFile, user: IUser): Promise<PermissionRole> {
+    if (!user) {
+      throw new ApiError(`Authentication required.`, 401)
+    }
+    const role = await this.parent.permission.readFileAccess(keyOrFile, user.key, async (id) => this.get(id));
+    if (!role) {
+      throw new ApiError(`Not found.`, 404);
+    }
+    const sufficient = this.parent.permission.hasRole(minimumLevel, role);
+    if (!sufficient) {
+      throw new ApiError(`Insufficient permissions to access this resource.`, 403);
+    }
+    return role;
+  }
+
+  async listUsers(key: string, user: IUser): Promise<IListResponse<IUser | undefined>> {
+    await this.checkAccess('reader', key, user);
+    const ids: string[] = [];
+    const file = await this.get(key) as IFile;
+    file.permissions.forEach((p) => {
+      const { type } = p;
+      if (type === 'user') {
+        if (p.owner) {
+          ids.push(p.owner);
+        }
+      }
+    });
+    return this.parent.user.read(ids, { removeProviderData: true });
+  }
+
+  /**
+   * Reads access to the file. It iterates over the parents to read the inherited access.
+   * @param key The key of the file.
+   * @returns The list of unique user ids.
+   */
+  async fileUserIds(key: string): Promise<string[]> {
+    const file = await this.get(key, true);
+    if (!file) {
+      throw new ApiError(`File does not exist while reading the file users.`, 500);
+    }
+    const ids = this.readFileUserIds(file);
+    if (file.parents && file.parents.length) {
+      const last = file.parents[file.parents.length -1];
+      try {
+        const parentAccess = await this.fileUserIds(last);
+        parentAccess.forEach(i => {
+          if (!ids.includes(i)) {
+            ids.push(i);
+          }
+        });
+      } catch (e) {
+        this.parent.logger.error(e);
+      }
+    }
+    return ids;
+  }
+
+  readFileUserIds(file: IFile, includeOwner=true): string[] {
+    const result: string[] = [];
+    const { owner, permissions=[] } = file;
+    if (includeOwner) {
+      result.push(owner);
+    }
+    permissions.forEach((p) => {
+      if (p.type === 'user') {
+        result.push(p.owner as string);
+      }
+    });
+    return result;
+  }
+}

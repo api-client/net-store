@@ -1,9 +1,8 @@
 import { ParameterizedContext } from 'koa';
-import { IHttpHistory, IHttpHistoryBulkAdd, RouteBuilder } from '@api-client/core';
+import { IHttpHistory, IHttpHistoryBulkAdd, RouteBuilder, ApiError } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
-import { ApiError } from '../ApiError.js';
-import { HistoryState } from '../persistence/LevelStores.js';
+import { HistoryState } from '../persistence/level/AbstractHistory.js';
 
 export default class HistoryHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
@@ -136,7 +135,7 @@ export default class HistoryHttpRoute extends BaseRoute {
         throw new ApiError(`The id parameter cannot be an array`, 400);
       }
       // @ts-ignore
-      result.id = id as any;
+      result.id = id as string;
     }
     if (user) {
       if (Array.isArray(user)) {

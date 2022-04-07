@@ -1,17 +1,25 @@
+import { WorkspaceKind, HttpProjectKind, UserKind } from '@api-client/core';
+import { AltType } from './level/AbstractRevisions.js';
+
 /**
  * The key generator for the Level DB implementation of the API CLient's data store.
  */
 export class KeyGenerator {
+  static deletedKey(kind: string, ...keys: string[]): string {
+    const k = this.normalizeKind(kind);
+    return `~${k}~${keys.join('~')}~`;
+  }
+
   static deletedSpaceKey(key: string): string {
-    return `~space~${key}~`;
+    return this.deletedKey(WorkspaceKind, key);
   }
   
   static deletedUserKey(key: string): string {
-    return `~user~${key}~`;
+    return this.deletedKey(UserKind, key);
   }
   
-  static deletedProjectKey(space: string, project: string): string {
-    return `~project~${space}~${project}~`;
+  static deletedProjectKey(project: string): string {
+    return this.deletedKey(HttpProjectKind, project);
   }
 
   static projectKey(space: string, project: string): string {
@@ -38,11 +46,16 @@ export class KeyGenerator {
     return `~${app}~${user}~${time}~`;
   }
 
-  static projectRevisionKey(key: string, time: string): string {
-    return `~project~${key}~${time}~`;
+  static revisionKey(key: string, time: string, alt: AltType = "media"): string {
+    return `~${alt}~${key}~${time}~`;
   }
 
-  static sharedSpace(space: string, user: string): string {
-    return `~space~${user}~${space}~`;
+  static sharedFile(kind: string, file: string, user: string): string {
+    const k = this.normalizeKind(kind);
+    return `~${k}~${user}~${file}~`;
+  }
+
+  static normalizeKind(kind: string): string {
+    return kind.toLowerCase().replace('#', '');
   }
 }

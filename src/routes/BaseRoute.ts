@@ -1,9 +1,8 @@
 import { Request, ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser, AccessOperation, Logger, IListOptions } from '@api-client/core';
+import { IUser, AccessOperation, Logger, IListOptions, ApiError, IApiError } from '@api-client/core';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
-import { ApiError, IApiError } from '../ApiError.js';
 import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
 
@@ -54,11 +53,12 @@ export abstract class BaseRoute {
     return 'application/json';
   }
 
-  wrapError(cause: Error, code = 500, detail?: string): IApiError {
+  wrapError(cause: ApiError): IApiError {
+    const { code = 500, detail, message } = cause;
     return {
       error: true,
       code,
-      message: cause.message,
+      message,
       detail: detail || 'There was an error. That is all we know.'
     };
   }
@@ -69,9 +69,10 @@ export abstract class BaseRoute {
    * @param cause 
    */
   errorResponse(ctx: ParameterizedContext, cause: any): void {
-    const e = cause as ApiError;
+    const e = cause as IApiError;
     const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-    ctx.body = this.wrapError(error, error.code);
+    error.detail = e.detail;
+    ctx.body = this.wrapError(error);
     ctx.status = error.code;
     ctx.type = this.jsonType;
   }
@@ -111,7 +112,7 @@ export abstract class BaseRoute {
       });
     });
   }
-
+  
   protected collectListingParameters(ctx: ParameterizedContext): IListOptions {
     const { cursor, limit, query, queryField, parent } = ctx.query;
     const options: IListOptions = {};
@@ -121,29 +122,40 @@ export abstract class BaseRoute {
     if (typeof limit === 'string' && limit) {
       const value = Number(limit);
       if (Number.isNaN(value)) {
-        throw new ApiError('The "limit" parameter is not a number', 400);
+        throw new ApiError('The "limit" parameter is not a number.', 400);
       }
       options.limit = value;
     }
     if (Array.isArray(query)) {
-      throw new ApiError(`The "query" parameter cannot be an array`, 400);
+      throw new ApiError(`The "query" parameter cannot be an array.`, 400);
     }
     if (typeof query === 'string') {
       options.query = query;
     }
     if (queryField && !Array.isArray(queryField)) {
-      throw new ApiError(`The "queryField" parameter must be an array`, 400);
+      throw new ApiError(`The "queryField" parameter must be an array.`, 400);
     }
     if (queryField) {
       options.queryField = queryField as string[];
     }
     if (Array.isArray(parent)) {
-      throw new ApiError(`The "parent" parameter cannot be an array`, 400);
+      throw new ApiError(`The "parent" parameter cannot be an array.`, 400);
     }
     if (typeof parent === 'string') {
       options.parent = parent;
     }
     return options;
+  }
+
+  protected listKinds(ctx: ParameterizedContext): string[] {
+    let { kind } = ctx.query;
+    if (!kind) {
+      throw new ApiError(`The "kind" parameter is not set.`, 400);
+    }
+    if (!Array.isArray(kind)) {
+      kind = [kind];
+    }
+    return kind;
   }
 
   /**

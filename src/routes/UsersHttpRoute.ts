@@ -1,8 +1,7 @@
 import { ParameterizedContext } from 'koa';
-import { IUser, RouteBuilder } from '@api-client/core';
+import { IUser, RouteBuilder, ApiError } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
-import { ApiError } from '../ApiError.js';
 
 export default class UsersHttpRoute extends BaseRoute {
   async setup(): Promise<void> {

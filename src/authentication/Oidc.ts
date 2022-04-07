@@ -4,11 +4,10 @@ import http from 'http';
 import { URL, URLSearchParams } from 'url';
 import { randomBytes } from 'crypto';
 import { ParameterizedContext, Next } from 'koa';
-import { IUser, UserKind, RouteBuilder } from '@api-client/core'
+import { IUser, UserKind, RouteBuilder, ApiError, IApiError } from '@api-client/core'
 import { IOidcConfiguration, IApplicationState } from '../definitions.js';
 import { Authentication, IAuthenticationOptions } from './Authentication.js';
 import { ITokenContents, IAuthenticatedSession } from '../session/AppSession.js';
-import { ApiError, IApiError } from '../ApiError.js';
 import Clients, { IClientFilterOptions } from '../routes/WsClients.js';
 import { IOpenIdProviderMetadata } from './OpenIdProviderMetadata.js';
 

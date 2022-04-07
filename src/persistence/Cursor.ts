@@ -1,7 +1,8 @@
+import { ApiError } from '@api-client/core';
 import { Config } from '../lib/Config.js';
 import { Encryption } from '../lib/Encryption.js';
-import { IListState, HistoryState } from './LevelStores.js';
-import { ApiError } from '../ApiError.js';
+import { IListState } from './State.js';
+import { HistoryState } from './level/AbstractHistory.js';
 
 /**
  * A class that serializes and deserializes the pagination cursor.

@@ -23,18 +23,18 @@ export class TestsHttpRoute extends BaseRoute {
 
     router.delete('/test/reset/users', this.handleDataResetUsers.bind(this));
     router.delete('/test/reset/sessions', this.handleDataResetSessions.bind(this));
-    router.delete('/test/reset/spaces', this.handleDataResetSpaces.bind(this));
+    router.delete('/test/reset/files', this.handleDataResetFiles.bind(this));
     router.delete('/test/reset/projects', this.handleDataResetProjects.bind(this));
     router.delete('/test/reset/revisions', this.handleDataResetRevisions.bind(this));
     router.delete('/test/reset/bin', this.handleDataResetBin.bind(this));
     router.delete('/test/reset/history', this.handleDataResetHistory.bind(this));
     router.delete('/test/reset/shared', this.handleDataResetShared.bind(this));
     router.delete('/test/reset/permissions', this.handleDataResetPermissions.bind(this));
-    router.post('/test/generate/spaces', this.handleDataGenerateSpaces.bind(this));
-    router.post('/test/generate/projects/:space', this.handleDataGenerateSpaceProjects.bind(this));
+    router.post('/test/generate/files', this.handleDataGenerateFiles.bind(this));
+    // router.post('/test/generate/projects/:parent', this.handleDataGenerateProjects.bind(this));
     router.post('/test/generate/revisions/pr/:project', this.handleDataGenerateProjectRevisions.bind(this));
     router.post('/test/generate/users', this.generateUsers.bind(this));
-    router.post('/test/generate/shared/spaces', this.generateSharedSpaces.bind(this));
+    router.post('/test/generate/shared/files', this.generateSharedFiles.bind(this));
   }
 
   protected async handleDataResetUsers(ctx: ParameterizedContext): Promise<void> {
@@ -55,9 +55,9 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
-  protected async handleDataResetSpaces(ctx: ParameterizedContext): Promise<void> {
+  protected async handleDataResetFiles(ctx: ParameterizedContext): Promise<void> {
     try {
-      await this.testStore.clearSpaces();
+      await this.testStore.clearFiles();
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);
@@ -122,7 +122,7 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
-  protected async handleDataGenerateSpaces(ctx: ParameterizedContext): Promise<void> {
+  protected async handleDataGenerateFiles(ctx: ParameterizedContext): Promise<void> {
     const { size='25', owner } = ctx.query;
     const sizeParam = Number(size);
     let ownerParam = owner;
@@ -133,7 +133,7 @@ export class TestsHttpRoute extends BaseRoute {
       }
     }
     try {
-      const generated = await this.testStore.generateSpaces(sizeParam, ownerParam as string | undefined);
+      const generated = await this.testStore.generateSpaces(ownerParam as string, sizeParam);
       ctx.status = 200;
       ctx.type = 'json';
       ctx.body = generated;
@@ -142,19 +142,19 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
-  protected async handleDataGenerateSpaceProjects(ctx: ParameterizedContext): Promise<void> {
-    const { size='25' } = ctx.query;
-    const sizeParam = Number(size);
-    const { space } = ctx.params;
-    try {
-      const generated = await this.testStore.generateProjects(space, sizeParam);
-      ctx.status = 200;
-      ctx.type = 'json';
-      ctx.body = generated;
-    } catch (cause) {
-      this.errorResponse(ctx, cause);
-    }
-  }
+  // protected async handleDataGenerateProjects(ctx: ParameterizedContext): Promise<void> {
+  //   const { size='25' } = ctx.query;
+  //   const sizeParam = Number(size);
+  //   const { parent } = ctx.params;
+  //   try {
+  //     const generated = await this.testStore.generateProjects(space, sizeParam);
+  //     ctx.status = 200;
+  //     ctx.type = 'json';
+  //     ctx.body = generated;
+  //   } catch (cause) {
+  //     this.errorResponse(ctx, cause);
+  //   }
+  // }
 
   protected async handleDataGenerateProjectRevisions(ctx: ParameterizedContext): Promise<void> {
     const { size='25' } = ctx.query;
@@ -192,7 +192,7 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
-  protected async generateSharedSpaces(ctx: ParameterizedContext): Promise<void> {
+  protected async generateSharedFiles(ctx: ParameterizedContext): Promise<void> {
     const { size, owner, target, type, role } = ctx.query;
     const init: ISharedSpacesInit = {};
     if (size) {

@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import jwt from 'jsonwebtoken';
-import { ApiError } from '../ApiError.js';
+import { ApiError } from '@api-client/core'
 
 /**
  * A class that handles JWT in the application.

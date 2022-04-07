@@ -105,34 +105,32 @@ The response is a user object.
 
 The email array, picture, and locale is only present when it was returned by the authentication server.
 
-## /spaces
+## /files
 
-This endpoint (and sub-endpoints) requires authentication. Note, these are not used in a single-user environment.
+This endpoint (and sub-endpoints) requires authentication unless working in a single-user environment.
 
-A space is a folder (or otherwise logical location) where users can keep their HTTP projects. A space can be shared with other users. User has the same access level to projects as defined in the space for this user.
+A file is an abstract concept of a metadata associated with the content of the file (in most cases). When creating an object like HttpProject the store also creates a file alongside. While the clients uses files for all kinds of listings the contents of the file can be requested by adding the `alt=media` query parameter. A user space has no contents and only exists to organize user files. Only spaces can contain other files.
 
-### GET /spaces
+### GET /files
 
-Lists user spaces.
+Lists user files
 
 ```http
-GET /spaces?cursor=... HTTP 1/1
+GET /files?cursor=... HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ```
 
-The response is the list result for spaces.
+The response is the list of files in the root or parent space.
 
 ```json
 {
   "data": [
     {
       "key": "8c38abfe-9828-11ec-b909-0242ac120002",
-      "name": "Drafts",
-      "users": [],
-      "projects": [],
-      "access": "read"
+      "kind": "Core#Space",
+      ...
     }
   ],
   "cursor": "eyJsaW1pdCI6MzUsImxhc3RLZXkiOiI4YzM4YWJmZS05ODI4LTExZWMtYjkwOS0wMjQyYWMxMjAwMDIifQ=="
@@ -141,18 +139,18 @@ The response is the list result for spaces.
 
 The endpoint supports a cursor-based pagination. You can set the `limit` and `cursor` query parameters. THe `limit` says how many results return in the page of results. The response always have the `cursor` value which should be used with next request to the pagination endpoint. When `cursor` is set the `limit` is ignored.
 
-### POST /spaces
+### POST /files
 
-Creates a new space and makes the current user an owner.
+Creates a new file and makes the current user an owner.
 
 ```http
-POST /spaces HTTP 1/1
+POST /files HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 content-type: application/json
 
 {
-  ... space object
+  ... file object
 }
 ```
 
@@ -161,20 +159,22 @@ The response has `204` status code, no body, and the `location` header which can
 ```http
 HTTP 1/1 204 No content
 
-Location: /spaces/[space id]
+Location: /files/[file id]
 ...
 ```
 
-Note, this operation triggers a web socket event on the `/spaces` endpoint.
+Usually, the body of the request of the contents of the target object (the media). The space creates a corresponding File entry for the contents. Exception here is a user space which file schema is directly passed to the body of the request.
 
-## /spaces/{space}
+Note, this operation triggers a web socket event on the `/files` endpoint.
 
-### GET /spaces/{space}
+## /files/{file}
 
-Reads a user space. It returns the object only when the user has access to the space.
+### GET /files/{file}
+
+Reads a file metadata. It returns the object only when the user has access to the file.
 
 ```http
-GET /spaces/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
+GET /files/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
@@ -184,24 +184,39 @@ The response is the space object
 
 ```json
 {
-  "key": "6ba3d03d-1ade-4bae-9461-50c0b5dd6da1",
-  "name": "Drafts",
-  "users": [],
-  "projects": [],
-  "access": "owner"
+  "key": "8c38abfe-9828-11ec-b909-0242ac120002",
+  "kind": "Core#Space",
+  ...
 }
 ```
 
-Note, the `access` property is added by the server for this specific user. This property is otherwise ignored by the server.
+### GET /files/{file}?alt=meta
 
-Note, this operation triggers a web socket event on the `/spaces` endpoint.
-
-### PATCH /spaces/{space}
-
-Patches a space. It uses the JSON patch specification (RFC 6902) to construct the patch object.
+Reads a file contents. It returns the object only when the user has access to the file.
 
 ```http
-PATCH /spaces/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
+GET /files/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1?alt=meta HTTP 1/1
+Host: ...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+```
+
+The response is the contents of the file
+
+```json
+{
+  "key": "8c38abfe-9828-11ec-b909-0242ac120002",
+  "kind": "Core#HttpProject",
+  ...
+}
+```
+
+### PATCH /files/{file}
+
+Patches a file metadata. It uses the JSON patch specification (RFC 6902) to construct the patch object.
+
+```http
+PATCH /files/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 content-type: application/json
@@ -209,7 +224,7 @@ content-type: application/json
 [
   {
     "op": "replace",
-    "path": "/name",
+    "path": "/info/name",
     "value": "No more drafts"
   }
 ]
@@ -230,20 +245,22 @@ The response is the reversible patch operation that can be user to restore the c
 }
 ```
 
-Note, this operation triggers a web socket event on the `/spaces/[space id]` endpoint.
+Note, this operation triggers a web socket event on the `/files` endpoint.
 
 The PATCH operation is supported by the JSON8 library.
 
-### DELETE /spaces/{space}
+### PATCH /files/{file}?alt=media
 
-Status: Not yet implemented.
+Patches a file contents. It works the same as `PATCH /files/{file}` but the patch is applied to the contents and not the metadata.
 
-Removes a space and projects located in the space from the store.
+### DELETE /files/{file}
 
-Note, data are not permanently removed from the store but marked as deleted. This way the data can be restored after an accidental delete.
+Removes a file amd its contents from the store.
+
+Note, data are not permanently removed from the store but marked as deleted. This way the data can be restored after an accidental delete or synchronized with another store.
 
 ```http
-DELETE /spaces/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
+DELETE /files/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1 HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
@@ -251,18 +268,18 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 The response is `204` status code.
 
-Note, this operation triggers a web socket event on the `/spaces` endpoint.
+Note, this operation triggers a web socket event on the `/files` endpoint.
 
-## /spaces/{space}/users
+## /files/{file}/users
 
-An endpoint to manage space users.
+An endpoint to list users that have access to the file.
 
-### PATCH /spaces/{space}/users
+### PATCH /files/{file}/users
 
 The message body is the list of patches to apply to the users. The server supports two PATCH operations: "add" and "remove". Note, these are not the same patched as defined in JSON Patch specification.
 
 ```http
-PATCH /spaces/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1/users HTTP 1/1
+PATCH /files/6ba3d03d-1ade-4bae-9461-50c0b5dd6da1/users HTTP 1/1
 Host: ...
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
@@ -283,27 +300,3 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ]
 
 ```
-
-## /spaces/{space}/projects
-
-An endpoint that operated on a collection of projects in a space.
-
-### GET /spaces/{space}/projects
-
-Lists available projects in the suer space.
-
-### POST /spaces/{space}/projects
-
-Creates a project in the user space.
-
-## /spaces/{space}/projects/{project}
-
-### GET /spaces/{space}/projects/{project}
-
-### PATCH /spaces/{space}/projects/{project}
-
-### DELETE /spaces/{space}/projects/{project}
-
-## /spaces/{space}/projects/{project}/revisions
-
-### GET /spaces/{space}/projects/{project}/revisions
