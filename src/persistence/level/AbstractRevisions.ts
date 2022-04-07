@@ -1,5 +1,5 @@
 import { IUser, IListResponse, IListOptions,IRevisionInfo } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 
 export type AltType = 'media' | 'meta';
 

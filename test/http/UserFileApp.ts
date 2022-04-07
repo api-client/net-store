@@ -3,7 +3,7 @@ import {
   StoreSdk, RouteBuilder, IBackendEvent, IFile, ProjectKind,
 } from '@api-client/core';
 import { WebSocket } from 'ws';
-import ooPatch, { JsonPatch } from 'json8-patch';
+import { Patch, JsonPatch } from '@api-client/json';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
 
 export class UserFileApp {
@@ -146,8 +146,8 @@ export class UserFileApp {
     }
     const patch = data as JsonPatch;
     const file = this.files[index];
-    const result = ooPatch.apply(file, patch);
-    this.files[index] = result.doc;
+    const result = Patch.apply(file, patch);
+    this.files[index] = result.doc as IFile;
   }
 
   async handleMetaAccessGranted(event: IBackendEvent): Promise<void> {

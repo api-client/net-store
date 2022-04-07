@@ -3,7 +3,7 @@ import {
   IUser, IBackendEvent, IListResponse, IListOptions, PermissionRole, IFile, ApiError,
   AccessOperation, RouteBuilder, IAccessAddOperation, IAccessRemoveOperation, WorkspaceKind,
 } from '@api-client/core';
-import ooPatch, { JsonPatch, diff } from 'json8-patch';
+import { JsonPatch, Patch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import { IFileAddOptions, IFilesStore } from './AbstractFiles.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
@@ -181,7 +181,7 @@ export class Files extends SubStore implements IFilesStore {
   }
 
   async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
-    const isValid = ooPatch.valid(patch);
+    const isValid = Patch.valid(patch);
     if (!isValid) {
       throw new ApiError(`Malformed patch information.`, 400);
     }
@@ -195,8 +195,9 @@ export class Files extends SubStore implements IFilesStore {
       throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
     }
     const file = await this.read(key, user);
-    const result = ooPatch.apply(file, patch, { reversible: true });
-    await this.update(key, result.doc, patch, user);
+    const result = Patch.apply(file, patch, { reversible: true });
+    await this.update(key, result.doc as IFile, patch, user);
+    // @ts-ignore
     return result.revert;
   }
 
@@ -308,7 +309,7 @@ export class Files extends SubStore implements IFilesStore {
     await this.db.put(key, this.parent.encodeDocument({ ...file, permissions: [] }));
 
     // JSON-patch library takes care of the difference to the object
-    const diffPatch = diff(copy, file);
+    const diffPatch = Patch.diff(copy, file);
     // note, we add the `permissions` field to the patch as the client already has this field filled up.
     
     // we inform about the space change only when there was an actual change (may not be when updating permissions only).

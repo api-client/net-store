@@ -247,7 +247,7 @@ The response is the reversible patch operation that can be user to restore the c
 
 Note, this operation triggers a web socket event on the `/files` endpoint.
 
-The PATCH operation is supported by the JSON8 library.
+The PATCH operation is supported by the `@api-client/json` library.
 
 ### PATCH /files/{file}?alt=media
 

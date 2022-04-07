@@ -7,7 +7,7 @@ import {
   RouteBuilder, Project, WorkspaceKind, AccessOperation, IFile, Timers, ProjectKind,
   ApiError,
 } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';

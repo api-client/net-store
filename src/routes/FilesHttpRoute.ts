@@ -5,7 +5,7 @@ import {
   IFile, IUser, RouteBuilder, AccessOperation, IWorkspace, IHttpProject, 
   WorkspaceKind, HttpProjectKind, Project, IProject, ProjectKind, ApiError,
 } from '@api-client/core';
-import ooPatch, { JsonPatch } from 'json8-patch';
+import { JsonPatch, Patch } from '@api-client/json';
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
 import { IFileAddOptions } from '../persistence/level/AbstractFiles.js';
@@ -178,7 +178,7 @@ export default class FilesRoute extends BaseRoute {
     if (meta.kind !== ProjectKind) {
       throw new ApiError(`The file has unsupported kind: ${meta.kind}.`, 400);
     }
-    const isValid = ooPatch.valid(patch);
+    const isValid = Patch.valid(patch);
     if (!isValid) {
       throw new ApiError(`Invalid patch information.`, 400);
     }
@@ -187,7 +187,7 @@ export default class FilesRoute extends BaseRoute {
     const file = new Project(meta as IProject);
     file.setLastModified(user);
     const updatedFile = file.toJSON();
-    const delta = ooPatch.diff(meta, updatedFile);
+    const delta = Patch.diff(meta, updatedFile);
     await this.store.file.update(key, updatedFile, delta, user);
     return result;
   }

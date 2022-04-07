@@ -1,6 +1,6 @@
 import { Bytes } from 'leveldown';
 import { IUser, IHttpProject, IBackendEvent, RouteBuilder, HttpProjectKind, ApiError } from '@api-client/core';
-import ooPatch, { JsonPatch } from 'json8-patch';
+import { JsonPatch, Patch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import { IProjectsStore } from './AbstractProject.js';
@@ -67,7 +67,7 @@ export class Project extends SubStore implements IProjectsStore {
   }
 
   async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
-    const isValid = ooPatch.valid(patch);
+    const isValid = Patch.valid(patch);
     if (!isValid) {
       throw new ApiError(`Malformed patch information.`, 400);
     }
@@ -79,8 +79,9 @@ export class Project extends SubStore implements IProjectsStore {
       throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
     }
     const file = await this.read(key);
-    const result = ooPatch.apply(file, patch, { reversible: true });
+    const result = Patch.apply(file, patch, { reversible: true });
     await this.db.put(key, this.parent.encodeDocument(result.doc));
+    // @ts-ignore
     await this.parent.revisions.add(file.kind, key, result.revert, user);
 
     const users = await this.parent.file.fileUserIds(key);
@@ -96,7 +97,7 @@ export class Project extends SubStore implements IProjectsStore {
       users,
     };
     Clients.notify(event, filter);
-
+    // @ts-ignore
     return result.revert;
   }
 }

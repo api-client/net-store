@@ -1,6 +1,6 @@
 import { AbstractIteratorOptions } from 'abstract-leveldown';
 import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, RevisionInfoKind, ICursorOptions, RouteBuilder } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
 import { KeyGenerator } from '../KeyGenerator.js';

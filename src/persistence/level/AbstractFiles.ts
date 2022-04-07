@@ -2,7 +2,7 @@ import {
   IUser, IListResponse, IListOptions, AccessOperation, PermissionRole, IAccessAddOperation, IFile,
   IAccessRemoveOperation,
 } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 
 export interface IFileAddOptions {
   /**

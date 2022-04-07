@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import sinon from 'sinon';
 import { ApiError, DefaultLogger, ProjectMock, IHttpProject, HttpProject, IBackendEvent, RouteBuilder, HttpProjectKind } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import { DataHelper } from '../helpers/DataHelper.js';

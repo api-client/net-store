@@ -1,5 +1,5 @@
 import { IUser, IHttpProject } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 
 /**
  * The part of the store that takes care of the project data.

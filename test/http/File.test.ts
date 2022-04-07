@@ -5,7 +5,7 @@ import {
   HttpProject, HttpProjectKind, WorkspaceKind, RouteBuilder, StoreSdk,
   Workspace, ProjectKind, IHttpProject, ApiError,
 } from '@api-client/core';
-import { JsonPatch } from 'json8-patch';
+import { JsonPatch } from '@api-client/json';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 
