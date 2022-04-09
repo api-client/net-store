@@ -1,6 +1,6 @@
 import { 
   IHttpHistory, ProjectMock, IHttpHistoryListInit, IWorkspace, Workspace,
-  IRevisionInfo, HttpProjectKind, Project, HttpProject,
+  IRevision, HttpProjectKind, Project, HttpProject,
   Permission, PermissionRole, PermissionType, IUser, IHttpProject,
 } from '@api-client/core';
 import { PutBatch } from 'abstract-leveldown';
@@ -221,7 +221,7 @@ export class DataHelper {
 
   static async generateRevisions(store: StoreLevelUp, projectKey: string, size=25): Promise<void> {
     const data: PutBatch[] = [];
-    const result: IRevisionInfo[] = [];
+    const result: IRevision[] = [];
     let created = Date.now();
     for (let i = 0; i < size; i++) {
       created += mock.types.number({ min: 1, max: 10000 });
@@ -231,7 +231,7 @@ export class DataHelper {
         path: '/info/name',
         value: mock.lorem.word(),
       };
-      const info: IRevisionInfo = {
+      const info: IRevision = {
         id,
         key: projectKey,
         kind: HttpProjectKind,
@@ -262,7 +262,7 @@ export class DataHelper {
     const result: IWorkspace[] = [];
     for (let i = 0; i < size; i++) {
       const name = mock.lorem.word();
-      const workspace = Workspace.fromName(name, owner);
+      const workspace = Workspace.fromName(name, owner).toJSON();
 
       const tid = target || mock.types.uuid();
       const permission = Permission.fromValues({
@@ -281,11 +281,11 @@ export class DataHelper {
         uid: tid,
       };
 
-      result.push(workspace.toJSON());
+      result.push(workspace);
       spacesData.push({
         type: 'put',
         key: workspace.key,
-        value: JSON.stringify({ ...workspace, permission: []}),
+        value: JSON.stringify({ ...workspace, permissions: []}),
       });
       permissionData.push({
         type: 'put',

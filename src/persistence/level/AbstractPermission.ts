@@ -104,15 +104,6 @@ export interface IPermissionStore {
   findUserPermission(file: IFile, id: string, userRoles?: IGroup[]): PermissionRole | undefined;
 
   /**
-   * Checks whether the current user role meets the minimum required role.
-   * 
-   * @param minimumLevel The minimum requested role
-   * @param currentRole The user role.
-   * @returns True if the `currentRole` is at least the `minimumRole`
-   */
-  hasRole(minimumLevel: PermissionRole, currentRole: PermissionRole): boolean;
-
-  /**
    * In the unsorted array of permissions finds the permission that has a role with the highest
    * value.
    * 

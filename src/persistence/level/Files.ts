@@ -2,6 +2,7 @@ import { Bytes } from 'leveldown';
 import { 
   IUser, IBackendEvent, IListResponse, IListOptions, PermissionRole, IFile, ApiError,
   AccessOperation, RouteBuilder, IAccessAddOperation, IAccessRemoveOperation, WorkspaceKind,
+  File, Permission,
 } from '@api-client/core';
 import { JsonPatch, Patch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
@@ -9,6 +10,11 @@ import { IFileAddOptions, IFilesStore } from './AbstractFiles.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import { validateKinds } from './Validator.js';
+
+interface FileUser {
+  id: string;
+  role: PermissionRole;
+}
 
 /**
  * The Files store operates on all objects that extends the `IFile` interface.
@@ -33,6 +39,13 @@ import { validateKinds } from './Validator.js';
 export class Files extends SubStore implements IFilesStore {
   async cleanup(): Promise<void> {
     await this.db.close();
+  }
+
+  /**
+   * A link to the `PermissionStore.readFileAccess()`.
+   */
+  readFileAccess(keyOrFile: string | IFile, userKey: string): Promise<PermissionRole | undefined> {
+    return this.parent.permission.readFileAccess(keyOrFile, userKey, async (id) => this.get(id));
   }
 
   async list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>> {
@@ -75,15 +88,12 @@ export class Files extends SubStore implements IFilesStore {
           continue;
         }
         obj.permissions = await this.parent.permission.list(obj.permissionIds);
-        if (parent) {
-          const access = await this.parent.permission.readFileAccess(obj, user.key, async (id) => this.get(id));
-          if (!access) {
-            continue;
-          }
+        const role = await this.readFileAccess(obj, user.key);
+        if (!role) {
+          continue;
         }
-        if (obj.lastModified) {
-          obj.lastModified.byMe = obj.lastModified.user === user.key;
-        }
+        obj.capabilities = File.createFileCapabilities(obj, role);
+        File.updateByMeMeta(obj, user.key);
         data.push(obj);
         lastKey = key;
         remaining -= 1;
@@ -127,39 +137,87 @@ export class Files extends SubStore implements IFilesStore {
     file.permissions = [];
     file.permissionIds = [];
     file.owner = user.key;
+    delete file.capabilities;
     this.setModified(file, user);
 
-    const value = this.parent.encodeDocument(file);
-    await this.db.put(key, value);
+    await this.db.put(key, this.parent.encodeDocument(file));
 
     const event: IBackendEvent = {
       type: 'event',
       operation: 'created',
-      data: file,
+      // data: file,
       kind: file.kind,
       id: file.key,
     };
-    let users: string[] = [];
     if (opts.parent) {
       event.parent = opts.parent;
-      users = await this.fileUserIds(opts.parent);
     }
-    users.push(user.key);
+
     const filter: IClientFilterOptions = {
       url: RouteBuilder.files(),
-      users,
     };
-    Clients.notify(event, filter);
+    // this included the owner
+    const roles = await this.fileUsers(key);
+    roles.forEach((info) => {
+      const copy = { ...file };
+      delete copy.capabilities;
+      copy.lastModified = { ...copy.lastModified };
+      if (copy.deletedInfo) {
+        copy.deletedInfo = { ...copy.deletedInfo };
+      }
+      copy.capabilities = File.createFileCapabilities(copy, info.role);
+      File.updateByMeMeta(copy, user.key);
+      event.data = copy;
+      Clients.notify(event, { ...filter, users: [info.id] });
+    });
+
+    file.capabilities = File.createFileCapabilities(file, 'owner');
+    File.updateByMeMeta(file, user.key);
+    event.data = file;
     return file;
   }
 
   async read(key: string, user: IUser): Promise<IFile> {
-    await this.checkAccess('reader', key, user);
-    return this.get(key) as Promise<IFile>; // check permission throws when no file or was deleted
+    const role = await this.checkAccess('reader', key, user);
+    const file = await this.get(key) as IFile; // check permission throws when no file or was deleted
+    file.capabilities = File.createFileCapabilities(file, role);
+    File.updateByMeMeta(file, user.key);
+    return file;
+  }
+
+  async readBulk(keys: string[], user: IUser): Promise<IListResponse<IFile|undefined>> {
+    const raw = await this.db.getMany(keys);
+    const result: IListResponse<IFile|undefined> = {
+      data: [],
+    };
+    for (const item of raw) {
+      if (!item) {
+        result.data.push(undefined);
+        continue;
+      }
+      const file = this.parent.decodeDocument(item) as IFile;
+      const role = await this.readFileAccess(file.key, user.key);
+      if (!role) {
+        result.data.push(undefined);
+        continue;
+      }
+      if (file.permissionIds.length) {
+        file.permissions = await this.parent.permission.list(file.permissionIds);
+      } else {
+        file.permissions = [];
+      }
+      file.capabilities = File.createFileCapabilities(file, role);
+      File.updateByMeMeta(file, user.key);
+      result.data.push(file);
+    }
+    return result;
   }
 
   /**
    * Reads the file without checking for user role.
+   * 
+   * Note, this won't set the file capabilities.
+   * 
    * @param key The key of the file.
    * @param includePermissions Whether to read file's permissions. Default to true.
    * @returns The file of undefined when not found.
@@ -185,19 +243,18 @@ export class Files extends SubStore implements IFilesStore {
     if (!isValid) {
       throw new ApiError(`Malformed patch information.`, 400);
     }
-    const prohibited: string[] = [
-      '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', '/kind', '/owner', '/lastModified'
+    const ignored: string[] = [
+      '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', '/kind', '/owner', '/lastModified', '/capabilities'
     ];
-    const invalid = patch.find(p => {
-      return prohibited.some(path => p.path.startsWith(path));
+    const filtered = patch.filter(p => {
+      return !ignored.some(path => p.path.startsWith(path));
     });
-    if (invalid) {
-      throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
+    if (!filtered.length) {
+      return [];
     }
     const file = await this.read(key, user);
-    const result = Patch.apply(file, patch, { reversible: true });
+    const result = Patch.apply(file, filtered, { reversible: true });
     await this.update(key, result.doc as IFile, patch, user);
-    // @ts-ignore
     return result.revert;
   }
 
@@ -406,11 +463,11 @@ export class Files extends SubStore implements IFilesStore {
     if (!user) {
       throw new ApiError(`Authentication required.`, 401)
     }
-    const role = await this.parent.permission.readFileAccess(keyOrFile, user.key, async (id) => this.get(id));
+    const role = await this.readFileAccess(keyOrFile, user.key);
     if (!role) {
       throw new ApiError(`Not found.`, 404);
     }
-    const sufficient = this.parent.permission.hasRole(minimumLevel, role);
+    const sufficient = Permission.hasRole(minimumLevel, role);
     if (!sufficient) {
       throw new ApiError(`Insufficient permissions to access this resource.`, 403);
     }
@@ -430,6 +487,64 @@ export class Files extends SubStore implements IFilesStore {
       }
     });
     return this.parent.user.read(ids, { removeProviderData: true });
+  }
+
+  /**
+   * Compiles a list of all users who has access to the file, including permissions inherited from parent spaces.
+   * 
+   * @param key The file to read access user
+   * @param filter When set it limits the number of users to only ones connected to the server via a web socket. 
+   * Use the filter to limit the number of users. The `ids` is always replaces by the user permission currently processed.
+   * @returns The list of users with their role.
+   */
+  async fileUsers(key: string, filter?: IClientFilterOptions): Promise<FileUser[]> {
+    const file = await this.get(key, true);
+    if (!file) {
+      throw new ApiError(`File does not exist while reading the file users.`, 500);
+    }
+    const result = this.readFileUsers(file, true, filter);
+    if (file.parents && file.parents.length) {
+      const last = file.parents[file.parents.length -1];
+      try {
+        const parentAccess = await this.fileUsers(last);
+        parentAccess.forEach(i => {
+          const exists = result.find(e => e.id === i.id);
+          if (!exists) {
+            result.push(i);
+          }
+        });
+      } catch (e) {
+        this.parent.logger.error(e);
+      }
+    }
+    return result;
+  }
+
+  readFileUsers(file: IFile, includeOwner=true, filter?: IClientFilterOptions): FileUser[] {
+    const result: FileUser[] = [];
+    const { owner, permissions=[] } = file;
+    if (includeOwner) {
+      if (filter) {
+        if (Clients.hasUser(owner, filter)) {
+          result.push({ id: owner, role: 'owner' });
+        }
+      } else {
+        result.push({ id: owner, role: 'owner' });
+      }
+    }
+    permissions.forEach((p) => {
+      if (p.type !== 'user') {
+        return;
+      }
+      if (filter) {
+        if (Clients.hasUser(owner, filter)) {
+          result.push({ id: p.owner as string, role: p.role });
+        }
+      } else {
+        result.push({ id: p.owner as string, role: p.role });
+      }
+    });
+    return result;
   }
 
   /**

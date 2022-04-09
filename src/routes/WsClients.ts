@@ -76,7 +76,10 @@ class WsClients {
    * @returns The filtered clients. Returns all when no filter.
    */
   filter(filter: IClientFilterOptions={}): IClientInfo[] {
-    return this.clients.filter(i => {
+    if (!Object.keys(filter).length) {
+      return this.clients;
+    }
+    return this.clients.filter((i) => {
       const { url, users, sids } = filter;
       if (url && i.url !== url) {
         return false;
@@ -141,6 +144,42 @@ class WsClients {
       }
     });
     return result;
+  }
+
+  /**
+   * Reduces the given input array to the only ids of users that
+   * are currently listening on any socket.
+   * You can use the filer option to even further limit the users
+   * to a specific url or session.
+   * 
+   * @param ids The initial list of users we want to notify
+   * @param filter Optional filter for the clients.
+   * @returns The list of user ids that are in the input array and are currently connected to a socket.
+   */
+  filterUserIds(ids: string[], filter: IClientFilterOptions={}): string[] {
+    const list = this.filter(filter);
+    const current: string[] = [];
+    list.forEach((client) => {
+      if (!client.user) {
+        return;
+      }
+      if (current.includes(client.user.key)) {
+        return;
+      }
+      current.push(client.user.key);
+    });
+    return ids.filter(i => current.includes(i));
+  }
+
+  /**
+   * Checks whether a user is currently connected via a web socket.
+   * @param id The key of the user to search
+   * @param filter The optional filer.
+   * @returns True if the user is connected to a socket given the filter.
+   */
+  hasUser(id: string, filter: IClientFilterOptions={}): boolean {
+    const list = this.filter(filter);
+    return list.some(i => !!i.user && i.user.key === id);
   }
 }
 

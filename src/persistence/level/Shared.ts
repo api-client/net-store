@@ -1,4 +1,4 @@
-import { IListResponse, IUser, IListOptions, IFile, WorkspaceKind } from '@api-client/core';
+import { IListResponse, IUser, IListOptions, File, IFile, WorkspaceKind } from '@api-client/core';
 import { AbstractIteratorOptions, DelBatch } from 'abstract-leveldown';
 import { SubStore } from '../SubStore.js';
 import { ISharedStore, ISharedLink } from './AbstractShared.js';
@@ -103,19 +103,20 @@ export class Shared extends SubStore implements ISharedStore {
       cursor,
     };
     const files = await this.parent.file.db.getMany(ids);
-    files.forEach((item) => {
+    for (const item of files) {
       if (!item) {
         // this only can happen when the data is out of sync.
         // this should be fixed.
         this.parent.logger.warn(`Shared data out of sync. A file does not exist.`);
-        return;
+        continue;
       }
-      const space = this.parent.decodeDocument(item) as IFile;
-      if (space.lastModified) {
-        space.lastModified.byMe = space.lastModified.user === user.key;
-      }
-      result.data.push(space);
-    });
+      const file = this.parent.decodeDocument(item) as IFile;
+      const role = await this.parent.file.readFileAccess(file, user.key);
+      file.permissions = await this.parent.permission.list(file.permissionIds);
+      file.capabilities = File.createFileCapabilities(file, role);
+      File.updateByMeMeta(file, user.key);
+      result.data.push(file);
+    }
     return result;
   }
 

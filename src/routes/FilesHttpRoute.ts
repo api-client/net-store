@@ -18,6 +18,9 @@ export default class FilesRoute extends BaseRoute {
     router.get(filesPath, this.filesList.bind(this));
     router.post(filesPath, this.filesCreate.bind(this));
 
+    const bulkPath = RouteBuilder.filesBulk();
+    router.post(bulkPath, this.bulkRead.bind(this));
+
     const filePath = RouteBuilder.file(':file');
     router.get(filePath, this.fileRead.bind(this));
     router.patch(filePath, this.filePatch.bind(this));
@@ -69,6 +72,22 @@ export default class FilesRoute extends BaseRoute {
       ctx.status = 204;
       const spacePath = RouteBuilder.file(body.key);
       ctx.set('location', spacePath);
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async bulkRead(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const body = await this.readJsonBody(ctx.request) as string[];
+      if (!Array.isArray(body)) {
+        throw new ApiError('Expected list of file keys in the message.', 400);
+      }
+      const result = await this.store.file.readBulk(body, user);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }

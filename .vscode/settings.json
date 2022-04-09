@@ -2,6 +2,7 @@
   "cSpell.words": [
     "leveldown",
     "subleveldown",
+    "Untrash",
     "userinfo"
   ],
   "mocha.files.glob": "test/**/*.test.ts",

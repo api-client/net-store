@@ -2,7 +2,7 @@
 import { assert } from 'chai';
 import { 
   Workspace, IWorkspace, WorkspaceKind, IBackendEvent, RouteBuilder, AccessOperation, 
-  StoreSdk, HttpProject, ApiError, IHttpProject, ProjectKind,
+  StoreSdk, HttpProject, ApiError, IHttpProject, ProjectKind, ICapabilities,
 } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
@@ -305,6 +305,80 @@ describe('http', () => {
           
           const list = await sdk.file.list([WorkspaceKind], {}, { token: user2Token });
           assert.lengthOf(list.data, 0, 'has no root space');
+        });
+      });
+
+      describe('bulk read', () => {
+        let user1Token: string;
+        let generated: IWorkspace[];
+        let other: IWorkspace[];
+
+        before(async () => {
+          user1Token = await http.createUserToken(baseUri);
+          sdk.token = user1Token;
+          const ownResult = await http.post(`${baseUri}/test/generate/files?size=4`, {
+            token: user1Token,
+          });
+          generated = JSON.parse(ownResult.body as string) as IWorkspace[];
+
+          const otherResult = await http.post(`${baseUri}/test/generate/files?size=2&owner=123er`);
+          other = JSON.parse(otherResult.body as string) as IWorkspace[];
+        });
+
+        after(async () => {
+          await http.delete(`${baseUri}/test/reset/files`);
+          await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/sessions`);
+        });
+
+        it('reads all requested files in order', async () => {
+          const [f1, f2, f3, f4] = generated;
+          const ids = [f2.key, f1.key, f4.key, f3.key];
+          const result = await sdk.file.readBulk(ids);
+          assert.typeOf(result.data, 'array', 'has the data');
+          assert.lengthOf(result.data, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.data;
+          assert.equal(r1!.key, f2.key);
+          assert.equal(r2!.key, f1.key);
+          assert.equal(r3!.key, f4.key);
+          assert.equal(r4!.key, f3.key);
+        });
+
+        it('returns undefined for unknown files', async () => {
+          const [, f2, f3] = generated;
+          const ids = [f2.key, 'f1', 'f4', f3.key];
+          const result = await sdk.file.readBulk(ids);
+          assert.typeOf(result.data, 'array', 'has the data');
+          assert.lengthOf(result.data, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.data;
+          assert.equal(r1!.key, f2.key);
+          assert.notOk(r2);
+          assert.notOk(r3);
+          assert.equal(r4!.key, f3.key);
+        });
+
+        it('returns undefined for files without access', async () => {
+          const [, f2, f3] = generated;
+          const [f1, f4] = other;
+          const ids = [f2.key, f1.key, f4.key, f3.key];
+          const result = await sdk.file.readBulk(ids);
+          assert.typeOf(result.data, 'array', 'has the data');
+          assert.lengthOf(result.data, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.data;
+          assert.equal(r1!.key, f2.key);
+          assert.notOk(r2);
+          assert.notOk(r3);
+          assert.equal(r4!.key, f3.key);
+        });
+
+        it('inserts file capabilities', async () => {
+          const [f1] = generated;
+          const ids = [f1.key];
+          const result = await sdk.file.readBulk(ids);
+          const [file] = result.data;
+          const c = file!.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities');
+          assert.isTrue(c.canEdit);
         });
       });
     });

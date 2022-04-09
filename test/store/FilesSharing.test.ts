@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { 
   DefaultLogger, IWorkspace, ProjectMock,  Workspace, AccessOperation, HttpProject, WorkspaceKind,
-  ApiError,
+  ApiError, ICapabilities,
 } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { DataHelper } from '../helpers/DataHelper.js';
@@ -120,7 +120,7 @@ describe('Unit tests', () => {
           assert.typeOf(file, 'object');
         });
 
-        // todo: group sharing
+        // TODO: group sharing
       });
 
       describe('listing shared files', () => {
@@ -199,6 +199,26 @@ describe('Unit tests', () => {
           assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
           assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
           assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+        });
+
+        it('adds the permissions list', async () => {
+          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const [file] = list.data;
+          assert.typeOf(file.permissions, 'array');
+          assert.lengthOf(file.permissions, 1);
+        });
+
+        it('adds the capabilities map', async () => {
+          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const [file] = list.data;
+          const c = file.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities');
+        });
+
+        it('sets the byMe values', async () => {
+          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const [file] = list.data;
+          assert.isFalse(file.lastModified.byMe);
         });
       });
 
@@ -348,7 +368,7 @@ describe('Unit tests', () => {
           const readFileOwner = await store.file.read(file.key, user1);
           assert.typeOf(readFileOwner, 'object');
 
-          assert.deepEqual(readOwner, readFileOwner);
+          assert.equal(readOwner.key, readFileOwner.key);
         });
 
         it('can add a project to a shared file', async () => {
@@ -361,7 +381,7 @@ describe('Unit tests', () => {
           const readFileOwner = await store.file.read(p.key, user1);
           assert.typeOf(readFileOwner, 'object');
 
-          assert.deepEqual(readOwner, readFileOwner);
+          assert.deepEqual(readOwner.key, readFileOwner.key);
         });
 
         it('can share a shared file with write role', async () => {

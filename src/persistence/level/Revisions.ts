@@ -1,5 +1,5 @@
 import { AbstractIteratorOptions } from 'abstract-leveldown';
-import { IUser, IListResponse, IListOptions, IRevisionInfo, IBackendEvent, RevisionInfoKind, ICursorOptions, RouteBuilder } from '@api-client/core';
+import { IUser, IListResponse, IListOptions, IRevision, IBackendEvent, RevisionKind, ICursorOptions, RouteBuilder } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
@@ -27,7 +27,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
     const date = new Date();
     const time = date.toJSON();
     const id = KeyGenerator.revisionKey(key, time, alt);
-    const info: IRevisionInfo = {
+    const info: IRevision = {
       id,
       key: key,
       kind,
@@ -47,7 +47,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
       type: 'event',
       operation: 'created',
       data: info,
-      kind: RevisionInfoKind,
+      kind: RevisionKind,
       id,
       parent: key,
     };
@@ -65,7 +65,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
    * @param user User for authorization.
    * @param options Listing options
    */
-  async list(key: string, user: IUser, alt: AltType = "media", options?: IListOptions | ICursorOptions): Promise<IListResponse<IRevisionInfo>> {
+  async list(key: string, user: IUser, alt: AltType = "media", options?: IListOptions | ICursorOptions): Promise<IListResponse<IRevision>> {
     await this.parent.file.checkAccess('reader', key, user);
     const state = await this.parent.readListState(options);
     const { limit = this.parent.defaultLimit } = state;
@@ -82,7 +82,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
       await iterator.next();
     }
     let lastKey: string | undefined;
-    const data: IRevisionInfo[] = [];
+    const data: IRevision[] = [];
     let remaining = limit;
 
     try {
@@ -92,7 +92,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
         if (item._deleted) {
           continue;
         }
-        data.push(item as IRevisionInfo);
+        data.push(item as IRevision);
         lastKey = key;
         remaining -= 1;
         if (!remaining) {
@@ -105,7 +105,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
     // // sorts from the latests to oldest
     // data.sort(({ created: a = 0 }, { created: b = 0 }) => b - a);
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
-    const result: IListResponse<IRevisionInfo> = {
+    const result: IListResponse<IRevision> = {
       data,
       cursor,
     };

@@ -1,7 +1,7 @@
 import { assert } from 'chai';
 import { 
   Workspace, AccessOperation, HttpProject, IUser, StoreSdk, IFile, IWorkspace,
-  IHttpProject, RevisionInfoKind, HttpProjectKind, ProjectMock, HttpHistoryKind,
+  IHttpProject, RevisionKind, HttpProjectKind, ProjectMock, HttpHistoryKind,
   IHttpHistoryBulkAdd,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
@@ -302,10 +302,10 @@ describe('Events', () => {
       const [app2ev] = app2.messages;
       
       assert.equal(app1ev.operation, 'created', 'app1 has the created event');
-      assert.equal(app1ev.kind, RevisionInfoKind, 'app1 has the revision created event');
+      assert.equal(app1ev.kind, RevisionKind, 'app1 has the revision created event');
       
       assert.equal(app2ev.operation, 'created', 'app2 has the created event');
-      assert.equal(app2ev.kind, RevisionInfoKind, 'app1 has the revision created event');
+      assert.equal(app2ev.kind, RevisionKind, 'app1 has the revision created event');
 
       assert.isFalse(app3.hasMessages(), 'app3 has no messages');
     });

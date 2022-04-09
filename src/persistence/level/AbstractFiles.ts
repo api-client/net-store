@@ -32,6 +32,11 @@ export interface IFileBreadcrumb {
 
 export interface IFilesStore {
   /**
+   * A link to the `PermissionStore.readFileAccess()`.
+   */
+  readFileAccess(keyOrFile: string | IFile, userKey: string): Promise<PermissionRole | undefined>;
+  
+  /**
    * Lists file entities from the store.
    * 
    * It tests for the `user` access to the files.
@@ -65,6 +70,13 @@ export interface IFilesStore {
    * @param user The current user. It tests the permissions to the file against this user.
    */
   read(key: string, user: IUser): Promise<IFile>;
+  /**
+   * Reads a number of files in a bulk operation.
+   * 
+   * @param keys The list of keys to read. When the user has no access to the file it returns undefined in that place.
+   * @param user The current user.
+   */
+  readBulk(keys: string[], user: IUser): Promise<IListResponse<IFile|undefined>>;
   /**
    * Applies a patch information to the file.
    * 

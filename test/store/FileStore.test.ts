@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import { 
   DefaultLogger, ProjectMock, IBackendEvent, Workspace, HttpProject, IPermission,
   RouteBuilder, Project, WorkspaceKind, AccessOperation, IFile, Timers, ProjectKind,
-  ApiError,
+  ApiError, ICapabilities,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
@@ -49,12 +49,15 @@ describe('Unit tests', () => {
         });
 
         it('returns the created file with updated properties', async () => {
-          const s1 = Workspace.fromName('s1');
+          const s1 = Workspace.fromName('s1').toJSON();
           s1.parents = ['pr1'];
           s1.permissionIds = ['p1'];
           s1.permissions = [{ addingUser: '1', key: '2', kind: 'Core#Permission', role: 'commenter', type: 'user' }];
           s1.owner = 'test-id';
-          const result = await store.file.add(s1.key, s1.toJSON(), user1);
+          // @ts-ignore
+          s1.capabilities = { canEdit: false };
+          
+          const result = await store.file.add(s1.key, s1, user1);
           assert.equal(result.owner, user1.key);
           assert.deepEqual(result.permissionIds, []);
           assert.deepEqual(result.permissions, []);
@@ -95,7 +98,7 @@ describe('Unit tests', () => {
           const s1 = Workspace.fromName('s1');
           const result = await store.file.add(s1.key, s1.toJSON(), user1);
           const raw = await store.file.db.get(s1.key);
-          assert.deepEqual(result, JSON.parse(raw as string));
+          assert.deepEqual(result.key, JSON.parse(raw as string).key);
         });
 
         it('informs the WS client', async () => {
@@ -172,6 +175,23 @@ describe('Unit tests', () => {
             assert.equal(error.code, 403);
           }
         });
+
+        it('returns file with updated capabilities for the owner', async () => {
+          const s1 = Workspace.fromName('s1').toJSON();
+          const result = await store.file.add(s1.key, s1, user1);
+          const c = result.capabilities as ICapabilities;
+          assert.isTrue(c.canEdit);
+          assert.isTrue(c.canComment);
+          assert.isTrue(c.canShare);
+          assert.isFalse(c.canCopy);
+          assert.isTrue(c.canReadRevisions);
+          assert.isTrue(c.canAddChildren);
+          assert.isTrue(c.canDelete);
+          assert.isTrue(c.canListChildren);
+          assert.isTrue(c.canRename);
+          assert.isTrue(c.canTrash);
+          assert.isTrue(c.canUntrash);
+        });
       });
 
       describe('read()', () => {
@@ -198,7 +218,8 @@ describe('Unit tests', () => {
 
         it('reads the file by the owner', async () => {
           const result = await store.file.read(s1.key, user1);
-          assert.deepEqual(result, s1);
+          // we don't test for deep equal because of "capabilities" and "lastModified"
+          assert.equal(result.key, s1.key);
         });
 
         it('reads the file by the user with permissions', async () => {
@@ -256,6 +277,41 @@ describe('Unit tests', () => {
             assert.equal(error.code, 404);
           }
         });
+
+        it('sets file capabilities for the owner', async () => {
+          const result = await store.file.read(s1.key, user1);
+          const c = result.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities')
+          assert.isTrue(c.canEdit);
+          assert.isTrue(c.canComment);
+          assert.isTrue(c.canShare);
+          assert.isFalse(c.canCopy);
+          assert.isTrue(c.canReadRevisions);
+          assert.isTrue(c.canAddChildren);
+          assert.isTrue(c.canDelete);
+          assert.isTrue(c.canListChildren);
+          assert.isTrue(c.canRename);
+          assert.isTrue(c.canTrash);
+          assert.isTrue(c.canUntrash);
+        });
+
+        it('sets file capabilities for a shared user', async () => {
+          await store.file.patchAccess(s1.key, [{
+            op: 'add',
+            type: 'user',
+            value: 'commenter',
+            id: user2.key,
+          } as AccessOperation], user1);
+
+          const result = await store.file.read(s1.key, user2);
+          const c = result.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities');
+          assert.isFalse(c.canEdit);
+          assert.isTrue(c.canComment);
+          assert.isFalse(c.canShare);
+          assert.isFalse(c.canCopy);
+          assert.isFalse(c.canRename);
+        });
       });
 
       describe('get()', () => {
@@ -281,7 +337,7 @@ describe('Unit tests', () => {
 
         it('returns the file', async () => {
           const result = await store.file.get(s1.key) as IFile;
-          assert.deepEqual(result, s1);
+          assert.deepEqual(result.key, s1.key);
         });
 
         it('returns undefined when file does not exist', async () => {
@@ -1383,6 +1439,34 @@ describe('Unit tests', () => {
           const list = await store.file.list(['test'], user2, { parent: parent.key });
           assert.lengthOf(list.data, 2);
         });
+
+        it('sets files capabilities for the owner', async () => {
+          const list = await store.file.list([ProjectKind], user1, { limit: 1 });
+          const [file] = list.data;
+          const c = file.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities')
+          assert.isTrue(c.canEdit);
+        });
+
+        it('sets files capabilities for a shared user', async () => {
+          const parent = Workspace.fromName('parent');
+          const s1 = Workspace.fromName('s1');
+          await store.file.add(parent.key, parent.toJSON(), user1);
+          await store.file.add(s1.key, s1.toJSON(), user1, { parent: parent.key });
+
+          await store.file.patchAccess(parent.key, [{
+            op: 'add',
+            type: 'user',
+            value: 'reader',
+            id: user2.key,
+          } as AccessOperation], user1);
+
+          const list = await store.file.list(['test'], user2, { parent: parent.key });
+          const [file] = list.data;
+          const c = file.capabilities as ICapabilities;
+          assert.typeOf(c, 'object', 'has capabilities')
+          assert.isFalse(c.canEdit);
+        });
       });
 
       describe('applyPatch()', () => {
@@ -1455,20 +1539,12 @@ describe('Unit tests', () => {
         });
 
         [
-          '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', '/kind', '/owner', '/lastModified'
+          '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', 
+          '/kind', '/owner', '/lastModified', '/capabilities'
         ].forEach((key) => {
-          it(`throws when patching ${key}`, async () => {
-            let error: ApiError | undefined;
-            try {
-              await store.file.applyPatch(s1.key, [{ op: 'replace', path: key, value: 'test' }], user1);
-            } catch (e) {
-              error = e as ApiError;
-            }
-            assert.ok(error, 'has the error');
-            if (error) {
-              assert.equal(error.message, `Invalid patch path: ${key}.`);
-              assert.equal(error.code, 400);
-            }
+          it(`ignores patch path ${key}`, async () => {
+            const result = await store.file.applyPatch(s1.key, [{ op: 'replace', path: key, value: 'test' }], user1);
+            assert.deepEqual(result, []);
           });
         });
 

@@ -1,4 +1,7 @@
-import { ApiError, Permission, IPermission, IFile, IAccessAddOperation, IAccessRemoveOperation, PermissionRole, IGroup } from '@api-client/core';
+import { 
+  ApiError, Permission, IPermission, IFile, IAccessAddOperation, IAccessRemoveOperation, 
+  PermissionRole, IGroup 
+} from '@api-client/core';
 import { Bytes } from 'leveldown';
 import { SubStore } from '../SubStore.js';
 import { IPermissionStore } from './AbstractPermission.js';
@@ -280,20 +283,6 @@ export class PermissionStore extends SubStore implements IPermissionStore {
       return perm.role;
     }
     return undefined;
-  }
-
-  /**
-   * Checks whether the current user role meets the minimum required role.
-   * 
-   * @param minimumLevel The minimum requested role
-   * @param currentRole The user role.
-   * @returns True if the `currentRole` is at least the `minimumRole`
-   */
-  hasRole(minimumLevel: PermissionRole, currentRole: PermissionRole): boolean {
-    const currentAccessIndex = orderedRoles.indexOf(currentRole);
-    const requestedAccessIndex = orderedRoles.indexOf(minimumLevel);
-    // the current must be at least at the index of requested.
-    return currentAccessIndex >= requestedAccessIndex;
   }
 
   /**

@@ -97,7 +97,6 @@ export class Project extends SubStore implements IProjectsStore {
       users,
     };
     Clients.notify(event, filter);
-    // @ts-ignore
     return result.revert;
   }
 }
