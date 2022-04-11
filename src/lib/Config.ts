@@ -1,6 +1,7 @@
 import { join } from 'path';
 import { fs } from '@api-client/core';
 import { randomBytes } from 'crypto';
+import { homedir } from 'os';
 
 export const Kind = 'Store#Config';
 
@@ -19,7 +20,12 @@ export class Config {
    * @returns The path to the user config directory depending on the system.
    */
   configPath(): string {
-    return process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + "/.local/share");
+    if (process.env.APPDATA) {
+      // Windows
+      return process.env.APPDATA;
+    }
+    const root = process.env.HOME || homedir();
+    return process.platform == 'darwin' ?  `${root}/Library/Preferences` : `${root}/.local/share`;
   }
 
   /**
