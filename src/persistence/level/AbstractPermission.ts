@@ -69,7 +69,7 @@ export interface IPermissionStore {
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
    */
-  removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void>;
+  removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined>;
 
   /**
    * Removes a group permission from the object that extends the File.
@@ -80,7 +80,7 @@ export interface IPermissionStore {
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
    */
-  removeGroupPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void>;
+  removeGroupPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined>;
 
   /**
    * Removes the "anyone" permission from the object that extends the File.
@@ -91,7 +91,7 @@ export interface IPermissionStore {
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
    */
-  removeAnyonePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void>;
+  removeAnyonePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined>;
 
   /**
    * Finds a permission to the File in the file's permissions list for the user.

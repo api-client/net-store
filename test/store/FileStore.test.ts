@@ -734,7 +734,7 @@ describe('Unit tests', () => {
           assert.equal(event.id, space.key, 'has the space id');
           assert.equal(event.kind, WorkspaceKind);
           assert.equal(filter.url, RouteBuilder.files());
-          assert.deepEqual(filter.users, [user1.key, user2.key]);
+          assert.deepEqual(filter.users, [user2.key], 'informs only the user which gained the permission');
         });
 
         it('removes a permission from a user', async () => {
@@ -838,7 +838,7 @@ describe('Unit tests', () => {
           assert.equal(event.id, space.key, 'has the space id');
           assert.equal(event.kind, WorkspaceKind, 'has the kind');
           assert.equal(filter.url, RouteBuilder.files());
-          assert.deepEqual(filter.users, [user1.key, user2.key]);
+          assert.deepEqual(filter.users, [user2.key], 'only informs the user that has lost the access to the file');
         });
 
         it('removes a permission from a group', async () => {

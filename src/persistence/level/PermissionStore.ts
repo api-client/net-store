@@ -177,14 +177,15 @@ export class PermissionStore extends SubStore implements IPermissionStore {
    * @param file The file to alter, removes the permission from.
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
+   * @returns The removed permission or undefined when the permission couldn't be found.
    */
-  async removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void> {
+  async removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined> {
     const { id } = operation;
     if (!id) {
       throw new ApiError('Missing "id" parameter when removing a user permission.', 400);
     }
     const index = file.permissions.findIndex(i => i.type === operation.type && i.owner === id);
-    await this.removePermission(file, index, removingUser);
+    return this.removePermission(file, index, removingUser);
   }
 
   /**
@@ -195,14 +196,15 @@ export class PermissionStore extends SubStore implements IPermissionStore {
    * @param file The file to alter, removes the permission from.
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
+   * @returns The removed permission or undefined when the permission couldn't be found.
    */
-  async removeGroupPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void> {
+  async removeGroupPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined> {
     const { id } = operation;
     if (!id) {
       throw new ApiError('Missing "id" parameter when removing a group permission.', 400);
     }
     const index = file.permissions.findIndex(i => i.type === operation.type && i.owner === id);
-    await this.removePermission(file, index, removingUser);
+    return this.removePermission(file, index, removingUser);
   }
 
   /**
@@ -213,15 +215,16 @@ export class PermissionStore extends SubStore implements IPermissionStore {
    * @param file The file to alter, removes the permission from.
    * @param operation The remove operation.
    * @param removingUser The id of the user that removes the permission.
+   * @returns The removed permission or undefined when the permission couldn't be found.
    */
-  async removeAnyonePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<void> {
+  async removeAnyonePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: string): Promise<IPermission | undefined> {
     const index = file.permissions.findIndex(i => i.type === operation.type);
-    await this.removePermission(file, index, removingUser);
+    return this.removePermission(file, index, removingUser);
   }
 
-  private async removePermission(file: IFile, index: number, removingUser: string): Promise<void> {
+  private async removePermission(file: IFile, index: number, removingUser: string): Promise<IPermission | undefined> {
     if (index < 0) {
-      return;
+      return undefined;
     }
     const permission = file.permissions[index];
     const { key } = permission;
@@ -233,6 +236,7 @@ export class PermissionStore extends SubStore implements IPermissionStore {
     if (idIndex >= 0) {
       file.permissionIds.splice(idIndex, 1);
     }
+    return permission;
   }
 
   /**

@@ -30,6 +30,7 @@ describe('Events', () => {
     let user3Token: string;
     let user1: IUser;
     let user2: IUser;
+    let user3: IUser;
     let app1: UserFileApp;
     let app2: UserFileApp;
     let app3: UserFileApp;
@@ -41,10 +42,11 @@ describe('Events', () => {
       sdk.token = user1Token;
       user1 = await sdk.user.me();
       user2 = await sdk.user.me({ token: user2Token });
+      user3 = await sdk.user.me({ token: user3Token });
 
-      app1 = new UserFileApp(user1Token, baseUri, baseUriWs);
-      app2 = new UserFileApp(user2Token, baseUri, baseUriWs);
-      app3 = new UserFileApp(user3Token, baseUri, baseUriWs);
+      app1 = new UserFileApp(user1, user1Token, baseUri, baseUriWs);
+      app2 = new UserFileApp(user2, user2Token, baseUri, baseUriWs);
+      app3 = new UserFileApp(user3, user3Token, baseUri, baseUriWs);
       await app1.initFiles();
       await app2.initFiles();
       await app3.initFiles();
@@ -207,16 +209,17 @@ describe('Events', () => {
       assert.isFalse(app3.hasMessages(), 'app3 has no messages');
     });
 
-    it('removes the space from the files when removing an access', async () => {
-      assert.isTrue(app2.hasFile(s2.key));
+    it('removes the space from the files when removing user access', async () => {
+      assert.isTrue(app1.hasFile(s2.key), 'initially app 1 has file');
+      assert.isTrue(app2.hasFile(s2.key), 'initially app 2 has file');
       const records: AccessOperation[] = [{
         op: 'remove',
         id: user2.key,
         type: 'user',
       }];
       await sdk.file.patchUsers(s2.key, records);
-      assert.isFalse(app2.hasFile(s2.key));
-
+      assert.isTrue(app1.hasFile(s2.key), 'app 1 still has file');
+      assert.isFalse(app2.hasFile(s2.key), 'app 2 has no file');
       assert.isFalse(app3.hasFiles(), 'app3 has no files');
       assert.isFalse(app3.hasMessages(), 'app3 has no messages');
     });
@@ -238,7 +241,9 @@ describe('Events', () => {
     let user1Token: string;
     let user2Token: string;
     let user3Token: string;
+    let user1: IUser;
     let user2: IUser;
+    let user3: IUser;
     let app1: UserFileApp;
     let app2: UserFileApp;
     let app3: UserFileApp;
@@ -249,11 +254,13 @@ describe('Events', () => {
       user2Token = await http.createUserToken(baseUri);
       user3Token = await http.createUserToken(baseUri);
       sdk.token = user1Token;
+      user1 = await sdk.user.me({ token: user1Token });
       user2 = await sdk.user.me({ token: user2Token });
+      user3 = await sdk.user.me({ token: user3Token });
 
-      app1 = new UserFileApp(user1Token, baseUri, baseUriWs);
-      app2 = new UserFileApp(user2Token, baseUri, baseUriWs);
-      app3 = new UserFileApp(user3Token, baseUri, baseUriWs);
+      app1 = new UserFileApp(user1, user1Token, baseUri, baseUriWs);
+      app2 = new UserFileApp(user2, user2Token, baseUri, baseUriWs);
+      app3 = new UserFileApp(user3, user3Token, baseUri, baseUriWs);
       
       p1 = HttpProject.fromName('p1').toJSON();
       await sdk.file.create(p1);
@@ -340,6 +347,7 @@ describe('Events', () => {
     let user3Token: string;
     let user1: IUser;
     let user2: IUser;
+    let user3: IUser;
     let app1: UserFileApp;
     let app2: UserFileApp;
     let app3: UserFileApp;
@@ -353,10 +361,11 @@ describe('Events', () => {
       sdk.token = user1Token;
       user1 = await sdk.user.me();
       user2 = await sdk.user.me({ token: user2Token });
+      user3 = await sdk.user.me({ token: user3Token });
 
-      app1 = new UserFileApp(user1Token, baseUri, baseUriWs);
-      app2 = new UserFileApp(user2Token, baseUri, baseUriWs);
-      app3 = new UserFileApp(user3Token, baseUri, baseUriWs);
+      app1 = new UserFileApp(user1, user1Token, baseUri, baseUriWs);
+      app2 = new UserFileApp(user2, user2Token, baseUri, baseUriWs);
+      app3 = new UserFileApp(user3, user3Token, baseUri, baseUriWs);
 
       s1 = Workspace.fromName('s1', user1.key).toJSON();
       await sdk.file.create(s1);

@@ -1,6 +1,5 @@
 import { 
-  WorkspaceKind,
-  StoreSdk, RouteBuilder, IBackendEvent, IFile, ProjectKind,
+  WorkspaceKind, StoreSdk, RouteBuilder, IBackendEvent, IFile, ProjectKind, IUser,
 } from '@api-client/core';
 import { WebSocket } from 'ws';
 import { Patch, JsonPatch } from '@api-client/json';
@@ -20,7 +19,7 @@ export class UserFileApp {
   private resolver?: (value: void | PromiseLike<void>) => void;
   private rejecter?: (reason?: Error) => void;
 
-  constructor(private token: string, baseUri: string, private baseUriWs: string) {
+  constructor(private user: IUser, private token: string, baseUri: string, private baseUriWs: string) {
     this.sdk = new StoreSdk(baseUri);
     this.sdk.token = this.token;
   }
@@ -128,7 +127,7 @@ export class UserFileApp {
     }
     const index = this.files.findIndex(i => i.key === id);
     if (index >= 0) {
-      this.files.splice(index);
+      this.files.splice(index, 1);
     }
     if (id === this.parent) {
       this.reset();
@@ -179,7 +178,7 @@ export class UserFileApp {
     }
     const index = this.files.findIndex(i => i.key === id);
     if (index >= 0) {
-      this.files.splice(index);
+      this.files.splice(index, 1);
     }
   }
 

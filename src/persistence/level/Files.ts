@@ -343,20 +343,19 @@ export class Files extends SubStore implements IFilesStore {
   async patchAccess(key: string, patch: AccessOperation[], user: IUser): Promise<void> {
     await this.checkAccess('writer', key, user);
     
-    const file = await this.get(key);
+    const file = await this.get(key, true);
     if (!file) {
       throw new ApiError(`Not found.`, 404);
     }
     const copy = JSON.parse(JSON.stringify(file)) as IFile;
-    const users = await this.fileUserIds(key);
 
     // we do every operation separately as they may be about the same user.
 
     for (const info of patch) {
       if (info.op === 'add') {
-        await this.addPermission(file, info, user, users);
+        await this.addPermission(file, info, user);
       } else if (info.op === 'remove') {
-        await this.removePermission(file, info, user, users);
+        await this.removePermission(file, info, user);
       } else {
         throw new Error(`Unknown operation: ${(info as AccessOperation).op}`);
       }
@@ -390,9 +389,9 @@ export class Files extends SubStore implements IFilesStore {
     }
   }
 
-  async addPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser, users: string[]): Promise<void> {
+  async addPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
     switch (operation.type) {
-      case 'user': await this.addUserPermission(file, operation, addingUser, users); break;
+      case 'user': await this.addUserPermission(file, operation, addingUser); break;
       case 'group': await this.addGroupPermission(file, operation, addingUser); break;
       case 'anyone': await this.parent.permission.addAnyonePermission(file, operation, addingUser.key); break;
       default:
@@ -400,9 +399,9 @@ export class Files extends SubStore implements IFilesStore {
     }
   }
 
-  async removePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser, users: string[]): Promise<void> {
+  async removePermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
     switch (operation.type) {
-      case 'user': await this.removeUserPermission(file, operation, removingUser, users); break;
+      case 'user': await this.removeUserPermission(file, operation, removingUser); break;
       case 'group': await this.removeGroupPermission(file, operation, removingUser); break;
       case 'anyone': await this.parent.permission.removeAnyonePermission(file, operation, removingUser.key); break;
       default:
@@ -410,9 +409,10 @@ export class Files extends SubStore implements IFilesStore {
     }
   }
 
-  private async addUserPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser, users: string[]): Promise<void> {
+  private async addUserPermission(file: IFile, operation: IAccessAddOperation, addingUser: IUser): Promise<void> {
     const permission = await this.parent.permission.addUserPermission(file, operation, addingUser.key);
-    await this.parent.shared.add(file, operation.id!);
+    const id = operation.id as string; // previous operation throws when no id
+    await this.parent.shared.add(file, id);
     const event: IBackendEvent = {
       type: 'event',
       operation: 'access-granted',
@@ -423,9 +423,10 @@ export class Files extends SubStore implements IFilesStore {
     if (file.parents && file.parents.length) {
       event.parent = file.parents[file.parents.length - 1];
     }
+    // we only notify a user that gained access to the file.
     const filter: IClientFilterOptions = {
       url: RouteBuilder.files(),
-      users: [...users, operation.id!],
+      users: [id],
     };
     Clients.notify(event, filter);
   }
@@ -435,9 +436,12 @@ export class Files extends SubStore implements IFilesStore {
     // TODO: Notify group users.
   }
 
-  private async removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser, users: string[]): Promise<void> {
+  private async removeUserPermission(file: IFile, operation: IAccessRemoveOperation, removingUser: IUser): Promise<void> {
     await this.parent.permission.removeUserPermission(file, operation, removingUser.key);
-    await this.parent.shared.remove(file, operation.id!);
+    const id = operation.id as string; // previous operation throws when no id
+    await this.parent.shared.remove(file, id);
+
+    // we only notify the user that has lost access to the file.
     const event: IBackendEvent = {
       type: 'event',
       operation: 'access-removed',
@@ -447,7 +451,7 @@ export class Files extends SubStore implements IFilesStore {
     if (file.parents && file.parents.length) {
       event.parent = file.parents[file.parents.length - 1];
     }
-    const f = { url: RouteBuilder.files(), users };
+    const f = { url: RouteBuilder.files(), users: [id] };
     Clients.notify(event, f);
   }
 
