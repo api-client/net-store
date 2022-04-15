@@ -13,12 +13,9 @@ import { dir } from 'tmp-promise';
 import { platform } from 'os';
 import { Duplex } from 'stream'
 import { ApiRoutes } from './ApiRoutes.js';
-import { 
-  SupportedServer, IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, 
-  IApplicationState, ITestingServerConfiguration } from './definitions.js'
+import { IRunningServer, IServerConfiguration, IOidcConfiguration, IAuthenticationConfiguration, IApplicationState } from './definitions.js'
 import { StorePersistence } from './persistence/StorePersistence.js';
 import { Authentication, IAuthenticationOptions } from './authentication/Authentication.js';
-// import DefaultUser from './authentication/DefaultUser.js';
 import { SingleUserAuthentication } from './authentication/SingleUserAuthentication.js';
 import { BackendInfo } from './BackendInfo.js';
 import { AppSession } from './session/AppSession.js';
@@ -60,7 +57,7 @@ export class Server {
     return join(socketPath, socketName)
   }
 
-  servers: IRunningServer[] = [];
+  server?: IRunningServer;
   app = new Koa();
   router: Router<IApplicationState, DefaultContext>;
   opts: IServerConfiguration;
@@ -68,46 +65,47 @@ export class Server {
   protected apiHandler?: ApiRoutes;
   protected store: StorePersistence;
   protected auth?: Authentication;
-  protected info: BackendInfo;
+  protected info = new BackendInfo();
   protected session: AppSession;
 
   /**
-   * @param opts Optional server configuration options.
+   * @param store The store to use with the server.
+   * @param opts The server configuration options.
    */
-  constructor(store: StorePersistence, opts: IServerConfiguration={}) {
+  constructor(store: StorePersistence, opts: IServerConfiguration) {
+    this.validateConfiguration(opts);
     this.opts = opts;
     this.store = store;
-    const info = new BackendInfo();
-    this.info = info;
+    this.info.applyConfig(opts)
     this.session = new AppSession(this.store, opts.session || {});
     this.logger = this.setupLogger(opts);
 
-    info.mode = opts.mode === 'multi-user' ? opts.mode : 'single-user';
-    if (opts.router && opts.router.prefix) {
-      info.prefix = opts.router.prefix;
-    }
-    if (info.mode === 'multi-user') {
-      if (!opts.authentication) {
-        throw new Error(`The "authentication" configuration is required in the "multi-user" mode.`);
-      }
-    }
     const routerOptions: RouterOptions = {};
     if (opts.router && opts.router.prefix) {
       routerOptions.prefix = opts.router.prefix;
     }
     this.router = new Router(routerOptions);
+  }
 
-    // API testing
-    const typed = opts as ITestingServerConfiguration;
-    if (typed.testing === true) {
-      this.info.testing = true;
+  validateConfiguration(opts: IServerConfiguration): void {
+    if (opts.isSsl && !opts.serverOptions) {
+      throw new Error(`The "serverOptions" configuration is required for an ssl server.`);
+    }
+    if (!opts.session || !opts.session.secret) {
+      throw new Error(`The "session.secret" configuration is required.`);
+    }
+    if (!['single-user', 'multi-user'].includes(opts.mode)) {
+      throw new Error(`Unknown mode: ${opts.mode}.`);
+    }
+    if (opts.mode === 'multi-user' && !opts.authentication) {
+      throw new Error(`The "authentication" configuration is required for multi-user mode.`);
     }
   }
 
   /**
    * Creates a logger object to log debug output.
    */
-  setupLogger(opts: IServerConfiguration = {}): Logger {
+  setupLogger(opts: IServerConfiguration): Logger {
     if (opts.logger) {
       return opts.logger;
     }
@@ -147,7 +145,7 @@ export class Server {
     }
     this.app.use(views(join(__dirname, 'views'), { extension: 'ejs' }));
     let factory: Authentication;
-    if (this.info.mode === 'multi-user') {
+    if (this.info.info.mode === 'multi-user') {
       if (typeof opts.authentication === 'function') {
         factory = await this.initializeCustomAuth();
       } else {
@@ -158,7 +156,7 @@ export class Server {
     }
     this.auth = factory;
     this.app.use(factory.middleware);
-    this.info.authPath = factory.getAuthLocation();
+    this.info.info.auth.path = factory.getAuthLocation();
     await this.setupRoutes(...customRoutes);
   }
 
@@ -212,17 +210,44 @@ export class Server {
   }
 
   /**
+   * Starts the server according to the previous configuration.
+   */
+  async start(): Promise<void> {
+    const { isSsl, portOrSocket } = this.opts;
+    if (isSsl) {
+      return this._startSsl(this.opts.serverOptions!, portOrSocket);
+    }
+    return this._startHttp(portOrSocket);
+  }
+
+  /**
+   * Stops the previously started server.
+   */
+  async stop(): Promise<void> {
+    const { server } = this;
+    if (!server) {
+      return;
+    }
+    this.server = undefined;
+    return new Promise((resolve) => {
+      server.server.close(() => {
+        resolve();
+      });
+    });
+  }
+
+  /**
    * Starts the www server on a given port.
    * @param portOrSocket The port number to use or a socket path
    */
-  startHttp(portOrSocket: number|string): Promise<void> {
+  protected _startHttp(portOrSocket: number|string): Promise<void> {
     return new Promise((resolve) => {
       const server = http.createServer(this.app.callback());
-      this.servers.push({
+      this.server = {
         server,
         type: 'http',
         portOrSocket,
-      });
+      };
       server.on('upgrade', this._upgradeCallback.bind(this));
       server.listen(portOrSocket, () => {
         resolve();
@@ -230,68 +255,25 @@ export class Server {
     });
   }
 
-  /**
-   * Stops a running www server, if any.
-   * 
-   * @param portOrSocket When specified it closes a www server on a specific port/socket. When not it stops all running http servers.
-   */
-  stopHttp(portOrSocket?: number|string): Promise<void[]> {
-    return this._stop('http', portOrSocket);
-  }
-
+  
   /**
    * Starts the www over SSL server on a given port.
    * 
    * @param sslOptions The SSL options to use when creating the server.
    * @param portOrSocket The port number to use or a socket path
    */
-  startSsl(sslOptions: https.ServerOptions, portOrSocket: number|string): Promise<void> {
+  protected _startSsl(sslOptions: https.ServerOptions, portOrSocket: number|string): Promise<void> {
     return new Promise((resolve) => {
       const server = https.createServer(sslOptions, this.app.callback());
-      this.servers.push({
+      this.server = {
         server,
         type: 'https',
         portOrSocket,
-      });
+      };
       server.listen(portOrSocket, () => {
         resolve();
       });
       server.on('upgrade', this._upgradeCallback.bind(this));
-    });
-  }
-
-  /**
-   * Stops a running www over SSL server, if any.
-   * 
-   * @param portOrSocket When specified it closes an ssl server on a specific port/socket. When not it stops all running https servers.
-   */
-  stopSsl(portOrSocket?: number|string): Promise<void[]> {
-    return this._stop('https', portOrSocket);
-  }
-
-  /**
-   * @param type The server type to stop.
-   * @param portOrSocket The optional port of the server.
-   */
-  protected _stop(type: SupportedServer, portOrSocket?: number|string): Promise<void[]> {
-    const toStop = this.servers.filter((s) => {
-      if (s.type === type) {
-        if (portOrSocket) {
-          return portOrSocket === s.portOrSocket;
-        }
-        return true;
-      }
-      return false;
-    });
-    const promises = toStop.map((item) => this._stopServer(item.server));
-    return Promise.all(promises);
-  }
-
-  protected _stopServer(server: https.Server | http.Server): Promise<void> {
-    return new Promise((resolve) => {
-      server.close(() => {
-        resolve();
-      });
     });
   }
 
@@ -322,7 +304,7 @@ export class Server {
     const factory = this.auth as Authentication;
     try {
       sessionId = await factory.getSessionId(request);
-      if (this.info.mode === 'single-user') {
+      if (this.info.info.mode === 'single-user') {
         if (!sessionId) {
           throw new Error(`No authorization info.`);
         }

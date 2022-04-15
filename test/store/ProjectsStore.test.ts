@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import fs from 'fs/promises';
 import path from 'path';
 import sinon from 'sinon';
-import { ApiError, DefaultLogger, ProjectMock, IHttpProject, HttpProject, IBackendEvent, RouteBuilder, HttpProjectKind } from '@api-client/core';
+import { ApiError, DefaultLogger, ProjectMock, IHttpProject, HttpProject, IBackendEvent, RouteBuilder, HttpProjectKind, IPatchInfo, IPatchRevision } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
@@ -170,7 +170,7 @@ describe('Unit tests', () => {
           await DataHelper.addProject(store, data, user);
         });
 
-        it('returns the reverse patch', async () => {
+        it('returns the patch info', async () => {
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -178,8 +178,19 @@ describe('Unit tests', () => {
               value: 'New name',
             }
           ];
-          const result = await store.project.applyPatch(project.key, patch, user);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await store.project.applyPatch(project.key, info, user);
+          assert.typeOf(result, 'object', 'returns the info object');
+          assert.equal(result.app, 'x1', 'returns the passed app');
+          assert.equal(result.appVersion, '1', 'returns the passed appVersion');
+          assert.equal(result.id, '123', 'returns the passed id');
+          assert.deepEqual(result.patch, patch, 'returns the passed patch');
+          assert.typeOf(result.revert, 'array', 'has the revert info');
         });
 
         it('persists the data', async () => {
@@ -190,7 +201,13 @@ describe('Unit tests', () => {
               value: 'Other name',
             }
           ];
-          await store.project.applyPatch(project.key, patch, user);
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          await store.project.applyPatch(project.key, info, user);
           const result = await store.project.read(project.key);
           assert.equal(result.info.name, 'Other name', 'has the applied patch');
         });
@@ -203,10 +220,15 @@ describe('Unit tests', () => {
               value: 'New name',
             }
           ];
-
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           let error: ApiError | undefined;
           try {
-            await store.project.applyPatch('unknown', patch, user);
+            await store.project.applyPatch('unknown', info, user);
           } catch (e) {
             error = e as ApiError;
           }
@@ -217,11 +239,83 @@ describe('Unit tests', () => {
           }
         });
 
-        it('throws when invalid patch', async () => {
+        it('throws when no app property', async () => {
+          const patch: JsonPatch = [{ op: 'replace', path: '/info/name', value: 'New name' }];
+          const info: IPatchInfo = {
+            // @ts-ignore
+            app: undefined,
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           let error: ApiError | undefined;
           try {
+            await store.project.applyPatch(project.key, info, user);
+          } catch (e) {
+            error = e as ApiError;
+          }
+          assert.ok(error, 'has the error');
+          if (error) {
+            assert.equal(error.message, `Invalid patch schema. Missing "app" property.`);
+            assert.equal(error.code, 400);
+          }
+        });
+
+        it('throws when no app property', async () => {
+          const patch: JsonPatch = [{ op: 'replace', path: '/info/name', value: 'New name' }];
+          const info: IPatchInfo = {
+            app: 'x1',
             // @ts-ignore
-            await store.project.applyPatch(project.key, {}, user);
+            appVersion: undefined,
+            id: '123',
+            patch,
+          };
+          let error: ApiError | undefined;
+          try {
+            await store.project.applyPatch(project.key, info, user);
+          } catch (e) {
+            error = e as ApiError;
+          }
+          assert.ok(error, 'has the error');
+          if (error) {
+            assert.equal(error.message, `Invalid patch schema. Missing "appVersion" property.`);
+            assert.equal(error.code, 400);
+          }
+        });
+
+        it('throws when no app property', async () => {
+          const patch: JsonPatch = [{ op: 'replace', path: '/info/name', value: 'New name' }];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            // @ts-ignore
+            id: undefined,
+            patch,
+          };
+          let error: ApiError | undefined;
+          try {
+            await store.project.applyPatch(project.key, info, user);
+          } catch (e) {
+            error = e as ApiError;
+          }
+          assert.ok(error, 'has the error');
+          if (error) {
+            assert.equal(error.message, `Invalid patch schema. Missing "id" property.`);
+            assert.equal(error.code, 400);
+          }
+        });
+
+        it('throws when invalid patch', async () => {
+          let error: ApiError | undefined;
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            // @ts-ignore
+            patch: {},
+          };
+          try {
+            await store.project.applyPatch(project.key, info, user);
           } catch (e) {
             error = e as ApiError;
           }
@@ -237,8 +331,14 @@ describe('Unit tests', () => {
         ].forEach((key) => {
           it(`throws when patching ${key}`, async () => {
             let error: ApiError | undefined;
+            const info: IPatchInfo = {
+              app: 'x1',
+              appVersion: '1',
+              id: '123',
+              patch: [{ op: 'replace', path: key, value: 'test' }],
+            };
             try {
-              await store.project.applyPatch(project.key, [{ op: 'replace', path: key, value: 'test' }], user);
+              await store.project.applyPatch(project.key, info, user);
             } catch (e) {
               error = e as ApiError;
             }
@@ -258,7 +358,13 @@ describe('Unit tests', () => {
               value: 'New name',
             }
           ];
-          await store.project.applyPatch(project.key, patch, user);
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          await store.project.applyPatch(project.key, info, user);
           const list = await store.revisions.list(project.key, user);
           const { data } = list;
           assert.lengthOf(data, 1, 'has the revision');
@@ -273,9 +379,14 @@ describe('Unit tests', () => {
               value: 'New name',
             }
           ];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           try {
-            
-            await store.project.applyPatch(project.key, patch, user);
+            await store.project.applyPatch(project.key, info, user);
           } finally {
             spy.restore();
           }
@@ -287,7 +398,16 @@ describe('Unit tests', () => {
           assert.equal(event.operation, 'patch');
           assert.equal(event.kind, HttpProjectKind);
           assert.equal(event.id, project.key);
-          assert.deepEqual(event.data, patch);
+
+          const data = event.data as IPatchRevision;
+
+          assert.typeOf(data, 'object', 'returns the info object');
+          assert.equal(data.app, 'x1', 'returns the passed app');
+          assert.equal(data.appVersion, '1', 'returns the passed appVersion');
+          assert.equal(data.id, '123', 'returns the passed id');
+          assert.deepEqual(data.patch, patch, 'returns the passed patch');
+          assert.typeOf(data.revert, 'array', 'has the revert info');
+
           const apiPath = `${RouteBuilder.file(project.key)}?alt=media`;
           assert.equal(filter.url, apiPath);
         });

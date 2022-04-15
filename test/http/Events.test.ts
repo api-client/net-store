@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import { 
   Workspace, AccessOperation, HttpProject, IUser, StoreSdk, IFile, IWorkspace,
   IHttpProject, RevisionKind, HttpProjectKind, ProjectMock, HttpHistoryKind,
-  IHttpHistoryBulkAdd,
+  IHttpHistoryBulkAdd, IPatchInfo, IAccessPatchInfo,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import HttpHelper from '../helpers/HttpHelper.js';
@@ -96,7 +96,13 @@ describe('Events', () => {
           value: 'Updated s1',
         }
       ];
-      await sdk.file.patch(s1.key, patch, false);
+      const info: IPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch,
+      };
+      await sdk.file.patch(s1.key, info, false);
       const u1File = app1.getFile(s1.key) as IFile;
       assert.equal(u1File.info.name, 'Updated s1', 'app1 has patched file');
       assert.isFalse(app2.hasFiles(), 'app2 has no files');
@@ -123,7 +129,13 @@ describe('Events', () => {
         value: 'reader',
         type: 'user',
       }];
-      await sdk.file.patchUsers(s1.key, records);
+      const info: IAccessPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch: records,
+      };
+      await sdk.file.patchUsers(s1.key, info);
       const u1File = app1.getFile(s1.key) as IFile;
       assert.lengthOf(u1File.permissionIds, 1, 'app1 has the updated permission');
       await app2.updateComplete;
@@ -141,7 +153,13 @@ describe('Events', () => {
           value: 'New s1',
         }
       ];
-      await sdk.file.patch(s1.key, patch, false);
+      const info: IPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch,
+      };
+      await sdk.file.patch(s1.key, info, false);
       const u1File = app1.getFile(s1.key) as IFile;
       assert.equal(u1File.info.name, 'New s1', 'app1 has patched file');
       let u2File = app2.getFile(s1.key) as IFile;
@@ -195,7 +213,13 @@ describe('Events', () => {
         value: 'owner',
         type: 'user',
       }];
-      await sdk.file.patchUsers(s3.key, records);
+      const info: IAccessPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch: records,
+      };
+      await sdk.file.patchUsers(s3.key, info);
 
       assert.isFalse(app2.hasFile(s3.key), 'app2 has no file from another space');
       const pathEvent = app2.messages[app2.messages.length - 1];
@@ -217,7 +241,13 @@ describe('Events', () => {
         id: user2.key,
         type: 'user',
       }];
-      await sdk.file.patchUsers(s2.key, records);
+      const info: IAccessPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch: records,
+      };
+      await sdk.file.patchUsers(s2.key, info);
       assert.isTrue(app1.hasFile(s2.key), 'app 1 still has file');
       assert.isFalse(app2.hasFile(s2.key), 'app 2 has no file');
       assert.isFalse(app3.hasFiles(), 'app3 has no files');
@@ -271,7 +301,13 @@ describe('Events', () => {
         value: 'reader',
         type: 'user',
       }];
-      await sdk.file.patchUsers(p1.key, records);
+      const info: IAccessPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch: records,
+      };
+      await sdk.file.patchUsers(p1.key, info);
 
       await app1.setupSpace();
       await app2.setupSpace();
@@ -302,7 +338,13 @@ describe('Events', () => {
           value: 'New p1',
         }
       ];
-      await sdk.file.patch(p1.key, patch, true);
+      const info: IPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch,
+      };
+      await sdk.file.patch(p1.key, info, true);
 
       // there are two events: the revision and path on the file
       const [app1ev] = app1.messages;
@@ -325,7 +367,13 @@ describe('Events', () => {
           value: 'Other p1',
         }
       ];
-      await sdk.file.patch(p1.key, patch, true);
+      const info: IPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch,
+      };
+      await sdk.file.patch(p1.key, info, true);
 
       // there are two events: the revision and path on the file
       const [, app1ev] = app1.messages;
@@ -379,7 +427,13 @@ describe('Events', () => {
         value: 'reader',
         type: 'user',
       }];
-      await sdk.file.patchUsers(s1.key, records);
+      const info: IAccessPatchInfo = {
+        app: 'x1',
+        appVersion: '1',
+        id: '123',
+        patch: records,
+      };
+      await sdk.file.patchUsers(s1.key, info);
 
       await app1.setupSpace();
       await app2.setupSpace();

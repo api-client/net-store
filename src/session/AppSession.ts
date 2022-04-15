@@ -93,7 +93,7 @@ export class AppSession {
   protected gcTimer?: NodeJS.Timer;
   protected tokens: Tokens;
 
-  constructor(store: StorePersistence, config: ISessionConfiguration = {}) {
+  constructor(store: StorePersistence, config: ISessionConfiguration) {
     if (config.secret) {
       this.secret = config.secret;
     }

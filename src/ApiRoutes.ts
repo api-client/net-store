@@ -30,7 +30,7 @@ export class ApiRoutes {
       protected session: AppSession,
       protected info: BackendInfo,
       protected logger: Logger,
-      protected opts: IServerConfiguration = {}
+      protected opts: IServerConfiguration
     ) {
     this.opts = opts;
     this.store = store;

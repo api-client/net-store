@@ -46,7 +46,7 @@ export abstract class BaseRoute {
    * Checks whether the server is configured to support user authentication.
    */
   get isMultiUser(): boolean {
-    return this.info.mode === 'multi-user';
+    return this.info.info.mode === 'multi-user';
   }
 
   get jsonType(): string {

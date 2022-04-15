@@ -23,8 +23,6 @@
   },
   "include": [
     "src/**/*",
-    "scripts/dev.ts",
-    "scripts/dev-auth.ts",
     "index.ts",
     "cli.ts"
   ]

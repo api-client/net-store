@@ -17,7 +17,7 @@ export default class SharedHttpRoute extends BaseRoute {
   }
 
   protected async listSpacesRoute(ctx: ParameterizedContext): Promise<void> {
-    if (this.info.mode !== 'multi-user') {
+    if (this.info.info.mode !== 'multi-user') {
       this.errorResponse(ctx, new ApiError('Not available in the non-multi-user mode', 400));
       return;
     }

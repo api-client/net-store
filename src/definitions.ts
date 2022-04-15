@@ -17,19 +17,43 @@ export type ServerMode = 'single-user' | 'multi-user';
 
 export interface IServerConfiguration {
   /**
-   * The model the store is on.
+   * The host name the server is working on.
+   * This is used with the backed info route.
    * 
-   * The `single-user` mode is the default mode where external user authentication is not required
-   * (but clients must use the auth token issued by the session endpoint).
+   * Not used when the server is opened on a socket.
+   */
+  host?: string;
+
+  /**
+   * The port number or a socket path to use when creating the server.
+   */
+  portOrSocket: number|string;
+
+  /**
+   * When set it starts the `ssl` server instead of regular http.
+   * When this is set the `serverOptions` is required.
+   */
+  isSsl?: boolean;
+
+  /**
+   * The server options to pass to the ssl server.
+   * Required when `isSsl` is set.
+   */
+  serverOptions?: https.ServerOptions;
+
+  /**
+   * The mode the store is on.
    * 
-   * In the `multi-user` model the authentication configuration is required and the user must 
+   * The `single-user` mode where external user authentication is not required
+   * but clients must use the auth token issued by the session endpoint.
+   * 
+   * In the `multi-user` mode the authentication configuration is required and the user must 
    * authenticate through an external identity provider (by default Open ID Connect is supported).
    * After that the client has to create an authenticated session in the store service and use
    * the token with the API calls.
-   * 
-   * @default single-user
    */
-  mode?: ServerMode;
+  mode: ServerMode;
+
   /**
    * Router configuration options.
    */
@@ -57,18 +81,18 @@ export interface IServerConfiguration {
    * 
    * Note, the server does not use the HTTP session mechanisms (like cookies). It handles it's session via the authorization header.
    */
-  session?: ISessionConfiguration;
+  session: ISessionConfiguration;
   /**
    * The logger object to use.
    */
   logger?: ILogger;
 }
 
-export interface ITestingServerConfiguration extends IServerConfiguration {
+export interface IRouterConfiguration {
   /**
-   * This is for API testing in the CI only
+   * The prefix to use with the API routes. E.g. /api/v1.
    */
-  testing: true;
+  prefix?: string;
 }
 
 export interface ISessionConfiguration {
@@ -76,7 +100,7 @@ export interface ISessionConfiguration {
    * The secret used to encrypt session data.
    * Should not be revealed no anyone other than the developer. Use secrets/variables to pass this value.
    */
-  secret?: string;
+  secret: string;
   /**
    * Expressed in seconds or a string describing a time span zeit/ms.
    * Eg: 60, "2 days", "10h", "7d". A numeric value is interpreted as a seconds count. 
@@ -149,13 +173,6 @@ export interface IOidcConfiguration {
    * fails.
    */
   allowedDomains?: string[];
-}
-
-export interface IRouterConfiguration {
-  /**
-   * The prefix to use with the API routes. E.g. /api/v1.
-   */
-  prefix?: string;
 }
 
 export interface IApplicationState extends DefaultState {

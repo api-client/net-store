@@ -1,8 +1,8 @@
 import { 
-  WorkspaceKind, StoreSdk, RouteBuilder, IBackendEvent, IFile, ProjectKind, IUser,
+  WorkspaceKind, StoreSdk, RouteBuilder, IBackendEvent, IFile, ProjectKind, IUser, IPatchRevision,
 } from '@api-client/core';
 import { WebSocket } from 'ws';
-import { Patch, JsonPatch } from '@api-client/json';
+import { Patch } from '@api-client/json';
 import WsHelper, { RawData } from '../helpers/WsHelper.js';
 
 export class UserFileApp {
@@ -143,9 +143,9 @@ export class UserFileApp {
     if (index < 0) {
       return;
     }
-    const patch = data as JsonPatch;
+    const patch = data as IPatchRevision;
     const file = this.files[index];
-    const result = Patch.apply(file, patch);
+    const result = Patch.apply(file, patch.patch);
     this.files[index] = result.doc as IFile;
   }
 

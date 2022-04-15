@@ -10,7 +10,7 @@ import { DummyLogger } from '@api-client/core';
 import { Server } from '../index.js';
 import { TestStore } from './helpers/TestStore.js';
 import { SetupConfig } from './helpers/interfaces.js';
-import { ITestingServerConfiguration } from '../src/definitions.js';
+import { IServerConfiguration } from '../src/definitions.js';
 import { TestsHttpRoute } from './helpers/TestsHttpRoute.js'
 
 let noAuthServer: Server;
@@ -70,20 +70,24 @@ export const mochaGlobalSetup = async () => {
   await oauthServer.issuer.keys.generate('RS256');
   await oauthServer.start(oauthPort);
 
-  const singleUserConfig: ITestingServerConfiguration = {
+  const singleUserConfig: IServerConfiguration = {
+    mode: 'single-user',
     router: { prefix },
     session: {
       secret: 'EOX0Xu6aSb',
     },
-    testing: true,
     logger,
+    portOrSocket: singleUserPort,
+    host: 'localhost',
   };
-  const multiUserConfig: ITestingServerConfiguration = {
+  const multiUserConfig: IServerConfiguration = {
     router: { prefix },
     session: {
       secret: 'EOX0Xu6aSb',
     },
     mode: 'multi-user',
+    isSsl: false,
+    portOrSocket: multiUserPort,
     authentication: {
       type: 'oidc',
       config: {
@@ -94,7 +98,6 @@ export const mochaGlobalSetup = async () => {
         ignoreCertErrors: true,
       }
     },
-    testing: true,
     logger,
   };
   
@@ -106,10 +109,10 @@ export const mochaGlobalSetup = async () => {
   
   // No auth test server
   await noAuthServer.initialize(TestsHttpRoute);
-  await noAuthServer.startHttp(singleUserPort);
+  await noAuthServer.start();
   // OpenID Connect test server
   await oidcAuthServer.initialize(TestsHttpRoute);
-  await oidcAuthServer.startHttp(multiUserPort);
+  await oidcAuthServer.start();
 
   const info: SetupConfig = {
     singleUserBaseUri,
@@ -126,9 +129,9 @@ export const mochaGlobalSetup = async () => {
 
 export const mochaGlobalTeardown = async () => {
   await oauthServer.stop();
-  await noAuthServer.stopHttp();
+  await noAuthServer.stop();
   await noAuthServer.cleanup();
-  await oidcAuthServer.stopHttp();
+  await oidcAuthServer.stop();
   await oidcAuthServer.cleanup();
   await noAuthStore.cleanup();
   await oidcAuthStore.cleanup();

@@ -2,7 +2,7 @@
 import { assert } from 'chai';
 import { 
   Workspace, IWorkspace, WorkspaceKind, IBackendEvent, RouteBuilder, AccessOperation, 
-  StoreSdk, HttpProject, ApiError, IHttpProject, ProjectKind, ICapabilities,
+  StoreSdk, HttpProject, ApiError, IHttpProject, ProjectKind, ICapabilities, IAccessPatchInfo,
 } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
@@ -301,7 +301,13 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
-          await sdk.file.patchUsers(parentSpace, records, { token: user1Token });
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
+          await sdk.file.patchUsers(parentSpace, info, { token: user1Token });
           
           const list = await sdk.file.list([WorkspaceKind], {}, { token: user2Token });
           assert.lengthOf(list.data, 0, 'has no root space');

@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation } from '@api-client/core';
+import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation, IAccessPatchInfo } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
@@ -173,14 +173,21 @@ describe('http', () => {
 
           const item2 = mock.history.httpHistory({ space: space1Key });
           created2Id = await sdk.history.create(item2, { token: user1Token });
+
+          const accessInfo: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              id: user2Id,
+              value: 'reader',
+              type: 'user',
+            } as AccessOperation],
+          };
           
           // add user 2 read access to the space
-          await sdk.file.patchUsers(space1Key, [{
-            op: 'add',
-            id: user2Id,
-            value: 'reader',
-            type: 'user',
-          } as AccessOperation], { token: user1Token });
+          await sdk.file.patchUsers(space1Key, accessInfo, { token: user1Token });
         });
     
         after(async () => {
@@ -255,12 +262,18 @@ describe('http', () => {
           created2Id = await sdk.history.create(item2, { token: user1Token });
 
           // add user 2 read access to the space
-          await sdk.file.patchUsers(space1Key, [{
-            op: 'add',
-            id: user2Id,
-            value: 'reader',
-            type: 'user',
-          } as AccessOperation], { token: user1Token });
+          const accessInfo: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              id: user2Id,
+              value: 'reader',
+              type: 'user',
+            } as AccessOperation],
+          };
+          await sdk.file.patchUsers(space1Key, accessInfo, { token: user1Token });
         });
   
         it('deletes a user own record (app type)', async () => {

@@ -48,7 +48,7 @@ process.on('SIGINT', async function() {
   if (server && store) {
     process.stderr.write('\nGracefully shutting down the server...\n');
     await store.cleanup();
-    await server.stopHttp();
+    await server.stop();
     await server.cleanup();
     server = undefined;
     store = undefined;
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
     server = new Server(store, config);
     await store.initialize();
     await server.initialize();
-    await server.startHttp(port);
+    await server.start();
     config.logger!.info(`Server started: http://localhost:${port}${prefix || ''}`);
   } catch (err) {
     const cause = err as CommanderError;

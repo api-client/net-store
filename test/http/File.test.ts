@@ -3,7 +3,7 @@ import { assert } from 'chai';
 import { 
   IWorkspace, IUser, AccessOperation, 
   HttpProject, HttpProjectKind, WorkspaceKind, RouteBuilder, StoreSdk,
-  Workspace, ProjectKind, IHttpProject, ApiError,
+  Workspace, ProjectKind, IHttpProject, ApiError, IPatchInfo, IAccessPatchInfo,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import getConfig from '../helpers/getSetup.js';
@@ -107,8 +107,16 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, false);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, false);
+          assert.typeOf(result, 'object', 'returns the patch info');
+          assert.equal(result.app, 'x1', 'returns the app');
+          assert.typeOf(result.patch, 'array', 'returns the revert patch');
           const read = await sdk.file.read(id, false);
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -123,8 +131,14 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, false);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, false);
+          assert.typeOf(result, 'object', 'returns the patch info');
           const read = await sdk.file.read(id, false);
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -139,8 +153,14 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, true);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, true);
+          assert.typeOf(result, 'object', 'returns the patch info');
           const read = await sdk.file.read(id, true) as IHttpProject;
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -153,8 +173,14 @@ describe('http', () => {
               value: 'Other name',
             }
           ];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           try {
-            await sdk.file.patch('1234567890', patch, false);
+            await sdk.file.patch('1234567890', info, false);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 404, 'has 404 status code')
@@ -174,8 +200,14 @@ describe('http', () => {
               value: 'Other name',
             }
           ];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           try {
-            await sdk.file.patch(other.key, patch, false);
+            await sdk.file.patch(other.key, info, false);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 404, 'has 404 status code')
@@ -193,9 +225,15 @@ describe('http', () => {
               test: "hello"
             }
           ];
-          try {
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
             // @ts-ignore
-            await sdk.file.patch(id, patch, false);
+            patch,
+          };
+          try {
+            await sdk.file.patch(id, info, false);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 400, 'has 400 status code')
@@ -215,8 +253,14 @@ describe('http', () => {
               value: 'New name',
             }
           ];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           try {
-            await sdk.file.patch(id, patch, true);
+            await sdk.file.patch(id, info, true);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 400, 'has 400 status code')
@@ -264,7 +308,13 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
-          await sdk.file.patchUsers(id, records, { token: user1Token });
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
+          await sdk.file.patchUsers(id, info, { token: user1Token });
           const read = await sdk.file.read(id, false, { token: user1Token });
           
           const { permissions } = read;
@@ -285,8 +335,14 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
           try {
-            await sdk.file.patchUsers(id, records, { token: user2Token });
+            await sdk.file.patchUsers(id, info, { token: user2Token });
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 404, 'has 404 status code')
@@ -310,8 +366,14 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
           try {
-            await sdk.file.patchUsers(id, records, { token: user1Token });
+            await sdk.file.patchUsers(id, info, { token: user1Token });
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 400, 'has 400 status code')
@@ -331,7 +393,13 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
-          await sdk.file.patchUsers(id, a1records, { token: user1Token });
+          const a1info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: a1records,
+          };
+          await sdk.file.patchUsers(id, a1info, { token: user1Token });
 
           // step 1. Add any access to the user #3
           const a2records: AccessOperation[] = [{
@@ -340,9 +408,15 @@ describe('http', () => {
             value: 'commenter',
             type: 'user',
           }];
+          const a2info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: a2records,
+          };
           
           try {
-            await sdk.file.patchUsers(id, a2records, { token: user2Token });
+            await sdk.file.patchUsers(id, a2info, { token: user2Token });
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 403, 'has 403 status code')
@@ -359,8 +433,14 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
+          const a1info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: a1records,
+          };
           try {
-            await sdk.file.patchUsers('something', a1records, { token: user1Token });
+            await sdk.file.patchUsers('something', a1info, { token: user1Token });
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 404, 'has 404 status code')
@@ -397,7 +477,13 @@ describe('http', () => {
             value: 'reader',
             type: 'user',
           }];
-          await sdk.file.patchUsers(spaceId, records, { token });
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
+          await sdk.file.patchUsers(spaceId, info, { token });
         }
 
         it('removes a user from the working space', async () => {
@@ -411,7 +497,13 @@ describe('http', () => {
               type: 'user',
             },
           ];
-          await sdk.file.patchUsers(id, patches, { token: user1Token });
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: patches,
+          };
+          await sdk.file.patchUsers(id, info, { token: user1Token });
           const getResponse = await http.get(`${baseUri}${RouteBuilder.file(id)}`, { token: user2Token });
           assert.equal(getResponse.status, 404, 'has the 404 status code');
         });
@@ -486,7 +578,13 @@ describe('http', () => {
             value: 'commenter',
             type: 'user',
           }];
-          await sdk.file.patchUsers(spaces[0].key, space1records, { token: user1Token });
+          const s1Access: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: space1records,
+          };
+          await sdk.file.patchUsers(spaces[0].key, s1Access, { token: user1Token });
           // add user 3 to space #2
           const space2records: AccessOperation[] = [{
             op: 'add',
@@ -494,7 +592,13 @@ describe('http', () => {
             value: 'writer',
             type: 'user',
           }];
-          await sdk.file.patchUsers(spaces[1].key, space2records, { token: user1Token });
+          const s2Access: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: space2records,
+          };
+          await sdk.file.patchUsers(spaces[1].key, s2Access, { token: user1Token });
         });
 
         after(async () => {
@@ -628,8 +732,16 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, false);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, false);
+          assert.typeOf(result, 'object', 'returns the patch info');
+          assert.equal(result.app, 'x1', 'returns the app');
+          assert.typeOf(result.patch, 'array', 'returns the revert patch');
           const read = await sdk.file.read(id, false);
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -644,8 +756,14 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, false);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, false);
+          assert.typeOf(result, 'object', 'returns the patch info');
           const read = await sdk.file.read(id, false);
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -660,8 +778,14 @@ describe('http', () => {
               value: 'New name',
             }
           ];
-          const result = await sdk.file.patch(id, patch, true);
-          assert.typeOf(result, 'array', 'returns the revert patch');
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
+          const result = await sdk.file.patch(id, info, true);
+          assert.typeOf(result, 'object', 'returns the patch info');
           const read = await sdk.file.read(id, true) as IHttpProject;
           assert.equal(read.info.name, 'New name', 'persists the meta');
         });
@@ -674,8 +798,14 @@ describe('http', () => {
               value: 'Other name',
             }
           ];
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch,
+          };
           try {
-            await sdk.file.patch('1234567890', patch, false);
+            await sdk.file.patch('1234567890', info, false);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 404, 'has 404 status code')
@@ -693,9 +823,15 @@ describe('http', () => {
               test: "hello"
             }
           ];
-          try {
+          const info: IPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
             // @ts-ignore
-            await sdk.file.patch(id, patch, false);
+            patch,
+          };
+          try {
+            await sdk.file.patch(id, info, false);
           } catch (cause) {
             const e = cause as ApiError;
             assert.equal(e.code, 400, 'has 400 status code')

@@ -19,7 +19,7 @@ export default class SessionHttpRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const baseRoute = RouteBuilder.sessions();
-    if (this.info.mode === 'multi-user') {
+    if (this.info.info.mode === 'multi-user') {
       router.post(baseRoute, this.handleMultiUserModeSessionCreate.bind(this));
     } else {
       router.post(baseRoute, this.handleSingleUserModeSessionCreate.bind(this));

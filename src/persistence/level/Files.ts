@@ -2,14 +2,15 @@ import { Bytes } from 'leveldown';
 import { 
   IUser, IBackendEvent, IListResponse, IListOptions, PermissionRole, IFile, ApiError,
   AccessOperation, RouteBuilder, IAccessAddOperation, IAccessRemoveOperation, WorkspaceKind,
-  File, Permission,
+  File, Permission, IPatchInfo, IPatchRevision, IAccessPatchInfo,
 } from '@api-client/core';
-import { JsonPatch, Patch } from '@api-client/json';
+import { Patch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import { IFileAddOptions, IFilesStore } from './AbstractFiles.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import { validateKinds } from './Validator.js';
+import { validatePatch } from '../../lib/Patch.js';
 
 interface FileUser {
   id: string;
@@ -238,35 +239,37 @@ export class Files extends SubStore implements IFilesStore {
     return file;
   }
 
-  async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
-    const isValid = Patch.valid(patch);
-    if (!isValid) {
-      throw new ApiError(`Malformed patch information.`, 400);
-    }
+  async applyPatch(key: string, info: IPatchInfo, user: IUser): Promise<IPatchRevision> {
+    validatePatch(info);
     const ignored: string[] = [
       '/permissions', '/permissionIds', '/deleted', '/deletedInfo', '/parents', '/key', '/kind', '/owner', '/lastModified', '/capabilities'
     ];
-    const filtered = patch.filter(p => {
+    const filtered = info.patch.filter(p => {
       return !ignored.some(path => p.path.startsWith(path));
     });
     if (!filtered.length) {
-      return [];
+      return { ...info, revert: [] };
     }
     const file = await this.read(key, user);
-    const result = Patch.apply(file, filtered, { reversible: true });
-    await this.update(key, result.doc as IFile, patch, user);
-    return result.revert;
+    const ar = Patch.apply(file, filtered, { reversible: true });
+
+    const result: IPatchRevision = {
+      ...info,
+      revert: ar.revert,
+    };
+
+    await this.update(key, ar.doc as IFile, result, user);
+    return result;
   }
 
-  async update(key: string, file: IFile, patch: JsonPatch, user: IUser): Promise<void> {
+  async update(key: string, file: IFile, info: IPatchRevision, user: IUser): Promise<void> {
     await this.checkAccess('writer', key, user);
     this.setModified(file, user);
     await this.db.put(key, this.parent.encodeDocument(file));
-
     const event: IBackendEvent = {
       type: 'event',
       operation: 'patch',
-      data: patch,
+      data: info,
       kind: file.kind,
       id: key,
     };
@@ -340,7 +343,7 @@ export class Files extends SubStore implements IFilesStore {
     };
   }
 
-  async patchAccess(key: string, patch: AccessOperation[], user: IUser): Promise<void> {
+  async patchAccess(key: string, patchInfo: IAccessPatchInfo, user: IUser): Promise<void> {
     await this.checkAccess('writer', key, user);
     
     const file = await this.get(key, true);
@@ -351,7 +354,7 @@ export class Files extends SubStore implements IFilesStore {
 
     // we do every operation separately as they may be about the same user.
 
-    for (const info of patch) {
+    for (const info of patchInfo.patch) {
       if (info.op === 'add') {
         await this.addPermission(file, info, user);
       } else if (info.op === 'remove') {
@@ -366,14 +369,21 @@ export class Files extends SubStore implements IFilesStore {
 
     // JSON-patch library takes care of the difference to the object
     const diffPatch = Patch.diff(copy, file);
+
     // note, we add the `permissions` field to the patch as the client already has this field filled up.
     
     // we inform about the space change only when there was an actual change (may not be when updating permissions only).
     if (diffPatch.length) {
+      const data: IPatchRevision = {
+        ...patchInfo,
+        patch: diffPatch,
+        revert: [],
+      };
+
       const event: IBackendEvent = {
         type: 'event',
         operation: 'patch',
-        data: diffPatch,
+        data,
         kind: file.kind,
         id: key,
       };

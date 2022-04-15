@@ -1,5 +1,4 @@
-import { IUser, IHttpProject } from '@api-client/core';
-import { JsonPatch } from '@api-client/json';
+import { IUser, IHttpProject, IPatchInfo, IPatchRevision, } from '@api-client/core';
 
 /**
  * The part of the store that takes care of the project data.
@@ -51,5 +50,5 @@ export interface IProjectsStore {
    * @param user The patching user
    * @returns The revert information of the patch.
    */
-  applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch>;
+  applyPatch(key: string, patch: IPatchInfo, user: IUser): Promise<IPatchRevision>;
 }

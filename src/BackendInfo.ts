@@ -1,28 +1,38 @@
 import { IBackendInfo } from '@api-client/core';
-import { ServerMode } from './definitions.js';
+import { IServerConfiguration, IOidcConfiguration } from './definitions.js';
 
 export class BackendInfo {
-  mode: ServerMode = 'single-user';
-  prefix?: string;
-  /**
-   * The path to the authentication endpoint.
-   */
-  authPath = '/auth/login';
-  /**
-   * This is not intended for production.
-   * It tells the API that it is running in a testing mode
-   * (it has unprotected API to destroy data!)
-   */
-  testing = false;
+  info: IBackendInfo = {
+    auth: { path: '/auth/login' },
+    hosting: { port: 0 },
+    mode: 'single-user',
+  };
 
   toJSON(): IBackendInfo {
-    const info: IBackendInfo = {
-      mode: this.mode,
-      authPath: this.authPath,
-    };
-    if (this.prefix) {
-      info.prefix = this.prefix;
+    return { ...this.info };
+  }
+
+  applyConfig(opts: IServerConfiguration): void {
+    const { authentication, mode, router, portOrSocket, host, } = opts;
+    const { info } = this;
+    info.mode = mode === 'multi-user' ? mode : 'single-user';
+    if (router && router.prefix) {
+      info.hosting.prefix = router.prefix;
     }
-    return info as IBackendInfo;
+    if (host) {
+      info.hosting.host = host;
+    }
+    if (typeof portOrSocket === 'string') {
+      info.hosting.socket = portOrSocket;
+    } else if (typeof portOrSocket === 'number') {
+      info.hosting.port = portOrSocket;
+    }
+
+    if (typeof authentication === 'object') {
+      info.auth.type = authentication.type;
+      if (authentication.type === 'oidc') {
+        info.auth.redirect = (authentication.config as IOidcConfiguration).issuerUri;
+      }
+    }
   }
 }

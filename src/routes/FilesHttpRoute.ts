@@ -2,14 +2,16 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
 import { 
-  IFile, IUser, RouteBuilder, AccessOperation, IWorkspace, IHttpProject, 
+  IFile, IUser, RouteBuilder, IAccessPatchInfo, IWorkspace, IHttpProject, 
   WorkspaceKind, HttpProjectKind, Project, IProject, ProjectKind, ApiError,
+  IPatchInfo, IPatchRevision,
 } from '@api-client/core';
-import { JsonPatch, Patch } from '@api-client/json';
+import { Patch } from '@api-client/json';
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
 import { IFileAddOptions } from '../persistence/level/AbstractFiles.js';
 import { AltType } from '../persistence/level/AbstractRevisions.js';
+import { validatePatch } from '../lib/Patch.js';
 
 export default class FilesRoute extends BaseRoute {
   async setup(): Promise<void> {
@@ -168,17 +170,14 @@ export default class FilesRoute extends BaseRoute {
       if (alt && alt !== 'media') {
         throw new ApiError(`Unsupported "alt" parameter.`, 400);
       }
-      const patch = await this.readJsonBody(ctx.request) as JsonPatch;
-      let result: JsonPatch;
+      const patch = await this.readJsonBody(ctx.request) as IPatchInfo;
+      let result: IPatchRevision;
       if (alt === 'media') {
         result = await this.patchFileContents(file, patch, user);
       } else {
         result = await this.store.file.applyPatch(file, patch, user);
       }
-      ctx.body = {
-        status: 'OK',
-        revert: result,
-      };
+      ctx.body = result;
       ctx.status = 200;
       ctx.type = this.jsonType;
     } catch (cause) {
@@ -186,7 +185,7 @@ export default class FilesRoute extends BaseRoute {
     }
   }
 
-  private async patchFileContents(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
+  private async patchFileContents(key: string, patch: IPatchInfo, user: IUser): Promise<IPatchRevision> {
     const meta = await this.store.file.read(key, user);
     if (!meta) {
       throw new ApiError(`File media not found`, 404);
@@ -197,17 +196,14 @@ export default class FilesRoute extends BaseRoute {
     if (meta.kind !== ProjectKind) {
       throw new ApiError(`The file has unsupported kind: ${meta.kind}.`, 400);
     }
-    const isValid = Patch.valid(patch);
-    if (!isValid) {
-      throw new ApiError(`Invalid patch information.`, 400);
-    }
-
+    validatePatch(patch);
     const result = await this.store.project.applyPatch(meta.key, patch, user);
     const file = new Project(meta as IProject);
     file.setLastModified(user);
     const updatedFile = file.toJSON();
     const delta = Patch.diff(meta, updatedFile);
-    await this.store.file.update(key, updatedFile, delta, user);
+    const metaPatch: IPatchInfo = { ...patch, patch: delta };
+    await this.store.file.update(key, updatedFile, metaPatch, user);
     return result;
   }
 
@@ -283,12 +279,12 @@ export default class FilesRoute extends BaseRoute {
       // Note, this is not the semantics of JSON patch. This is done so we can support PATCH on the users
       // resource to add / remove users. Normally this would be POST and DELETE but DELETE requests cannot 
       // have body: https://github.com/httpwg/http-core/issues/258
-      const patches = await this.readJsonBody(ctx.request) as AccessOperation[];
-      if (!Array.isArray(patches)) {
+      const info = await this.readJsonBody(ctx.request) as IAccessPatchInfo;
+      if (!Array.isArray(info.patch)) {
         throw new ApiError(`Expected array with patch in the body.`, 400);
       }
-      this.verifyUserAccessRecords(patches);
-      await this.store.file.patchAccess(file, patches, user);
+      this.verifyUserAccessRecords(info.patch);
+      await this.store.file.patchAccess(file, info, user);
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);

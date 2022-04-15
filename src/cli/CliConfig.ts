@@ -20,8 +20,11 @@ export class CliConfig {
     const config: IServerConfiguration = {
       mode: 'single-user',
       logger,
-      session: {},
+      session: {
+        secret: '',
+      },
       router: {},
+      portOrSocket: CliConfig.getPort(opts),
     };
     if (sessionSecret) {
       config.session!.secret = sessionSecret;

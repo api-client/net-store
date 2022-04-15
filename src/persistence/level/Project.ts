@@ -1,10 +1,11 @@
 import { Bytes } from 'leveldown';
-import { IUser, IHttpProject, IBackendEvent, RouteBuilder, HttpProjectKind, ApiError } from '@api-client/core';
-import { JsonPatch, Patch } from '@api-client/json';
+import { IUser, IHttpProject, IBackendEvent, RouteBuilder, HttpProjectKind, ApiError, IPatchInfo, IPatchRevision } from '@api-client/core';
+import { Patch } from '@api-client/json';
 import { SubStore } from '../SubStore.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import { IProjectsStore } from './AbstractProject.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
+import { validatePatch } from '../../lib/Patch.js';
 
 export class Project extends SubStore implements IProjectsStore {
   async cleanup(): Promise<void> {
@@ -66,29 +67,30 @@ export class Project extends SubStore implements IProjectsStore {
     Clients.notify(event, filter);
   }
 
-  async applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch> {
-    const isValid = Patch.valid(patch);
-    if (!isValid) {
-      throw new ApiError(`Malformed patch information.`, 400);
-    }
+  async applyPatch(key: string, info: IPatchInfo, user: IUser): Promise<IPatchRevision> {
+    validatePatch(info);
     const prohibited: string[] = ['/_deleted', '/key', '/kind'];
-    const invalid = patch.find(p => {
+    const invalid = info.patch.find(p => {
       return prohibited.some(path => p.path.startsWith(path));
     });
     if (invalid) {
       throw new ApiError(`Invalid patch path: ${invalid.path}.`, 400);
     }
     const file = await this.read(key);
-    const result = Patch.apply(file, patch, { reversible: true });
-    await this.db.put(key, this.parent.encodeDocument(result.doc));
-    // @ts-ignore
-    await this.parent.revisions.add(file.kind, key, result.revert, user);
+    const ar = Patch.apply(file, info.patch, { reversible: true });
+    const result: IPatchRevision = {
+      ...info,
+      revert: ar.revert,
+    };
+
+    await this.db.put(key, this.parent.encodeDocument(ar.doc));
+    await this.parent.revisions.add(file.kind, key, ar.revert, user);
 
     const users = await this.parent.file.fileUserIds(key);
     const event: IBackendEvent = {
       type: 'event',
       operation: 'patch',
-      data: patch,
+      data: result,
       kind: file.kind,
       id: key,
     };
@@ -97,6 +99,6 @@ export class Project extends SubStore implements IProjectsStore {
       users,
     };
     Clients.notify(event, filter);
-    return result.revert;
+    return result;
   }
 }

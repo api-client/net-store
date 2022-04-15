@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { IWorkspace, Workspace, AccessOperation, StoreSdk, ProjectKind } from '@api-client/core';
+import { IWorkspace, Workspace, AccessOperation, StoreSdk, ProjectKind, IAccessPatchInfo } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import { IGeneratedSessionUsers } from '../helpers/TestsHttpRoute.js';
@@ -64,7 +64,13 @@ describe('http', () => {
             value: 'reader',
             id: users[1].user.key,
           }];
-          await sdk.file.patchUsers(parent, records);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
+          await sdk.file.patchUsers(parent, info);
           
           sdk.token = users[1].token;
           const list = await sdk.shared.list([ProjectKind], { limit: 100 });
@@ -86,7 +92,13 @@ describe('http', () => {
             value: 'reader',
             id: user3.user.key,
           }];
-          await sdk.file.patchUsers(space.key, records);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: records,
+          };
+          await sdk.file.patchUsers(space.key, info);
           
           sdk.token = user3.token;
           const list = await sdk.shared.list([ProjectKind], { parent });

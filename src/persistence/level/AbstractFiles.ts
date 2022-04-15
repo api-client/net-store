@@ -1,8 +1,7 @@
 import {
-  IUser, IListResponse, IListOptions, AccessOperation, PermissionRole, IAccessAddOperation, IFile,
-  IAccessRemoveOperation,
+  IUser, IListResponse, IListOptions, PermissionRole, IAccessAddOperation, IFile,
+  IAccessRemoveOperation, IPatchInfo, IPatchRevision, IAccessPatchInfo,
 } from '@api-client/core';
-import { JsonPatch } from '@api-client/json';
 
 export interface IFileAddOptions {
   /**
@@ -88,7 +87,7 @@ export interface IFilesStore {
    * @param user The patching user
    * @returns The revert information of the patch.
    */
-  applyPatch(key: string, patch: JsonPatch, user: IUser): Promise<JsonPatch>;
+  applyPatch(key: string, patch: IPatchInfo, user: IUser): Promise<IPatchRevision>;
   /**
    * Updates the file in the store. This is not intended to be used by the HTTP routes.
    * It simply stores the already patched file and informs the clients about the change.
@@ -100,7 +99,7 @@ export interface IFilesStore {
    * @param patch The revere patch information after applying the patch.
    * @param user The current user to test permissions against.
    */
-  update(key: string, file: IFile, patch: JsonPatch, user: IUser): Promise<void>;
+  update(key: string, file: IFile, patch: IPatchInfo, user: IUser): Promise<void>;
   /**
    * Deletes a file in the store.
    * 
@@ -117,7 +116,7 @@ export interface IFilesStore {
    * @param patch The access operation patch.
    * @param user The current user to test the permissions against.
    */
-  patchAccess(key: string, patch: AccessOperation[], user: IUser): Promise<void>;
+  patchAccess(key: string, patch: IAccessPatchInfo, user: IUser): Promise<void>;
   /**
    * An atomic ADD permission operation. Not intended to use outside the persistance layer.
    * It adds the permission mutating the file but does not store the file.

@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { 
   DefaultLogger, IWorkspace, ProjectMock,  Workspace, AccessOperation, HttpProject, WorkspaceKind,
-  ApiError, ICapabilities,
+  ApiError, ICapabilities, IAccessPatchInfo,
 } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { DataHelper } from '../helpers/DataHelper.js';
@@ -50,12 +50,18 @@ describe('Unit tests', () => {
         });
 
         async function addUserToFile(fileId: string, userId = user2.key, addingUser = user1): Promise<void> {
-          await store.file.patchAccess(fileId, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: userId,
-          } as AccessOperation], addingUser);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: userId,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(fileId, info, addingUser);
         } 
 
         it('reads a shared root level file', async () => {
@@ -111,11 +117,17 @@ describe('Unit tests', () => {
         });
 
         it('read the file shared with anyone', async () => {
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'anyone',
-            value: 'reader',
-          } as AccessOperation], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'anyone',
+              value: 'reader',
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, info, user1);
           const file = await store.file.read(s1.key, user3);
           assert.typeOf(file, 'object');
         });
@@ -160,12 +172,18 @@ describe('Unit tests', () => {
           const parent = files[0].key;
           const file = Workspace.fromName('s2', user1.key).toJSON();
           await store.file.add(file.key, file, user1, { parent });
-          await store.file.patchAccess(file.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user2.key,
-          }], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user2.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(file.key, info, user1);
 
           const list = await store.shared.list([WorkspaceKind], user2, { limit: 100 });
           assert.lengthOf(list.data, 40, 'has all records');
@@ -175,12 +193,18 @@ describe('Unit tests', () => {
           const parent = files[0].key;
           const file = Workspace.fromName('s2', user1.key).toJSON();
           await store.file.add(file.key, file, user1, { parent });
-          await store.file.patchAccess(file.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          }], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(file.key, info, user1);
           const list = await store.shared.list([WorkspaceKind], user3, { parent });
           assert.lengthOf(list.data, 1, 'has all parent records');
         });
@@ -247,11 +271,17 @@ describe('Unit tests', () => {
 
         it('removes the access to the file', async () => {
           const file = files[0];
-          await store.file.patchAccess(file.key, [{
-            op: 'remove',
-            type: 'user',
-            id: user2.key,
-          }], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'remove',
+              type: 'user',
+              id: user2.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(file.key, info, user1);
 
           const readFile = await store.file.read(file.key, user1) as IWorkspace;
           
@@ -275,12 +305,17 @@ describe('Unit tests', () => {
           const file = files[1];
           const p = HttpProject.fromName('test');
           await DataHelper.addProject(store, p, user1, file.key);
-
-          await store.file.patchAccess(file.key, [{
-            op: 'remove',
-            type: 'user',
-            id: user2.key,
-          }], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'remove',
+              type: 'user',
+              id: user2.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(file.key, info, user1);
 
           let error: ApiError | undefined;
           try {
@@ -297,12 +332,19 @@ describe('Unit tests', () => {
 
         it('throws when the file does not exist', async () => {
           let error: ApiError | undefined;
-          try {
-            await store.file.patchAccess('invalid', [{
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
               op: 'remove',
               type: 'user',
               id: user2.key,
-            }], user1);
+            } as AccessOperation],
+          };
+
+          try {
+            await store.file.patchAccess('invalid', info, user1);
           } catch (e) {
             error = e as ApiError;
           }
@@ -316,11 +358,17 @@ describe('Unit tests', () => {
         it('ignores the operation when permission does not exist', async () => {
           const file = files[2];
           const ids = [...file.permissionIds];
-          await store.file.patchAccess(file.key, [{
-            op: 'remove',
-            type: 'user',
-            id: 'invalid',
-          }], user1);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'remove',
+              type: 'user',
+              id: 'invalid',
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(file.key, info, user1);
           const readFile = await store.file.read(file.key, user1) as IWorkspace;
           assert.deepEqual(readFile.permissionIds, ids, 'space keeps the permissionIds');
         });
@@ -385,33 +433,52 @@ describe('Unit tests', () => {
         });
 
         it('can share a shared file with write role', async () => {
-          await store.file.patchAccess(parent.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          } as AccessOperation], user2);
+          const info: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(parent.key, info, user2);
 
           const file = await store.file.read(parent.key, user3) as IWorkspace;
           assert.lengthOf(file.permissions, 2, 'has both permissions');
         });
 
         it('can not share a shared file with write reading role', async () => {
-          await store.file.patchAccess(parent.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          } as AccessOperation], user2);
-
-          let error: ApiError | undefined;
-          try {
-            await store.file.patchAccess(parent.key, [{
+          const info1: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          const info2: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
               op: 'add',
               type: 'user',
               value: 'reader',
               id: user4.key,
-            } as AccessOperation], user3);
+            } as AccessOperation],
+          };
+
+          await store.file.patchAccess(parent.key, info1, user2);
+
+          let error: ApiError | undefined;
+          try {
+            await store.file.patchAccess(parent.key, info2, user3);
           } catch (e) {
             error = e as ApiError;
           }
@@ -427,18 +494,30 @@ describe('Unit tests', () => {
           const s2 = Workspace.fromName('s2').toJSON();
           await store.file.add(s1.key, s1, user2, { parent: parent.key });
           await store.file.add(s2.key, s2, user2, { parent: s1.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          } as AccessOperation], user2);
-          await store.file.patchAccess(s2.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'writer',
-            id: user3.key,
-          } as AccessOperation], user2);
+          const info1: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          const info2: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'writer',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, info1, user2);
+          await store.file.patchAccess(s2.key, info2, user2);
 
           const s3 = Workspace.fromName('s3').toJSON();
           await store.file.add(s3.key, s3, user3, { parent: s2.key });
@@ -448,12 +527,18 @@ describe('Unit tests', () => {
           const s1 = Workspace.fromName('s1').toJSON();
           const s2 = Workspace.fromName('s2').toJSON();
           await store.file.add(s1.key, s1, user2, { parent: parent.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          } as AccessOperation], user2);
+          const patch: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, patch, user2);
 
           let error: ApiError | undefined;
           try {
@@ -472,12 +557,18 @@ describe('Unit tests', () => {
           const s1 = Workspace.fromName('s1').toJSON();
           const p = HttpProject.fromName('test');
           await store.file.add(s1.key, s1, user2, { parent: parent.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'user',
-            value: 'reader',
-            id: user3.key,
-          } as AccessOperation], user2);
+          const patch: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'user',
+              value: 'reader',
+              id: user3.key,
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, patch, user2);
 
           let error: ApiError | undefined;
           try {
@@ -496,11 +587,17 @@ describe('Unit tests', () => {
           const s1 = Workspace.fromName('s1').toJSON();
           const s2 = Workspace.fromName('s2').toJSON();
           await store.file.add(s1.key, s1, user1, { parent: parent.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'anyone',
-            value: 'writer',
-          } as AccessOperation], user1);
+          const patch: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'anyone',
+              value: 'writer',
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, patch, user1);
           await store.file.add(s2.key, s2, user3, { parent: s1.key });
         });
 
@@ -508,11 +605,17 @@ describe('Unit tests', () => {
           const s1 = Workspace.fromName('s1').toJSON();
           const s2 = Workspace.fromName('s2').toJSON();
           await store.file.add(s1.key, s1, user1, { parent: parent.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'anyone',
-            value: 'reader',
-          } as AccessOperation], user1);
+          const patch: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'anyone',
+              value: 'reader',
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, patch, user1);
           let error: ApiError | undefined;
           try {
             await store.file.add(s2.key, s2, user3, { parent: s1.key });
@@ -529,11 +632,17 @@ describe('Unit tests', () => {
         it('refuses deleting a file without writing role', async () => {
           const s1 = Workspace.fromName('s1').toJSON();
           await store.file.add(s1.key, s1, user1, { parent: parent.key });
-          await store.file.patchAccess(s1.key, [{
-            op: 'add',
-            type: 'anyone',
-            value: 'reader',
-          } as AccessOperation], user1);
+          const patch: IAccessPatchInfo = {
+            app: 'x1',
+            appVersion: '1',
+            id: '123',
+            patch: [{
+              op: 'add',
+              type: 'anyone',
+              value: 'reader',
+            } as AccessOperation],
+          };
+          await store.file.patchAccess(s1.key, patch, user1);
           let error: ApiError | undefined;
           try {
             await store.file.delete(s1.key, user3);
