@@ -1,7 +1,7 @@
 {
   "name": "@api-client/net-store",
   "description": "The API CLient's HTTP data store with interfaces for authorization and a persistence layers.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "Apache-2.0",
   "type": "module",
   "main": "build/index.js",

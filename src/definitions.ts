@@ -185,3 +185,22 @@ export interface IApplicationState extends DefaultState {
    */
   sid?: string;
 }
+
+export interface IServerProxyConfiguration {
+  /**
+   * The port number to run the server on.
+   */
+  port: number;
+  /**
+   * The prefix to use with the API routes. E.g. /api/v1.
+   */
+  prefix?: string;
+  /**
+   * CORS configuration.
+   */
+  cors?: ICorsConfiguration;
+  /**
+   * The logger object to use.
+   */
+  logger?: ILogger;
+}

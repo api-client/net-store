@@ -1,10 +1,11 @@
-import { Request, ParameterizedContext } from 'koa';
+import { ParameterizedContext } from 'koa';
 import Router from '@koa/router';
-import { IUser, AccessOperation, Logger, IListOptions, ApiError, IApiError } from '@api-client/core';
+import { IUser, AccessOperation, Logger, IListOptions, ApiError } from '@api-client/core';
 import { StorePersistence } from '../persistence/StorePersistence.js';
 import { AppSession } from '../session/AppSession.js';
 import { BackendInfo } from '../BackendInfo.js';
 import { IApplicationState } from '../definitions.js';
+import ApiRoute from './ApiRoute.js';
 
 export interface ISpaceConfiguration {
   router: Router;
@@ -14,7 +15,7 @@ export interface ISpaceConfiguration {
   logger: Logger;
 }
 
-export abstract class BaseRoute {
+export abstract class BaseRoute extends ApiRoute {
   protected router: Router;
   protected store: StorePersistence;
   protected info: BackendInfo;
@@ -24,7 +25,8 @@ export abstract class BaseRoute {
   /**
    * @param init Route configuration
    */
-  constructor(init: ISpaceConfiguration) { 
+  constructor(init: ISpaceConfiguration) {
+    super(); 
     this.router = init.router;
     this.store = init.store;
     this.info = init.info;
@@ -47,70 +49,6 @@ export abstract class BaseRoute {
    */
   get isMultiUser(): boolean {
     return this.info.info.mode === 'multi-user';
-  }
-
-  get jsonType(): string {
-    return 'application/json';
-  }
-
-  wrapError(cause: ApiError): IApiError {
-    const { code = 500, detail, message } = cause;
-    return {
-      error: true,
-      code,
-      message,
-      detail: detail || 'There was an error. That is all we know.'
-    };
-  }
-
-  /**
-   * Takes an Error object (preferably the ApiError) and response with an error.
-   * @param ctx 
-   * @param cause 
-   */
-  errorResponse(ctx: ParameterizedContext, cause: any): void {
-    const e = cause as IApiError;
-    const error = new ApiError(e.message || 'Unknown error', e.code || 400);
-    error.detail = e.detail;
-    ctx.body = this.wrapError(error);
-    ctx.status = error.code;
-    ctx.type = this.jsonType;
-  }
-
-  /**
-   * Reads the request body and parses it as a JSON value.
-   * @throws an error when no body or invalid JSON value.
-   */
-  protected async readJsonBody(request: Request): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      let message: Buffer;
-      request.req.on('data', (chunk) => {
-        try {
-          if (message) {
-            message = Buffer.concat([message, chunk]);
-          } else {
-            message = chunk;
-          }
-        } catch (e) {
-          reject(e);
-          throw e;
-        }
-      });
-      request.req.on('end', () => {
-        if (!message) {
-          reject(new Error(`Invalid request body. Expected a message.`));
-          return;
-        }
-        let data: unknown | undefined;
-        try {
-          data = JSON.parse(message.toString('utf8'));
-        } catch (e) {
-          reject(new Error(`Invalid request body. Expected JSON value.`));
-          return;
-        }
-        resolve(data);
-      });
-    });
   }
   
   protected collectListingParameters(ctx: ParameterizedContext): IListOptions {
