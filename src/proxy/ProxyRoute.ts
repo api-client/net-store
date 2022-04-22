@@ -35,12 +35,14 @@ export default class ProxyRoute extends ApiRoute {
       ctx.status = 204;
       ctx.set('location', location);
     } catch (cause) {
+      this.logger.debug(`Error when initializing a proxy ${(cause as Error).message}`);
       this.errorResponse(ctx, cause);
     }
   }
 
   protected async addRequestProxy(init: IRequestProxyInit): Promise<string> {
     const { request, authorization, config } = init;
+    this.logger.debug(`Initializing a request proxy: ${request && request.url || 'unknown URL'}`);
     const proxy = new RequestProxy();
     await proxy.configure(request, authorization, config);
     const id = uuidV4();
@@ -50,6 +52,7 @@ export default class ProxyRoute extends ApiRoute {
 
   protected async addProjectProxy(init: IProjectProxyInit): Promise<string> {
     const { opts, pid, token, baseUri } = init;
+    this.logger.debug(`Initializing a project proxy for project ${pid}`);
     const proxy = new ProjectProxy();
     await proxy.configure(pid, opts, token, baseUri);
     const id = uuidV4();
@@ -71,27 +74,35 @@ export default class ProxyRoute extends ApiRoute {
 
   protected async _proxyRoute(ctx: ParameterizedContext): Promise<void> {
     const { key } = ctx.params;
+    this.logger.debug(`Executing proxy for ${key}`);
     try {
       const proxy = this.state.get(key);
       if (!proxy) {
+        this.logger.warn(`Proxy ${key} does not exist`);
         throw new ApiError(`Unknown key: ${key}. The request may have been already executed.`, 400);
       }
       this.state.delete(key);
       let body: Buffer | undefined;
       if (this._hasBody(ctx)) {
+        this.logger.debug(`Reading body to the proxy.`);
         body = await this.readBufferBody(ctx.request);
       }
+      this.logger.debug(`Running the request.`);
       const result = await proxy.execute(body);
       if (result.headers) {
         ctx.response.headers = result.headers;
       }
       if (typeof result.status === 'number') {
         ctx.status = result.status;
+      } else {
+        ctx.status = 200;
       }
       if (result.body) {
         ctx.body = result.body;
       }
+      this.logger.debug(`Proxy finished.`);
     } catch (cause) {
+      this.logger.debug(`Error when running a proxy ${(cause as Error).message}`);
       this.errorResponse(ctx, cause);
     }
   }
