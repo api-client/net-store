@@ -46,13 +46,13 @@ export class ProxyServer {
     this.router = new Router(routerOptions);
     this.route = new ProxyRoute(this.router, this.logger);
 
-    this.app.use(this.router.routes());
-    this.app.use(this.router.allowedMethods());
-
     if (config.cors && config.cors.enabled) {
       const corsConfig = config.cors.cors || this.defaultCorsConfig();
       this.app.use(cors(corsConfig));
     }
+
+    this.app.use(this.router.routes());
+    this.app.use(this.router.allowedMethods());
   }
 
   /**
