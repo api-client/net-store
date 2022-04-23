@@ -457,7 +457,7 @@ describe('Events', () => {
     });
 
     it('receives events when creating an app history', async () => {
-      const item = mock.history.httpHistory({ app: 'test-app' });
+      const item = await mock.history.httpHistory({ app: 'test-app' });
       const id = await sdk.history.create(item);
 
       const [event] = app1.messages;
@@ -473,7 +473,7 @@ describe('Events', () => {
       app2.reset();
       app3.reset();
 
-      const item = mock.history.httpHistory({ space: s1.key });
+      const item = await mock.history.httpHistory({ space: s1.key });
       const id = await sdk.history.create(item);
 
       const [event1] = app1.messages;
@@ -494,7 +494,7 @@ describe('Events', () => {
       app2.reset();
       app3.reset();
 
-      const item = mock.history.httpHistory({ project: p1.key });
+      const item = await mock.history.httpHistory({ project: p1.key });
       const id = await sdk.history.create(item);
 
       const [event1] = app1.messages;
@@ -515,8 +515,8 @@ describe('Events', () => {
       app2.reset();
       app3.reset();
 
-      const log1 = mock.projectRequest.log();
-      const log2 = mock.projectRequest.log();
+      const log1 = await mock.projectRequest.log();
+      const log2 = await mock.projectRequest.log();
       const item: IHttpHistoryBulkAdd = {
         app: 'test-app',
         log: [log1, log2],
@@ -541,8 +541,8 @@ describe('Events', () => {
       app2.reset();
       app3.reset();
 
-      const log1 = mock.projectRequest.log();
-      const log2 = mock.projectRequest.log();
+      const log1 = await mock.projectRequest.log();
+      const log2 = await mock.projectRequest.log();
       const item: IHttpHistoryBulkAdd = {
         space: s1.key,
         log: [log1, log2],

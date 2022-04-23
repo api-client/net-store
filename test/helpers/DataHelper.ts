@@ -58,7 +58,7 @@ export class DataHelper {
   }
 
   static async addHistory(store: DataStoreType, size=25, opts?: IHttpHistoryListInit): Promise<IHttpHistory[]> {
-    const list = mock.history.httpHistoryList(size, opts);
+    const list = await mock.history.httpHistoryList(size, opts);
     await this.insertHistory(store, list);
     return list;
   }

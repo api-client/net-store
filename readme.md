@@ -70,3 +70,8 @@ api-store mode "multi-user" \
 ## Contributions
 
 We are excited to see your contributions, especially for authentication protocols and security of the application. Fork, change, test, and send us a PR. That's all we ask :)
+
+## TODO
+
+- [ ] Add an ability to store application data for synchronization.
+- [ ] Allow the client application to be a redirect URI target for OAuth configuration for a device flow

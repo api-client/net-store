@@ -27,7 +27,7 @@
     "node": ">=15.4"
   },
   "dependencies": {
-    "@api-client/core": "^0.5.10",
+    "@api-client/core": "^0.6.0",
     "@api-client/json": "^0.1.1",
     "@koa/cors": "^3.3.0",
     "@koa/router": "^10.1.1",
@@ -46,7 +46,7 @@
   "devDependencies": {
     "@commitlint/cli": "^16.2.3",
     "@commitlint/config-conventional": "^16.2.1",
-    "@pawel-up/data-mock": "^0.2.0",
+    "@pawel-up/data-mock": "^0.3.0",
     "@types/chai": "^4.3.0",
     "@types/flexsearch": "^0.7.3",
     "@types/jsonwebtoken": "^8.5.8",
@@ -63,7 +63,7 @@
     "@typescript-eslint/eslint-plugin": "^5.18.0",
     "@typescript-eslint/parser": "^5.18.0",
     "chai": "^4.3.6",
-    "eslint": "^8.13.0",
+    "eslint": "^8.14.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-import-resolver-typescript": "^2.7.1",
     "eslint-plugin-import": "^2.26.0",

@@ -40,7 +40,7 @@ describe('http', () => {
         });
   
         it('adds an item to the store and updated the user', async () => {
-          const item = mock.history.httpHistory({ app: 'test-app' });
+          const item = await mock.history.httpHistory({ app: 'test-app' });
           const id = await sdk.history.create(item);
           assert.typeOf(id, 'string', 'has the created id in the body');
           const read = await sdk.history.read(id);
@@ -65,7 +65,7 @@ describe('http', () => {
         });
         
         it('lists the user history', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await sdk.history.create(item);
           const list = await sdk.history.list({ type: 'user' });
@@ -75,8 +75,8 @@ describe('http', () => {
         });
   
         it('lists the application history', async () => {
-          const item1 = mock.history.httpHistory();
-          const item2 = mock.history.httpHistory();
+          const item1 = await mock.history.httpHistory();
+          const item2 = await mock.history.httpHistory();
           item1.app = 'other-app';
           item2.app = 'test-app';
           await sdk.history.create(item1);
@@ -91,7 +91,7 @@ describe('http', () => {
         });
   
         it('uses the page token', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await sdk.history.create(item);
           const list1 = await sdk.history.list({ type: 'user' });
@@ -116,7 +116,7 @@ describe('http', () => {
       });
   
       it('adds the history in bulk', async () => {
-        const log = mock.projectRequest.log();
+        const log = await mock.projectRequest.log();
         const item: IHttpHistoryBulkAdd = {
           app: 'test-app',
           log: [log],
@@ -142,7 +142,7 @@ describe('http', () => {
       });
   
       it('removes history data', async () => {
-        const item = mock.history.httpHistory({ app: 'test-app' });
+        const item = await mock.history.httpHistory({ app: 'test-app' });
         const id = await sdk.history.create(item);
         await sdk.history.delete([id]);
       });
@@ -165,13 +165,13 @@ describe('http', () => {
           const user = await sdk.user.me({ token: user2Token });
           user2Id = user.key;
   
-          const item1 = mock.history.httpHistory({ app: 'test-app' });
+          const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
   
           const rawSpaces = await http.post(`${baseUri}/test/generate/files?size=1`, { token: user1Token });
           space1Key = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
 
-          const item2 = mock.history.httpHistory({ space: space1Key });
+          const item2 = await mock.history.httpHistory({ space: space1Key });
           created2Id = await sdk.history.create(item2, { token: user1Token });
 
           const accessInfo: IAccessPatchInfo = {
@@ -252,13 +252,13 @@ describe('http', () => {
         });
   
         beforeEach(async () => {
-          const item1 = mock.history.httpHistory({ app: 'test-app' });
+          const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
 
           const rawSpaces = await http.post(`${baseUri}/test/generate/files?size=1`, { token: user1Token });
           space1Key = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
           
-          const item2 = mock.history.httpHistory({ space: space1Key });
+          const item2 = await mock.history.httpHistory({ space: space1Key });
           created2Id = await sdk.history.create(item2, { token: user1Token });
 
           // add user 2 read access to the space
@@ -321,7 +321,7 @@ describe('http', () => {
         });
   
         it('adds an item to the store and updated the user', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           const id = await sdk.history.create(item);
           assert.typeOf(id, 'string', 'has the created id in the body');
@@ -347,7 +347,7 @@ describe('http', () => {
         });
         
         it('lists the user history', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await sdk.history.create(item);
           const list = await sdk.history.list({ type: 'user' });
@@ -357,8 +357,8 @@ describe('http', () => {
         });
   
         it('lists the application history', async () => {
-          const item1 = mock.history.httpHistory();
-          const item2 = mock.history.httpHistory();
+          const item1 = await mock.history.httpHistory();
+          const item2 = await mock.history.httpHistory();
           item1.app = 'other-other';
           item2.app = 'test-app';
           await sdk.history.create(item1);
@@ -371,7 +371,7 @@ describe('http', () => {
         });
   
         it('uses the page token', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await sdk.history.create(item);
           const list1 = await sdk.history.list({ type: 'user' });
@@ -393,7 +393,7 @@ describe('http', () => {
       });
   
       it('adds the history in bulk', async () => {
-        const log = mock.projectRequest.log();
+        const log = await mock.projectRequest.log();
         const item: IHttpHistoryBulkAdd = {
           app: 'test-app',
           log: [log],
@@ -419,7 +419,7 @@ describe('http', () => {
       });
   
       it('removes history data', async () => {
-        const item = mock.history.httpHistory({ app: 'test-app' });
+        const item = await mock.history.httpHistory({ app: 'test-app' });
         const id = await sdk.history.create(item);
         await sdk.history.delete([id]);
       });
@@ -431,7 +431,7 @@ describe('http', () => {
         let created1Id: string;
         before(async () => {
           user1Token = await http.createUserToken(baseUri);
-          const item1 = mock.history.httpHistory({ app: 'test-app' });
+          const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
         });
     
@@ -466,7 +466,7 @@ describe('http', () => {
         });
   
         beforeEach(async () => {
-          const item1 = mock.history.httpHistory({ app: 'test-app' });
+          const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
         });
   

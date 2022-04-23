@@ -60,7 +60,7 @@ describe('Unit tests', () => {
         });
 
         it('adds an item to the store and updates the user', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await store.history.add(item, DefaultUser);
           const key = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), DefaultUser.key);
@@ -70,7 +70,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the spaces store', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.space = space1Id;
           await store.history.add(item, user1);
           const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), user1.key);
@@ -80,7 +80,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the project store', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.project = project1Id;
           await store.history.add(item, user1);
           const time = new Date(item.created).toJSON();
@@ -91,7 +91,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the request store', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.space = space1Id;
           item.project = project1Id;
           item.request = 'test-request';
@@ -103,7 +103,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the app store', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           await store.history.add(item, DefaultUser);
           const dataKey = KeyGenerator.historyDataKey(new Date(item.created).toJSON(), DefaultUser.key);
@@ -114,7 +114,7 @@ describe('Unit tests', () => {
 
         it('informs the WS client', async () => {
           const spy = sinon.spy(Clients, 'notify');
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.app = 'test-app';
           try {
             await store.history.add(item, DefaultUser);
@@ -132,7 +132,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when neither app or type is defined', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           let error: ApiError | undefined;
           try {
             await store.history.add(item, user1);
@@ -147,7 +147,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when no space found', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.space = 'unknown';
           let error: ApiError | undefined;
           try {
@@ -163,7 +163,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when has no access to the space', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.space = space2Id;
           let error: ApiError | undefined;
           try {
@@ -179,7 +179,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when sets the request without the project', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           item.request = 'test-request';
           let error: ApiError | undefined;
           try {
@@ -224,7 +224,7 @@ describe('Unit tests', () => {
         });
 
         it('adds app history to the store and adds the user', async () => {
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             app: 'test-app',
             log: [log],
@@ -236,7 +236,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the spaces store', async () => {
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             space: space1Id,
             log: [log],
@@ -250,7 +250,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the request store', async () => {
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             space: space1Id,
             project: project1Id,
@@ -266,7 +266,7 @@ describe('Unit tests', () => {
         });
 
         it('adds the item to the app store', async () => {
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             app: 'test-app',
             log: [log],
@@ -281,7 +281,7 @@ describe('Unit tests', () => {
 
         it('informs the WS client', async () => {
           const spy = sinon.spy(Clients, 'notify');
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             space: space1Id,
             log: [log],
@@ -302,7 +302,7 @@ describe('Unit tests', () => {
         });
 
         it('validates the meta configuration', async () => {
-          const log = mock.projectRequest.log();
+          const log = await mock.projectRequest.log();
           const item: IHttpHistoryBulkAdd = {
             log: [log],
           };
@@ -648,7 +648,7 @@ describe('Unit tests', () => {
             projectId = project.key;
             await DataHelper.addProject(store, project, user);
 
-            c1 = mock.history.httpHistoryList(7, { user: user.key });
+            c1 = await mock.history.httpHistoryList(7, { user: user.key });
             c1[0].log.request!.url = 'https://sub.api.com/v1/api/uCh7liOX?a=b&c=d';
             c1[0].log.request!.headers = 'x-custom-header: abc\nAuthorization: Bearer 12345token';
             c1[0].log.request!.httpMessage = 'some very custom string including: myToken1234';
@@ -673,7 +673,7 @@ describe('Unit tests', () => {
             await DataHelper.insertSpaceHistory(store.history.space, c1);
             await DataHelper.insertRequestHistory(store.history.space, c1);
             await DataHelper.insertProjectHistory(store.history.space, c1);
-            const c2 = mock.history.httpHistoryList(20, { user: 'other-user' });
+            const c2 = await mock.history.httpHistoryList(20, { user: 'other-user' });
             c2.forEach((item) => {
               const request = item.log.request as ISentRequest;
               if (!request.headers) {
@@ -843,9 +843,9 @@ describe('Unit tests', () => {
           await store.file.add(space1Id, space1.toJSON(), user1);
           await store.file.add(space2Id, space2.toJSON(), user2);
 
-          history1 = mock.history.httpHistory({ user: user1.key, space: space1Id });
-          history2 = mock.history.httpHistory({ user: user2.key });
-          history3 = mock.history.httpHistory({ user: user2.key, space: space2Id });
+          history1 = await mock.history.httpHistory({ user: user1.key, space: space1Id });
+          history2 = await mock.history.httpHistory({ user: user2.key });
+          history3 = await mock.history.httpHistory({ user: user2.key, space: space2Id });
           await DataHelper.insertHistory(store.history.data, [history1, history2, history3]);
 
           await DataHelper.insertSpaceHistory(store.history.space, [history1, history3]);
@@ -871,7 +871,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when object not found', async () => {
-          const history4 = mock.history.httpHistory({ user: user1.key, space: space1Id });
+          const history4 = await mock.history.httpHistory({ user: user1.key, space: space1Id });
           const key = DataHelper.getHistoryEncodedKey(history4);
 
           let error: ApiError | undefined;
@@ -947,7 +947,7 @@ describe('Unit tests', () => {
         });
 
         it('marks the object deleted in the data store', async () => {
-          const item = mock.history.httpHistory({ user: DefaultUser.key, app: 'test-app' });
+          const item = await mock.history.httpHistory({ user: DefaultUser.key, app: 'test-app' });
           const id = await store.history.add(item, DefaultUser);
           await store.history.delete(id, DefaultUser);
           const key = DataHelper.getHistoryEncodedKey(item);
@@ -965,7 +965,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the space entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id });
           const id = await store.history.add(item, user1);
           await store.history.delete(id, user1);
           const time = new Date(item.created).toJSON();
@@ -980,7 +980,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the project entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
           const id = await store.history.add(item, user1);
           await store.history.delete(id, user1);
           const time = new Date(item.created).toJSON();
@@ -995,7 +995,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the request entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
           const id = await store.history.add(item, user1);
           await store.history.delete(id, user1);
           const time = new Date(item.created).toJSON();
@@ -1010,7 +1010,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the app entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const item = await mock.history.httpHistory({ user: user1.key, app: 'test-app' });
           const id = await store.history.add(item, user1);
           await store.history.delete(id, user1);
           const time = new Date(item.created).toJSON();
@@ -1039,7 +1039,7 @@ describe('Unit tests', () => {
         });
 
         it('throws when no user property', async () => {
-          const item = mock.history.httpHistory();
+          const item = await mock.history.httpHistory();
           // @ts-ignore
           delete item.user;
           const date = new Date(item.created);
@@ -1065,7 +1065,7 @@ describe('Unit tests', () => {
           const user1 = mock.user.user();
           const user2 = mock.user.user();
 
-          const item = mock.history.httpHistory({ user: user1.key });
+          const item = await mock.history.httpHistory({ user: user1.key });
           item.app = 'test-app';
           const id = await store.history.add(item, user1);
 
@@ -1083,7 +1083,7 @@ describe('Unit tests', () => {
         });
 
         it('informs the WS client', async () => {
-          const item = mock.history.httpHistory({ user: DefaultUser.key });
+          const item = await mock.history.httpHistory({ user: DefaultUser.key });
           item.app = 'test-app';
           const id = await store.history.add(item, DefaultUser);
           const spy = sinon.spy(Clients, 'notify');
@@ -1132,7 +1132,7 @@ describe('Unit tests', () => {
         });
 
         it('marks objects deleted in the data store', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const item = await mock.history.httpHistory({ user: user1.key, app: 'test-app' });
           const id = await store.history.add(item, user1);
           await store.history.bulkDelete([id], user1);
           const key = DataHelper.getHistoryEncodedKey(item);
@@ -1150,7 +1150,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the space entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id });
           const id = await store.history.add(item, user1);
           await store.history.bulkDelete([id], user1);
           const time = new Date(item.created).toJSON();
@@ -1165,7 +1165,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the project entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
           const id = await store.history.add(item, user1);
           await store.history.bulkDelete([id], user1);
           const time = new Date(item.created).toJSON();
@@ -1180,7 +1180,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the request entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
+          const item = await mock.history.httpHistory({ user: user1.key, space: space1Id, project: project1Id, request: 'test-request' });
           const id = await store.history.add(item, user1);
           await store.history.bulkDelete([id], user1);
           const time = new Date(item.created).toJSON();
@@ -1195,7 +1195,7 @@ describe('Unit tests', () => {
         });
 
         it('removes the app entry', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const item = await mock.history.httpHistory({ user: user1.key, app: 'test-app' });
           const id = await store.history.add(item, user1);
           await store.history.bulkDelete([id], user1);
           const time = new Date(item.created).toJSON();
@@ -1210,7 +1210,7 @@ describe('Unit tests', () => {
         });
 
         it('informs the WS client', async () => {
-          const item = mock.history.httpHistory({ user: user1.key, app: 'test-app' });
+          const item = await mock.history.httpHistory({ user: user1.key, app: 'test-app' });
           const id = await store.history.add(item, user1);
           const spy = sinon.spy(Clients, 'notify');
           try {
