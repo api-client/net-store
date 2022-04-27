@@ -116,7 +116,7 @@ export default class HistoryHttpRoute extends BaseRoute {
   protected collectHistoryListingParameters(ctx: ParameterizedContext): HistoryState {
     const base = this.collectListingParameters(ctx);
     const result = { ...base } as HistoryState;
-    const { type, space, id, user } = ctx.query;
+    const { type, space, id, user, project } = ctx.query;
     if (type) {
       if (Array.isArray(type)) {
         throw new ApiError(`The type parameter cannot be an array`, 400);
@@ -136,6 +136,13 @@ export default class HistoryHttpRoute extends BaseRoute {
       }
       // @ts-ignore
       result.id = id as string;
+    }
+    if (project) {
+      if (Array.isArray(project)) {
+        throw new ApiError(`The project parameter cannot be an array`, 400);
+      }
+      // @ts-ignore
+      result.project = project as string;
     }
     if (user) {
       if (Array.isArray(user)) {

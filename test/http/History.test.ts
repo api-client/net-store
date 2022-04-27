@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation, IAccessPatchInfo } from '@api-client/core';
+import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation, IAccessPatchInfo, HttpProject } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
@@ -58,6 +58,7 @@ describe('http', () => {
         after(async () => {
           await http.delete(`${baseUri}/test/reset/sessions`);
           await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/files`);
         });
         
         afterEach(async () => {
@@ -88,6 +89,50 @@ describe('http', () => {
           
           const [h1] = list.data as IHttpHistory[];
           assert.equal(h1.app, 'test-app', 'has the app history');
+        });
+
+        it('lists the project history', async () => {
+          const project = HttpProject.fromName('p1');
+          const pid = await sdk.file.create(project.toJSON());
+
+          const item1 = await mock.history.httpHistory({
+            app: 'app1',
+            project: pid,
+            request: 'request1',
+          });
+          const item2 = await mock.history.httpHistory({
+            app: 'app1',
+            project: pid,
+            request: 'request2',
+          });
+          await sdk.history.create(item1);
+          await sdk.history.create(item2);
+          const list = await sdk.history.list({ type: 'project', id: pid });
+
+          assert.typeOf(list.cursor, 'string', 'has the cursor');
+          assert.lengthOf(list.data, 2, 'has the created item');
+        });
+
+        it('lists the project request history', async () => {
+          const project = HttpProject.fromName('p1');
+          const pid = await sdk.file.create(project.toJSON());
+
+          const item1 = await mock.history.httpHistory({
+            app: 'app1',
+            project: pid,
+            request: 'request1',
+          });
+          const item2 = await mock.history.httpHistory({
+            app: 'app1',
+            project: pid,
+            request: 'request2',
+          });
+          await sdk.history.create(item1);
+          await sdk.history.create(item2);
+          const list = await sdk.history.list({ type: 'request', id: 'request1', project: pid });
+
+          assert.typeOf(list.cursor, 'string', 'has the cursor');
+          assert.lengthOf(list.data, 1, 'has the created item');
         });
   
         it('uses the page token', async () => {
