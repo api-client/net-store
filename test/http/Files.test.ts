@@ -2,7 +2,7 @@
 import { assert } from 'chai';
 import { 
   Workspace, IWorkspace, WorkspaceKind, IBackendEvent, RouteBuilder, AccessOperation, 
-  StoreSdk, HttpProject, ApiError, IHttpProject, ProjectKind, ICapabilities, IAccessPatchInfo,
+  StoreSdk, HttpProject, IHttpProject, ProjectKind, ICapabilities, IAccessPatchInfo, Project, DataNamespace, DataFile, DataFileKind, IDataNamespace,
 } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
@@ -39,9 +39,9 @@ describe('http', () => {
           await http.delete(`${baseUri}/test/reset/revisions`);
         });
 
-        it('creates a space', async () => {
+        it('creates a space file and contents', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           assert.typeOf(id, 'string');
 
           const meta = await sdk.file.read(id, false);
@@ -50,9 +50,10 @@ describe('http', () => {
           assert.equal(meta.kind, space.kind, 'has the meta file kind');
         });
 
-        it('creates a project', async () => {
+        it('creates a project file and contents', async () => {
           const project = HttpProject.fromName('p1');
-          const id = await sdk.file.create(project.toJSON());
+          const file = Project.fromProject(project).toJSON();
+          const id = await sdk.file.create(file, project.toJSON());
           assert.typeOf(id, 'string');
 
           const meta = await sdk.file.read(id, false);
@@ -66,7 +67,24 @@ describe('http', () => {
           assert.equal(contents.kind, project.kind, 'has the contents file kind');
         });
 
-        it('returns an error when invalid file', async () => {
+        it('creates a DataNamespace file and contents', async () => {
+          const media = DataNamespace.fromName('p1');
+          const file = DataFile.fromDataNamespace(media).toJSON();
+          const id = await sdk.file.create(file, media.toJSON());
+          assert.typeOf(id, 'string');
+
+          const meta = await sdk.file.read(id, false);
+          assert.ok(meta, 'reads the created file meta');
+          assert.equal(meta.key, media.key, 'has the file meta');
+          assert.equal(meta.kind, DataFileKind, 'has the meta file kind');
+
+          const contents = await sdk.file.read(id, true) as IDataNamespace;
+          assert.ok(meta, 'reads the created file contents');
+          assert.equal(contents.key, media.key, 'has the file contents');
+          assert.equal(contents.kind, media.kind, 'has the contents file kind');
+        });
+
+        it('returns an error when no content-type', async () => {
           const result = await http.post(`${baseUri}${RouteBuilder.files()}`, {
             token: user1Token,
             body: JSON.stringify({}),
@@ -74,23 +92,38 @@ describe('http', () => {
           assert.equal(result.status, 400, 'has 400 status');
           const body = result.body as string;
           const error = JSON.parse(body);
-          assert.equal(error.message, 'Invalid file definition.', 'has the error message');
+          assert.equal(error.message, 'The media content-type header is missing.', 'has the error message');
         });
 
-        it('returns an error when unknown file', async () => {
-          try {
-            // @ts-ignore
-            await sdk.file.create({ kind: 'other', key: '123' });
-          } catch (cause) {
-            const e = cause as ApiError;
-            assert.equal(e.code, 400, 'has 400 status code')
-            assert.equal(e.message, 'Unsupported kind: other.');
-            return;
-          }
-          throw new Error(`File is accessible`);
+        it('returns an error when invalid file meta', async () => {
+          const result = await http.post(`${baseUri}${RouteBuilder.files()}`, {
+            token: user1Token,
+            body: JSON.stringify({}),
+            headers: {
+              'content-type': 'application/json',
+            }
+          });
+          assert.equal(result.status, 400, 'has 400 status');
+          const body = result.body as string;
+          const error = JSON.parse(body);
+          assert.equal(error.message, 'Invalid file meta definition. Missing "kind" property.', 'has the error message');
         });
 
-        it('informs clients about the new space', async () => {
+        it('returns an error when invalid mime type for a meta file', async () => {
+          const result = await http.post(`${baseUri}${RouteBuilder.files()}`, {
+            token: user1Token,
+            body: JSON.stringify({}),
+            headers: {
+              'content-type': 'other',
+            }
+          });
+          assert.equal(result.status, 400, 'has 400 status');
+          const body = result.body as string;
+          const error = JSON.parse(body);
+          assert.equal(error.message, 'Expected application/json mime type for a file meta but got other.', 'has the error message');
+        });
+
+        it('informs clients about the new file', async () => {
           const messages: IBackendEvent[] = [];
           const client = await ws.createAndConnect(`${baseUriWs}${RouteBuilder.files()}`, user1Token);
           client.on('message', (data: RawData) => {
@@ -99,6 +132,9 @@ describe('http', () => {
           await http.post(`${baseUri}${RouteBuilder.files()}`, {
             token: user1Token,
             body: JSON.stringify(Workspace.fromName('test')),
+            headers: {
+              'content-type': 'application/json',
+            }
           });
           
           await ws.disconnect(client);
@@ -117,10 +153,10 @@ describe('http', () => {
         before(async () => {
           user1Token = await http.createUserToken(baseUri);
           sdk.token = user1Token;
-          await http.post(`${baseUri}/test/generate/files?size=40`, {
+          await http.post(`${baseUri}/test/generate/spaces?size=40`, {
             token: user1Token,
           });
-          await http.post(`${baseUri}/test/generate/files?size=5&owner=123er`);
+          await http.post(`${baseUri}/test/generate/spaces?size=5&owner=123er`);
         });
 
         after(async () => {
@@ -160,21 +196,9 @@ describe('http', () => {
           const list2 = await sdk.file.list([WorkspaceKind], { cursor: list1.cursor });
           assert.lengthOf(list2.data, 5, 'has only remaining entires');
         });
-
-        it('returns error when kinds are not listed', async () => {
-          try {
-            await sdk.file.list([], { limit: 35 });
-          } catch (cause) {
-            const e = cause as ApiError;
-            assert.equal(e.code, 400, 'has 400 status code')
-            assert.equal(e.message, 'The "kind" parameter is not set.');
-            return;
-          }
-          throw new Error(`Listed files`);
-        });
       });
 
-      describe('Deep space (spaces tree)', () => {
+      describe('Spaces tree', () => {
         let user1Token: string;
         let user2Token: string;
         let user1Id: string;
@@ -196,7 +220,7 @@ describe('http', () => {
 
         beforeEach(async () => {
           const space = Workspace.fromName('parent');
-          await sdk.file.create(space.toJSON(), {},  { token: user1Token });
+          await sdk.file.createMeta(space.toJSON(), {},  { token: user1Token });
           parentSpace = space.key;
         });
 
@@ -206,7 +230,7 @@ describe('http', () => {
 
         it('creates a sub space', async () => {
           const srcSpace = Workspace.fromName('child');
-          await sdk.file.create(srcSpace.toJSON(), { parent: parentSpace },  { token: user1Token });
+          await sdk.file.createMeta(srcSpace.toJSON(), { parent: parentSpace },  { token: user1Token });
           
           const read = await sdk.file.read(srcSpace.key, false, { token: user1Token }) as IWorkspace;
           assert.equal(read.owner, user1Id, 'sets the owner');
@@ -220,10 +244,10 @@ describe('http', () => {
           const s2 = Workspace.fromName('s2');
           const s3 = Workspace.fromName('s2');
           const s4 = Workspace.fromName('s4');
-          await sdk.file.create(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s2.toJSON(), { parent: s1.key }, { token: user1Token });
-          await sdk.file.create(s3.toJSON(), { parent: s2.key }, { token: user1Token });
-          await sdk.file.create(s4.toJSON(), { parent: s3.key }, { token: user1Token });
+          await sdk.file.createMeta(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s2.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s3.toJSON(), { parent: s2.key }, { token: user1Token });
+          await sdk.file.createMeta(s4.toJSON(), { parent: s3.key }, { token: user1Token });
 
           const read = await sdk.file.read(s4.key, false, { token: user1Token }) as IWorkspace;
           assert.equal(read.owner, user1Id, 'sets the owner');
@@ -235,10 +259,10 @@ describe('http', () => {
           const s2 = Workspace.fromName('s2');
           const s3 = Workspace.fromName('s2');
           const s4 = Workspace.fromName('s4');
-          await sdk.file.create(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s3.toJSON(), { parent: s1.key }, { token: user1Token });
-          await sdk.file.create(s4.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s3.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s4.toJSON(), { parent: s1.key }, { token: user1Token });
 
           const list = await sdk.file.list([WorkspaceKind], {}, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -252,10 +276,10 @@ describe('http', () => {
           const s2 = Workspace.fromName('s2');
           const s3 = Workspace.fromName('s2');
           const s4 = Workspace.fromName('s4');
-          await sdk.file.create(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s3.toJSON(), { parent: s1.key }, { token: user1Token });
-          await sdk.file.create(s4.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s3.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s4.toJSON(), { parent: s1.key }, { token: user1Token });
 
           const list = await sdk.file.list([WorkspaceKind], { parent: parentSpace }, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -271,10 +295,10 @@ describe('http', () => {
           const s2 = Workspace.fromName('s2');
           const s3 = Workspace.fromName('s2');
           const s4 = Workspace.fromName('s4');
-          await sdk.file.create(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s3.toJSON(), { parent: s1.key }, { token: user1Token });
-          await sdk.file.create(s4.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s3.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s4.toJSON(), { parent: s1.key }, { token: user1Token });
 
           const list = await sdk.file.list([WorkspaceKind], { parent: s1.key }, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
@@ -290,10 +314,10 @@ describe('http', () => {
           const s2 = Workspace.fromName('s2');
           const s3 = Workspace.fromName('s2');
           const s4 = Workspace.fromName('s4');
-          await sdk.file.create(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
-          await sdk.file.create(s3.toJSON(), { parent: s1.key }, { token: user1Token });
-          await sdk.file.create(s4.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s1.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s2.toJSON(), { parent: parentSpace }, { token: user1Token });
+          await sdk.file.createMeta(s3.toJSON(), { parent: s1.key }, { token: user1Token });
+          await sdk.file.createMeta(s4.toJSON(), { parent: s1.key }, { token: user1Token });
           
           const records: AccessOperation[] = [{
             op: 'add',
@@ -322,12 +346,12 @@ describe('http', () => {
         before(async () => {
           user1Token = await http.createUserToken(baseUri);
           sdk.token = user1Token;
-          const ownResult = await http.post(`${baseUri}/test/generate/files?size=4`, {
+          const ownResult = await http.post(`${baseUri}/test/generate/spaces?size=4`, {
             token: user1Token,
           });
           generated = JSON.parse(ownResult.body as string) as IWorkspace[];
 
-          const otherResult = await http.post(`${baseUri}/test/generate/files?size=2&owner=123er`);
+          const otherResult = await http.post(`${baseUri}/test/generate/spaces?size=2&owner=123er`);
           other = JSON.parse(otherResult.body as string) as IWorkspace[];
         });
 
@@ -408,32 +432,68 @@ describe('http', () => {
           await http.delete(`${baseUri}/test/reset/sessions`);
         });
 
-        it('creates a space', async () => {
+        it('creates a space file and contents', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           assert.typeOf(id, 'string');
+
+          const meta = await sdk.file.read(id, false);
+          assert.ok(meta, 'reads the created file meta');
+          assert.equal(meta.key, space.key, 'has the file meta');
+          assert.equal(meta.kind, space.kind, 'has the meta file kind');
         });
 
-        it('creates a project', async () => {
-          const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+        it('creates a project file and contents', async () => {
+          const project = HttpProject.fromName('p1');
+          const file = Project.fromProject(project).toJSON();
+          const id = await sdk.file.create(file, project.toJSON());
           assert.typeOf(id, 'string');
+
+          const meta = await sdk.file.read(id, false);
+          assert.ok(meta, 'reads the created file meta');
+          assert.equal(meta.key, project.key, 'has the file meta');
+          assert.equal(meta.kind, ProjectKind, 'has the meta file kind');
+
+          const contents = await sdk.file.read(id, true) as IHttpProject;
+          assert.ok(meta, 'reads the created file contents');
+          assert.equal(contents.key, project.key, 'has the file contents');
+          assert.equal(contents.kind, project.kind, 'has the contents file kind');
+        });
+
+        it('creates a DataNamespace file and contents', async () => {
+          const media = DataNamespace.fromName('p1');
+          const file = DataFile.fromDataNamespace(media).toJSON();
+          const id = await sdk.file.create(file, media.toJSON());
+          assert.typeOf(id, 'string');
+
+          const meta = await sdk.file.read(id, false);
+          assert.ok(meta, 'reads the created file meta');
+          assert.equal(meta.key, media.key, 'has the file meta');
+          assert.equal(meta.kind, DataFileKind, 'has the meta file kind');
+
+          const contents = await sdk.file.read(id, true) as IDataNamespace;
+          assert.ok(meta, 'reads the created file contents');
+          assert.equal(contents.key, media.key, 'has the file contents');
+          assert.equal(contents.kind, media.kind, 'has the contents file kind');
         });
   
         it('returns an error when invalid workspace', async () => {
           const result = await http.post(`${baseUri}${RouteBuilder.files()}`, {
             body: JSON.stringify({}),
             token: user1Token,
+            headers: {
+              'content-type': 'application/json',
+            }
           });
           assert.equal(result.status, 400, 'has 400 status');
           const body = result.body as string;
           const error = JSON.parse(body);
-          assert.equal(error.message, 'Invalid file definition.', 'has the error message');
+          assert.equal(error.message, 'Invalid file meta definition. Missing "kind" property.', 'has the error message');
         });
   
-        it('adds the user as the owner', async () => {
+        it('adds the default user as the owner', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const read = await sdk.file.read(id, false);
           assert.equal(read.owner, 'default');
         });
@@ -443,7 +503,7 @@ describe('http', () => {
         let user1Token: string;
         before(async () => {
           user1Token = await http.createUserToken(baseUri);
-          await http.post(`${baseUri}/test/generate/files?size=40`, { token: user1Token });
+          await http.post(`${baseUri}/test/generate/spaces?size=40`, { token: user1Token });
           sdk.token = user1Token;
         });
   

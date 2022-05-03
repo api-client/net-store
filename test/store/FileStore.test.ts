@@ -1285,19 +1285,19 @@ describe('Unit tests', () => {
           await store.user.add(user1.key, user1);
           await store.user.add(user2.key, user2);
 
-          await DataHelper.generateFiles(store, user1.key, 20);
+          await DataHelper.generateSpaces(store, user1.key, 20);
           await DataHelper.generateProjects(store, user1.key, 20);
         });
 
         after(async () => {
           await store.file.db.clear();
           await store.user.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.permission.db.clear();
         });
 
         it('lists spaces and projects for the owner', async () => {
-          const list = await store.file.list([ProjectKind], user1);
+          const list = await store.file.list(user1);
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data array');
           assert.lengthOf(list.data, 35, 'has the default list size');
@@ -1308,35 +1308,35 @@ describe('Unit tests', () => {
         });
 
         it('supports the limit parameter', async () => {
-          const list = await store.file.list([ProjectKind], user1, { limit: 4 });
+          const list = await store.file.list(user1, [], { limit: 4 });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data array');
           assert.lengthOf(list.data, 4, 'has the set list size');
         });
 
         it('paginates to the next page', async () => {
-          const list1 = await store.file.list([ProjectKind], user1, { limit: 2 });
-          const list2 = await store.file.list([ProjectKind], user1, { cursor: list1.cursor });
+          const list1 = await store.file.list(user1, [ProjectKind], { limit: 2 });
+          const list2 = await store.file.list(user1, [ProjectKind], { cursor: list1.cursor });
           assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
           assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
           assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
         });
 
         it('reaches the end of pagination', async () => {
-          const list1 = await store.file.list([ProjectKind], user1, { limit: 35 });
-          const list2 = await store.file.list([ProjectKind], user1, { cursor: list1.cursor });
+          const list1 = await store.file.list(user1, [ProjectKind], { limit: 35 });
+          const list2 = await store.file.list(user1, [ProjectKind], { cursor: list1.cursor });
           assert.lengthOf(list2.data, 5, 'has only remaining entires');
         });
 
-        it('does not include other kinds', async () => {
-          const list = await store.file.list(['unknown'], user1);
+        it('does not include not listed kinds', async () => {
+          const list = await store.file.list(user1, ['unknown']);
           assert.lengthOf(list.data, 20, 'has no root space'); // only projects
         });
 
         it('returns empty result when no sub-files', async () => {
           const s1 = Workspace.fromName('s1');
           await store.file.add(s1.key, s1.toJSON(), user1);
-          const list = await store.file.list([ProjectKind], user1, { parent: s1.key });
+          const list = await store.file.list(user1, [ProjectKind], { parent: s1.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data array');
           assert.lengthOf(list.data, 0, 'has no results');
@@ -1354,7 +1354,7 @@ describe('Unit tests', () => {
           await store.file.add(s3.key, s3.toJSON(), user1, { parent: s1.key });
           await store.file.add(s4.key, s4.toJSON(), user1, { parent: s1.key });
 
-          const list = await store.file.list([ProjectKind], user1, { parent: parent.key });
+          const list = await store.file.list(user1, [ProjectKind], { parent: parent.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data array');
           assert.lengthOf(list.data, 2, 'has all spaces');
@@ -1375,7 +1375,7 @@ describe('Unit tests', () => {
           await store.file.add(s3.key, s3.toJSON(), user1, { parent: s1.key });
           await store.file.add(s4.key, s4.toJSON(), user1, { parent: s1.key });
 
-          const list = await store.file.list([ProjectKind], user1, { parent: s1.key });
+          const list = await store.file.list(user1, [ProjectKind], { parent: s1.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data array');
           assert.lengthOf(list.data, 2, 'has all spaces');
@@ -1403,14 +1403,14 @@ describe('Unit tests', () => {
             id: user2.key,
           } as AccessOperation]);
 
-          const list = await store.file.list([ProjectKind], user2);
+          const list = await store.file.list(user2, [ProjectKind]);
           assert.lengthOf(list.data, 0, 'has no root space');
         });
 
         it('modifies the "lastModified.byMe"', async () => {
           const parent = Workspace.fromName('parent');
           await store.file.add(parent.key, parent.toJSON(), user1);
-          const list = await store.file.list(['test'], user1);
+          const list = await store.file.list(user1, ['test']);
           const item = list.data.find(i => i.key === parent.key) as IFile;
           assert.ok(item, 'has the owner item');
           assert.isTrue(item.lastModified.byMe, 'owner item is modified by the owner');
@@ -1427,7 +1427,7 @@ describe('Unit tests', () => {
             id: user2.key,
           } as AccessOperation]);
 
-          const list = await store.file.list(['test'], user1);
+          const list = await store.file.list(user1, ['test']);
           const item = list.data.find(i => i.key === parent.key) as IFile;
           assert.ok(item, 'has the owner item');
           assert.lengthOf(item.permissions, 1);
@@ -1452,12 +1452,12 @@ describe('Unit tests', () => {
             id: user2.key,
           } as AccessOperation]);
 
-          const list = await store.file.list(['test'], user2, { parent: parent.key });
+          const list = await store.file.list(user2, ['test'], { parent: parent.key });
           assert.lengthOf(list.data, 2);
         });
 
         it('sets files capabilities for the owner', async () => {
-          const list = await store.file.list([ProjectKind], user1, { limit: 1 });
+          const list = await store.file.list(user1, [ProjectKind], { limit: 1 });
           const [file] = list.data;
           const c = file.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities')
@@ -1477,7 +1477,7 @@ describe('Unit tests', () => {
             id: user2.key,
           } as AccessOperation]);
 
-          const list = await store.file.list(['test'], user2, { parent: parent.key });
+          const list = await store.file.list(user2, ['test'], { parent: parent.key });
           const [file] = list.data;
           const c = file.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities')
@@ -1494,14 +1494,14 @@ describe('Unit tests', () => {
           await store.user.add(user1.key, user1);
           await store.user.add(user2.key, user2);
 
-          await DataHelper.generateFiles(store, user1.key, 20);
+          await DataHelper.generateSpaces(store, user1.key, 20);
           await DataHelper.generateProjects(store, user1.key, 20);
         });
 
         after(async () => {
           await store.file.db.clear();
           await store.user.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.permission.db.clear();
         });
 
@@ -1760,14 +1760,14 @@ describe('Unit tests', () => {
           await store.user.add(user1.key, user1);
           await store.user.add(user2.key, user2);
 
-          await DataHelper.generateFiles(store, user1.key, 20);
+          await DataHelper.generateSpaces(store, user1.key, 20);
           await DataHelper.generateProjects(store, user1.key, 20);
         });
 
         after(async () => {
           await store.file.db.clear();
           await store.user.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.permission.db.clear();
         });
 
@@ -1886,14 +1886,14 @@ describe('Unit tests', () => {
           await store.user.add(user1.key, user1);
           await store.user.add(user2.key, user2);
 
-          await DataHelper.generateFiles(store, user1.key, 20);
+          await DataHelper.generateSpaces(store, user1.key, 20);
           await DataHelper.generateProjects(store, user1.key, 20);
         });
 
         after(async () => {
           await store.file.db.clear();
           await store.user.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.permission.db.clear();
         });
 
@@ -1949,14 +1949,14 @@ describe('Unit tests', () => {
           await store.user.add(user3.key, user3);
           await store.user.add(user4.key, user4);
 
-          await DataHelper.generateFiles(store, user1.key, 20);
+          await DataHelper.generateSpaces(store, user1.key, 20);
           await DataHelper.generateProjects(store, user1.key, 20);
         });
 
         after(async () => {
           await store.file.db.clear();
           await store.user.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.permission.db.clear();
         });
 

@@ -3,7 +3,7 @@ import { assert } from 'chai';
 import { 
   IWorkspace, IUser, AccessOperation, 
   HttpProject, HttpProjectKind, WorkspaceKind, RouteBuilder, StoreSdk,
-  Workspace, ProjectKind, IHttpProject, ApiError, IPatchInfo, IAccessPatchInfo,
+  Workspace, ProjectKind, IHttpProject, ApiError, IPatchInfo, IAccessPatchInfo, Project, DataFile, DataNamespace,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import getConfig from '../helpers/getSetup.js';
@@ -37,7 +37,7 @@ describe('http', () => {
 
         it('reads a space meta', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const result = await sdk.file.read(id, false);
           assert.equal(result.key, id);
           assert.equal(result.kind, WorkspaceKind);
@@ -45,7 +45,8 @@ describe('http', () => {
 
         it('reads a project meta', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const result = await sdk.file.read(id, false);
           assert.equal(result.key, id);
           assert.equal(result.kind, ProjectKind);
@@ -53,7 +54,8 @@ describe('http', () => {
 
         it('reads a project content', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const result = await sdk.file.read(id, true) as IHttpProject;
           assert.equal(result.key, id);
           assert.equal(result.kind, HttpProjectKind);
@@ -73,7 +75,7 @@ describe('http', () => {
 
         it('returns 401 when invalid credentials', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           try {
             await sdk.file.read(id, false, { token: 'test' });
           } catch (cause) {
@@ -99,7 +101,7 @@ describe('http', () => {
 
         it('patches a file meta (workspace)', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -123,7 +125,8 @@ describe('http', () => {
 
         it('patches a file meta (project)', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -145,7 +148,8 @@ describe('http', () => {
 
         it('patches a file content (project)', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -191,7 +195,7 @@ describe('http', () => {
         });
 
         it('returns 404 when accessing a workspace without access', async () => {
-          const rawOther = await http.post(`${baseUri}/test/generate/files?size=1&owner=test`);
+          const rawOther = await http.post(`${baseUri}/test/generate/spaces?size=1&owner=test`);
           const other = JSON.parse(rawOther.body as string)[0] as IWorkspace;
           const patch: JsonPatch = [
             {
@@ -219,7 +223,7 @@ describe('http', () => {
 
         it('returns 400 when invalid patch data', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const patch = [
             {
               test: "hello"
@@ -245,7 +249,7 @@ describe('http', () => {
 
         it('returns 400 when patching file media on a non-media file', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -300,7 +304,7 @@ describe('http', () => {
 
         it('adds a user to a space', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          const id = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
 
           const records: AccessOperation[] = [{
             op: 'add',
@@ -328,7 +332,7 @@ describe('http', () => {
 
         it('returns error when has no access to the space', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          const id = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
           const records: AccessOperation[] = [{
             op: 'add',
             id: user2Id,
@@ -354,7 +358,7 @@ describe('http', () => {
 
         it('returns error when the user does not exist', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          const id = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
           const records: AccessOperation[] = [{
             op: 'add',
             id: user2Id,
@@ -386,7 +390,7 @@ describe('http', () => {
         it('returns error when has no access to write to the space', async () => {
           // step 1. Add read access to the user #2
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          const id = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
           const a1records: AccessOperation[] = [{
             op: 'add',
             id: user2Id,
@@ -488,7 +492,7 @@ describe('http', () => {
 
         it('removes a user from the working space', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          const id = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
           await grantSpace(id, user2Id, user1Token);
           const patches: AccessOperation[] = [
             {
@@ -523,7 +527,7 @@ describe('http', () => {
 
         beforeEach(async () => {
           const space = Workspace.fromName('test');
-          spaceKey = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          spaceKey = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
         });
 
         it('deletes the space', async () => {
@@ -538,6 +542,49 @@ describe('http', () => {
             return;
           }
           throw new Error(`The file is patched`);
+        });
+      });
+
+      describe('PUT', () => {
+        before(async () => {
+          sdk.token = await http.createUserToken(baseUri);
+        });
+
+        after(async () => {
+          await http.delete(`${baseUri}/test/reset/files`);
+          await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/sessions`);
+        });
+
+        it('creates a new file media', async () => {
+          const media = DataNamespace.fromName('dn1');
+          const file = DataFile.fromDataNamespace(media)
+          const id = await sdk.file.createMeta(file.toJSON());
+
+          await sdk.file.createMedia(media.toJSON(), id);
+
+          const read = await sdk.file.read(id, true);
+          assert.deepEqual(read, media.toJSON());
+        });
+
+        it('creates file media only once', async () => {
+          const media = DataNamespace.fromName('dn1');
+          const file = DataFile.fromDataNamespace(media)
+          const id = await sdk.file.createMeta(file.toJSON());
+
+          await sdk.file.createMedia(media.toJSON(), id);
+
+          let err: ApiError | undefined;
+          try {
+            await sdk.file.createMedia(media.toJSON(), id);
+          } catch (e) {
+            err = e as ApiError;
+          }
+          assert.ok(err, 'the sdk throws the error');
+          if (err) {
+            assert.equal(err.code, 400, 'has the 400 status code');
+            assert.equal(err.message, `A file with the identifier ${id} already exists.`);
+          }
         });
       });
 
@@ -558,7 +605,7 @@ describe('http', () => {
           user2Token = await http.createUserToken(baseUri);
           user3Token = await http.createUserToken(baseUri);
           user4Token = await http.createUserToken(baseUri);
-          const rawCreated = await http.post(`${baseUri}/test/generate/files?size=3`, { token: user1Token });
+          const rawCreated = await http.post(`${baseUri}/test/generate/spaces?size=3`, { token: user1Token });
           const user2Response = await http.get(`${baseUri}/users/me`, { token: user2Token });
           const user3Response = await http.get(`${baseUri}/users/me`, { token: user3Token });
           const user4Response = await http.get(`${baseUri}/users/me`, { token: user4Token });
@@ -648,7 +695,7 @@ describe('http', () => {
 
         it('reads a space meta', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const result = await sdk.file.read(id, false);
           assert.equal(result.key, id);
           assert.equal(result.kind, WorkspaceKind);
@@ -656,7 +703,8 @@ describe('http', () => {
 
         it('reads a project meta', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const result = await sdk.file.read(id, false);
           assert.equal(result.key, id);
           assert.equal(result.kind, ProjectKind);
@@ -664,7 +712,8 @@ describe('http', () => {
 
         it('reads a project content', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const result = await sdk.file.read(id, true) as IHttpProject;
           assert.equal(result.key, id);
           assert.equal(result.kind, HttpProjectKind);
@@ -684,7 +733,7 @@ describe('http', () => {
 
         it('returns 401 when invalid credentials', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           try {
             await sdk.file.read(id, false, { token: 'test' });
           } catch (cause) {
@@ -698,7 +747,7 @@ describe('http', () => {
 
         it('returns 400 when reading media for a non-media file', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           try {
             await sdk.file.read(id, true);
           } catch (cause) {
@@ -724,7 +773,7 @@ describe('http', () => {
 
         it('patches a file meta (workspace)', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -748,7 +797,8 @@ describe('http', () => {
 
         it('patches a file meta (project)', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -770,7 +820,8 @@ describe('http', () => {
 
         it('patches a file content (project)', async () => {
           const hp = HttpProject.fromName('p1');
-          const id = await sdk.file.create(hp.toJSON());
+          const pf1 = Project.fromProject(hp).toJSON();
+          const id = await sdk.file.create(pf1, hp.toJSON());
           const patch: JsonPatch = [
             {
               op: 'replace',
@@ -817,7 +868,7 @@ describe('http', () => {
 
         it('returns 400 when invalid patch data', async () => {
           const space = Workspace.fromName('test');
-          const id = await sdk.file.create(space.toJSON());
+          const id = await sdk.file.createMeta(space.toJSON());
           const patch = [
             {
               test: "hello"
@@ -856,7 +907,7 @@ describe('http', () => {
 
         beforeEach(async () => {
           const space = Workspace.fromName('test');
-          spaceKey = await sdk.file.create(space.toJSON(), {}, { token: user1Token });
+          spaceKey = await sdk.file.createMeta(space.toJSON(), {}, { token: user1Token });
         });
 
         it('deletes the space', async () => {

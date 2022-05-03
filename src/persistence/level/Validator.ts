@@ -1,8 +1,8 @@
 import { ApiError } from '@api-client/core'
 
-export function validateKinds(kinds: string[]): void {
+export function validateKinds(kinds?: string[]): void {
   if (!Array.isArray(kinds) || !kinds.length) {
-    throw new ApiError(`The "kinds" parameter is missing.`, 400);
+    return;
   }
   const notString = kinds.some(i => typeof i !== 'string');
   if (notString) {

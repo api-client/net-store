@@ -1,17 +1,15 @@
 import { Logger, IListOptions, ICursorOptions, PermissionRole } from '@api-client/core';
 import { Cursor } from './Cursor.js';
-import { 
-  IListState,
-} from './State.js';
+import { IListState } from './State.js';
 import { IBinStore } from './level/AbstractBin.js';
 import { IFilesStore } from './level/AbstractFiles.js';
+import { IAbstractMedia } from './level/AbstractMedia.js';
 import { ISharedStore } from './level/AbstractShared.js';
 import { IHistoryStore } from './level/AbstractHistory.js';
 import { IPermissionStore } from './level/AbstractPermission.js';
 import { IRevisionsStore } from './level/AbstractRevisions.js';
 import { ISessionStore } from './level/AbstractSessions.js';
 import { IUserStore } from './level/AbstractUser.js';
-import { IProjectsStore } from './level/AbstractProject.js';
 
 /**
  * An abstract class that creates an interface to implement any storage layer
@@ -27,11 +25,11 @@ export abstract class StorePersistence {
   abstract get user(): IUserStore;
   abstract get bin(): IBinStore;
   abstract get revisions(): IRevisionsStore;
-  abstract get project(): IProjectsStore;
   abstract get session(): ISessionStore;
   abstract get permission(): IPermissionStore;
   abstract get shared(): ISharedStore;
   abstract get file(): IFilesStore;
+  abstract get media(): IAbstractMedia;
 
   /**
    * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.

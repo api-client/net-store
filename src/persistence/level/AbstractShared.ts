@@ -38,12 +38,12 @@ export interface ISharedStore {
   /**
    * Lists files shared with the user.
    * 
-   * @param kinds The list of kinds to list. Spaces are ignored and always included.
    * @param user The user to list for shared files.
+   * @param kinds Optional list of kinds to list. Spaces are ignored and always included.
    * @param options Query options.
    * @returns The list of files that are shared with the user.
    */
-  list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>>;
+  list(user: IUser, kinds?: string[], options?: IListOptions): Promise<IListResponse<IFile>>;
   /**
    * Removes all entries that are linking to a `target`
    * @param targetKey The key of the target.

@@ -56,7 +56,7 @@ describe('Unit tests', () => {
           await DataHelper.clearAllHistory(store);
           await store.user.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
         });
 
         it('adds an item to the store and updates the user', async () => {
@@ -220,7 +220,7 @@ describe('Unit tests', () => {
           await DataHelper.clearAllHistory(store);
           await store.user.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
         });
 
         it('adds app history to the store and adds the user', async () => {
@@ -487,7 +487,7 @@ describe('Unit tests', () => {
             await store.history.space.clear();
             await store.user.db.clear();
             await store.file.db.clear();
-            await store.project.db.clear();
+            await store.media.db.clear();
           });
 
           it('lists all requests to the limit', async () => {
@@ -589,7 +589,7 @@ describe('Unit tests', () => {
             await store.history.space.clear();
             await store.user.db.clear();
             await store.file.db.clear();
-            await store.project.db.clear();
+            await store.media.db.clear();
           });
 
           it('lists all requests to the limit', async () => {
@@ -696,7 +696,7 @@ describe('Unit tests', () => {
             await DataHelper.clearAllHistory(store);
             await store.user.db.clear();
             await store.file.db.clear();
-            await store.project.db.clear();
+            await store.media.db.clear();
           });
 
           it('lists requests for the part of URL', async () => {
@@ -943,7 +943,7 @@ describe('Unit tests', () => {
           await DataHelper.clearAllHistory(store);
           await store.user.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
         });
 
         it('marks the object deleted in the data store', async () => {
@@ -1128,7 +1128,7 @@ describe('Unit tests', () => {
           await DataHelper.clearAllHistory(store);
           await store.user.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
         });
 
         it('marks objects deleted in the data store', async () => {

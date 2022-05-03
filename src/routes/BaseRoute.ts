@@ -85,10 +85,15 @@ export abstract class BaseRoute extends ApiRoute {
     return options;
   }
 
-  protected listKinds(ctx: ParameterizedContext): string[] {
+  /**
+   * Lists the "kind" query parameter and when set it returns the array value.
+   * 
+   * @returns The list of kinds or undefined when not specified in the query parameters.
+   */
+  protected listKinds(ctx: ParameterizedContext): string[] | undefined {
     let { kind } = ctx.query;
     if (!kind) {
-      throw new ApiError(`The "kind" parameter is not set.`, 400);
+      return undefined;
     }
     if (!Array.isArray(kind)) {
       kind = [kind];

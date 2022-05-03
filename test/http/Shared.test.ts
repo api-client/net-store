@@ -56,7 +56,7 @@ describe('http', () => {
           const space = Workspace.fromName('s2', users[0].user.key).toJSON();
 
           sdk.token = users[0].token;
-          await sdk.file.create(space, { parent });
+          await sdk.file.createMeta(space, { parent });
           
           const records: AccessOperation[] = [{
             op: 'add',
@@ -84,7 +84,8 @@ describe('http', () => {
 
           const parent = spaces[0].key;
           const space = Workspace.fromName('s2', user1.user.key).toJSON();
-          await sdk.file.create(space, { parent });
+
+          await sdk.file.createMeta(space, { parent });
 
           const records: AccessOperation[] = [{
             op: 'add',
@@ -101,7 +102,7 @@ describe('http', () => {
           await sdk.file.patchUsers(space.key, info);
           
           sdk.token = user3.token;
-          const list = await sdk.shared.list([ProjectKind], { parent });
+          const list = await sdk.shared.list([], { parent });
           assert.lengthOf(list.data, 1, 'has all parent records');
         });
   

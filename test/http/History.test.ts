@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { assert } from 'chai';
-import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation, IAccessPatchInfo, HttpProject } from '@api-client/core';
+import { StoreSdk, IUser, IHttpHistory, ProjectMock, IHttpHistoryBulkAdd, IWorkspace, RouteBuilder, AccessOperation, IAccessPatchInfo, HttpProject, Project } from '@api-client/core';
 import getConfig from '../helpers/getSetup.js';
 import HttpHelper from '../helpers/HttpHelper.js';
 import DefaultUser from '../../src/authentication/DefaultUser.js';
@@ -93,7 +93,8 @@ describe('http', () => {
 
         it('lists the project history', async () => {
           const project = HttpProject.fromName('p1');
-          const pid = await sdk.file.create(project.toJSON());
+          const file = Project.fromProject(project).toJSON();
+          const pid = await sdk.file.create(file, project.toJSON());
 
           const item1 = await mock.history.httpHistory({
             app: 'app1',
@@ -115,7 +116,8 @@ describe('http', () => {
 
         it('lists the project request history', async () => {
           const project = HttpProject.fromName('p1');
-          const pid = await sdk.file.create(project.toJSON());
+          const file = Project.fromProject(project).toJSON();
+          const pid = await sdk.file.create(file, project.toJSON());
 
           const item1 = await mock.history.httpHistory({
             app: 'app1',
@@ -213,7 +215,7 @@ describe('http', () => {
           const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
   
-          const rawSpaces = await http.post(`${baseUri}/test/generate/files?size=1`, { token: user1Token });
+          const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
           space1Key = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
 
           const item2 = await mock.history.httpHistory({ space: space1Key });
@@ -300,7 +302,7 @@ describe('http', () => {
           const item1 = await mock.history.httpHistory({ app: 'test-app' });
           created1Id = await sdk.history.create(item1, { token: user1Token });
 
-          const rawSpaces = await http.post(`${baseUri}/test/generate/files?size=1`, { token: user1Token });
+          const rawSpaces = await http.post(`${baseUri}/test/generate/spaces?size=1`, { token: user1Token });
           space1Key = (JSON.parse(rawSpaces.body as string)[0] as IWorkspace).key;
           
           const item2 = await mock.history.httpHistory({ space: space1Key });

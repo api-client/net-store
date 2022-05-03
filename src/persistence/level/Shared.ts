@@ -51,13 +51,17 @@ export class Shared extends SubStore implements ISharedStore {
     }
   }
 
-  async list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>> {
+  async list(user: IUser, kinds?: string[], options?: IListOptions): Promise<IListResponse<IFile>> {
     validateKinds(kinds);
     const state = await this.parent.readListState(options);
-    const targetKinds = [...kinds, WorkspaceKind];
-
-    // First we list all items for the passed kinds.
-    const prefixes = targetKinds.map(i => `~${KeyGenerator.normalizeKind(i)}~${user.key}~`);
+    let prefixes: string[] | undefined;
+    if (Array.isArray(kinds) && kinds.length) {
+      const targetKinds = [...kinds];
+      if (!targetKinds.includes(WorkspaceKind)) {
+        targetKinds.push(WorkspaceKind);
+      }
+      prefixes = targetKinds.map(i => `~${KeyGenerator.normalizeKind(i)}~${user.key}~`);
+    }
     const { limit = this.parent.defaultLimit, parent } = state;
     const ids: string[] = [];
     let remaining = limit;
@@ -78,8 +82,14 @@ export class Shared extends SubStore implements ISharedStore {
         // always set this to the last read key, even if it's not allowed for this query
         // so the next iteration won't read it again 
         lastKey = k;
-        const allowed = prefixes.some(p => k.startsWith(p));
-        if (!allowed) {
+        if (prefixes) {
+          // filter by requested kinds
+          const allowed = prefixes.some(p => k.startsWith(p));
+          if (!allowed) {
+            continue;
+          }
+        } else if (!k.includes(`~${user.key}~`)) {
+          // only allow user's files.
           continue;
         }
         const obj = JSON.parse(value) as ISharedLink;

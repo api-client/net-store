@@ -2,9 +2,8 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
 import { 
-  IFile, IUser, RouteBuilder, IAccessPatchInfo, IWorkspace, IHttpProject, 
-  WorkspaceKind, HttpProjectKind, Project, IProject, ProjectKind, ApiError,
-  IPatchInfo, IPatchRevision,
+  IFile, File, IUser, RouteBuilder, IAccessPatchInfo, WorkspaceKind, ApiError, IPatchInfo, 
+  IPatchRevision, uuidV4 
 } from '@api-client/core';
 import { Patch } from '@api-client/json';
 import { BaseRoute } from './BaseRoute.js';
@@ -17,17 +16,24 @@ export default class FilesRoute extends BaseRoute {
   async setup(): Promise<void> {
     const { router } = this;
     const filesPath = RouteBuilder.files();
+    // read a file
     router.get(filesPath, this.filesList.bind(this));
-    router.post(filesPath, this.filesCreate.bind(this));
+    // create a file on root or a space.
+    router.post(filesPath, this.filesCreateHandler.bind(this));
 
+    // read in bulk (its post to )
     const bulkPath = RouteBuilder.filesBulk();
     router.post(bulkPath, this.bulkRead.bind(this));
 
     const filePath = RouteBuilder.file(':file');
-    router.get(filePath, this.fileRead.bind(this));
-    router.patch(filePath, this.filePatch.bind(this));
-    router.delete(filePath, this.fileDelete.bind(this));
-    router.post(filePath, this.fileCreate.bind(this));
+    // reads the file.
+    router.get(filePath, this.fileReadHandler.bind(this));
+    // patches the file.
+    router.patch(filePath, this.filePatchHandler.bind(this));
+    // deletes the file
+    router.delete(filePath, this.fileDeleteHandler.bind(this));
+    // uploads the media of the file.
+    router.put(filePath, this.filePutHandler.bind(this));
     
     const usersPath = RouteBuilder.fileUsers(':file');
     router.patch(usersPath, this.patchUser.bind(this));
@@ -45,7 +51,7 @@ export default class FilesRoute extends BaseRoute {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
       const kinds = this.listKinds(ctx);
-      const result = await this.store.file.list(kinds, user, options);
+      const result = await this.store.file.list(user, kinds, options);
       ctx.body = result;
       ctx.type = this.jsonType;
       ctx.status = 200;
@@ -55,28 +61,114 @@ export default class FilesRoute extends BaseRoute {
   }
 
   /**
-   * Creates a file.
+   * Creates a file metadata object.
+   * 
+   * The file create flow is a 2-step process (except for workspaces/folders).
+   * First the client creates a meta entry in the first request. After that the client reads the `location` headers,
+   * appends the `alt=media` query parameter, and makes another request with the file contents (the media.)
+   * Only exception here ius the `workspace` which has no media and it only exists as a meta data. When creating a workspace (a folder)
+   * only the first step is performed.
+   * 
+   * The `meta` part of the file must expends the IFile interface defined in the `core` library. The file media (the contents)
+   * can be any, non-binary contents.
    */
-  protected async filesCreate(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+  protected async filesCreateHandler(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
     try {
-      const user = this.getUserOrThrow(ctx);
-      const body = await this.readJsonBody(ctx.request) as any;
-      if (!body || !body.key || !body.kind) {
-        throw new ApiError('Invalid file definition.', 400);
-      }
-      if (body.kind === WorkspaceKind) {
-        await this.createWorkspace(body as IWorkspace, user);
-      } else if (body.kind === HttpProjectKind) {
-        await this.createProject(body as IHttpProject, user);
-      } else {
-        throw new ApiError(`Unsupported kind: ${body.kind}.`, 400);
-      }
+      const id = await this.createFile(ctx);
       ctx.status = 204;
-      const spacePath = RouteBuilder.file(body.key);
+      const spacePath = RouteBuilder.file(id);
       ctx.set('location', spacePath);
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }
+  }
+  
+  /**
+   * A function that creates either a file meta or media (depending on the request).
+   * 
+   * @param ctx The server context.
+   * @returns The key of the file.
+   */
+  private async createFile(ctx: ParameterizedContext<IApplicationState>): Promise<string> {
+    const user = this.getUserOrThrow(ctx);
+    const alt: AltType | undefined = ctx.query.alt as AltType | undefined;
+    if (alt && !['media', 'meta'].includes(alt)) {
+      const err = new ApiError(`Unsupported "alt" parameter.`, 400);
+      err.detail = 'Only "media" and "meta" parameters are supported when creating a file.';
+      throw err;
+    }
+    const mime = ctx.get('content-type');
+    if (!mime) {
+      const err = new ApiError(`The media content-type header is missing.`, 400);
+      err.detail = 'The content-type of the file is stored with the file and used again when reading the file';
+      throw err;
+    }
+    const isJson = mime.includes('json');
+    if (alt === 'media') {
+      let id: string | undefined;
+      if (typeof ctx.params.file === 'string') {
+        id = ctx.params.file;
+      }
+      if (!id) {
+        const err = new ApiError(`Media upload can only be performed on a file. This is the files collection endpoint.`, 400);
+        err.detail = 'Use a file endpoint with the "PUT" operation to upload file media (its contents).';
+        throw err;
+      }
+      let body: unknown;
+      if (isJson) {
+        body = await this.readJsonBody(ctx.request);
+      } else {
+        // probably the best I can do for now (not as much time to spend on this.)
+        body = (await this.readBufferBody(ctx.request)).toString('utf8');
+      }
+      return this.createFileMedia(id, body, mime, user);
+    }
+    // only "meta" alt is possible here.
+    if (!isJson) {
+      throw new ApiError(`Expected application/json mime type for a file meta but got ${mime}.`, 400);
+    }
+    const body = await this.readJsonBody(ctx.request) as unknown;
+    if (!body) {
+      const err = new ApiError('Invalid file definition. File has no contents.', 400);
+      err.detail = 'File metadata must be a JSON value.';
+      throw err;
+    }
+    let parent: string | undefined;
+    if (typeof ctx.query.parent === 'string') {
+      parent = ctx.query.parent;
+    }
+    return this.createFileMeta(body as IFile, user, parent);
+  }
+
+  /**
+   * Creates a file metadata entry in the store.
+   * 
+   * @param file The file extending the IFile interface.
+   * @param user The adding user.
+   * @param parent Optional parent folder (workspace).
+   * @returns The key of the created file.
+   */
+  private async createFileMeta(file: IFile, user: IUser, parent?: string): Promise<string> {
+    if (!file.kind) {
+      throw new ApiError(`Invalid file meta definition. Missing "kind" property.`, 400);
+    }
+    if (!file.key) {
+      file.key = uuidV4();
+    }
+    const opts: IFileAddOptions = {};
+    if (parent) {
+      opts.parent = parent;
+    }
+    await this.store.file.add(file.key, file, user, opts);
+    return file.key;
+  }
+
+  private async createFileMedia(id: string, file: unknown, mime: string, user: IUser): Promise<string> {
+    // as a principle, all files that have `kind` property are only allowed to be patched after create.
+    const allowOverwrite = !(file as any).kind;
+    await this.store.file.checkAccess('writer', id, user);
+    await this.store.media.set(id, file, mime, allowOverwrite);
+    return id;
   }
 
   protected async bulkRead(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
@@ -95,31 +187,12 @@ export default class FilesRoute extends BaseRoute {
     }
   }
 
-  private async createWorkspace(space: IWorkspace, user: IUser, parent?: string): Promise<void> {
-    const opts: IFileAddOptions = {};
-    if (parent) {
-      opts.parent = parent;
-    }
-    await this.store.file.add(space.key, space, user, opts);
-  }
-
-  private async createProject(project: IHttpProject, user: IUser, parent?: string): Promise<void> {
-    const opts: IFileAddOptions = {};
-    if (parent) {
-      opts.parent = parent;
-    }
-    // create a file object
-    const file = Project.fromProject(project).toJSON();
-    await this.store.file.add(file.key, file, user, opts);
-    await this.store.project.add(project.key, project);
-  }
-
   /**
    * Reads the file.
    * Depending on the `alt` property it either returns the file (the metadata) or
    * the contents (like for an HttpProject).
    */
-  protected async fileRead(ctx: ParameterizedContext): Promise<void> {
+  protected async fileReadHandler(ctx: ParameterizedContext): Promise<void> {
     const { file } = ctx.params;
     const { alt } = ctx.query;
     try {
@@ -132,37 +205,33 @@ export default class FilesRoute extends BaseRoute {
         throw new ApiError(`Not found`, 404);
       }
       let result: any;
+      let mime = this.jsonType;
       if (alt === 'media') {
-        result = await this.readFileMedia(meta);
-        if (!result) {
+        if (meta.kind === WorkspaceKind) {
+          throw new ApiError(`Spaces have no media. Remove the "alt" parameter.`, 400);
+        }
+        const data = await this.store.media.read(meta.key);
+        if (!data) {
           throw new ApiError(`The media for the file is missing.`, 500);
         }
+        mime = data.mime || this.jsonType;
+        result = data.value;
       } else {
         result = meta;
       }
       ctx.body = result;
-      ctx.type = this.jsonType;
+      ctx.type = mime;
       ctx.status = 200;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }
   }
 
-  private async readFileMedia(meta: IFile): Promise<any> {
-    if (meta.kind === WorkspaceKind) {
-      throw new ApiError(`Spaces have no media. Remove the "alt" parameter.`, 400);
-    } 
-    if (meta.kind !== ProjectKind) {
-      throw new ApiError(`The file has unsupported kind: ${meta.kind}.`, 400);
-    }
-    return this.store.project.read(meta.key);
-  }
-
   /**
    * Patches a file.
    * Depending on the `alt` parameter it either patched the file contents or the metadata.
    */
-  protected async filePatch(ctx: ParameterizedContext): Promise<void> {
+  protected async filePatchHandler(ctx: ParameterizedContext): Promise<void> {
     const { file } = ctx.params;
     const { alt } = ctx.query;
     try {
@@ -193,24 +262,23 @@ export default class FilesRoute extends BaseRoute {
     if (meta.kind === WorkspaceKind) {
       throw new ApiError(`Spaces have no media. Remove the "alt" parameter.`, 400);
     } 
-    if (meta.kind !== ProjectKind) {
-      throw new ApiError(`The file has unsupported kind: ${meta.kind}.`, 400);
-    }
     validatePatch(patch);
-    const result = await this.store.project.applyPatch(meta.key, patch, user);
-    const file = new Project(meta as IProject);
-    file.setLastModified(user);
-    const updatedFile = file.toJSON();
-    const delta = Patch.diff(meta, updatedFile);
+    const result = await this.store.media.applyPatch(meta.key, meta.kind, patch, user);
+
+    const copy = { ...meta };
+    File.setLastModified(copy, user);
+    
+    const delta = Patch.diff(meta, copy);
     const metaPatch: IPatchInfo = { ...patch, patch: delta };
-    await this.store.file.update(key, updatedFile, metaPatch, user);
+    await this.store.file.update(key, copy, metaPatch, user);
+
     return result;
   }
 
   /**
    * Deletes a file and the media, if any.
    */
-  protected async fileDelete(ctx: ParameterizedContext): Promise<void> {
+  protected async fileDeleteHandler(ctx: ParameterizedContext): Promise<void> {
     const { file } = ctx.params;
     try {
       const user = this.getUserOrThrow(ctx);
@@ -219,48 +287,29 @@ export default class FilesRoute extends BaseRoute {
         throw new ApiError(`Not found`, 404);
       }
       await this.store.file.delete(file, user);
-      await this.tryDeleteMedia(meta, user);
+      if (meta.kind !== WorkspaceKind) {
+        await this.store.media.delete(meta.key, meta.kind, user);
+      }
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }
   }
 
-  private async tryDeleteMedia(meta: IFile, user: IUser): Promise<void> {
-    if (meta.kind !== HttpProjectKind) {
-      return;
-    }
-    await this.store.project.delete(meta.key, user);
-  }
-
   /**
-   * Creates a file inside a space.
+   * Allows to upload file media after creating file's meta.
+   * Only requests with `alt=media` are allowed.
    */
-  protected async fileCreate(ctx: ParameterizedContext): Promise<void> {
-    const { file } = ctx.params;
+  protected async filePutHandler(ctx: ParameterizedContext): Promise<void> {
     try {
-      const user = this.getUserOrThrow(ctx);
-      const body = await this.readJsonBody(ctx.request) as any;
-      if (!body || !body.key || !body.kind) {
-        throw new ApiError('Invalid file definition.', 400);
+      const alt: AltType | undefined = ctx.query.alt as AltType | undefined;
+      if (!alt || alt !== 'media') {
+        throw new ApiError(`Unsupported "alt" parameter.`, 400);
       }
-      const meta = await this.store.file.read(file, user);
-      if (!meta) {
-        throw new ApiError(`Not found`, 404);
-      }
-      if (meta.kind !== WorkspaceKind) {
-        throw new ApiError(`The parent file must be a space.`, 400);
-      }
-      if (body.kind === WorkspaceKind) {
-        await this.createWorkspace(body as IWorkspace, user, file);
-      } else if (body.kind === HttpProjectKind) {
-        await this.createProject(body as IHttpProject, user, file);
-      } else {
-        throw new ApiError(`Unsupported kind: ${body.kind}`, 400);
-      }
+      const id = await this.createFile(ctx);
       ctx.status = 204;
-      const spacePath = RouteBuilder.file(body.key);
-      ctx.set('location', spacePath);
+      const filePath = RouteBuilder.file(id);
+      ctx.set('location', filePath);
     } catch (cause) {
       this.errorResponse(ctx, cause);
     }

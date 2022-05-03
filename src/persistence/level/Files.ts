@@ -20,8 +20,9 @@ interface FileUser {
 /**
  * The Files store operates on all objects that extends the `IFile` interface.
  * 
- * Architectonically, a space is a folder that contains other spaces or files.
- * An example of a file is Project (which is closely related to the HttpProject).
+ * A space is a folder that contains other spaces and files.
+ * An example of a file is Project (which is closely related to the HttpProject)
+ * or any other content stored in the store as media.
  * 
  * When an application is creating or listing objects they list spaces and all
  * objects that the application support. This gives a flexibility to share the concept
@@ -49,7 +50,7 @@ export class Files extends SubStore implements IFilesStore {
     return this.parent.permission.readFileAccess(keyOrFile, userKey, async (id) => this.get(id));
   }
 
-  async list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>> {
+  async list(user: IUser, kinds?: string[], options?: IListOptions): Promise<IListResponse<IFile>> {
     validateKinds(kinds);
     const state = await this.parent.readListState(options);
     const { limit = this.parent.defaultLimit, parent } = state;
@@ -62,12 +63,21 @@ export class Files extends SubStore implements IFilesStore {
       // @ts-ignore
       await iterator.next();
     }
-    const targetKinds = [...kinds, WorkspaceKind];
+    let targetKinds: string[] | undefined;
+    if (Array.isArray(kinds) && kinds.length) {
+      targetKinds = [...kinds];
+      if (!targetKinds.includes(WorkspaceKind)) {
+        targetKinds.push(WorkspaceKind);
+      }
+    }
     try {
       // @ts-ignore
       for await (const [key, value] of iterator) {
         const obj = JSON.parse(value) as IFile;
-        if (obj.deleted || !targetKinds.includes(obj.kind)) {
+        if (obj.deleted) {
+          continue;
+        }
+        if (targetKinds && !targetKinds.includes(obj.kind)) {
           continue;
         }
         if (obj.parents && obj.parents.length) {

@@ -31,10 +31,6 @@ export class DataHelper {
     await store.history.app.clear();
   }
 
-  static async clearAllProjects(store: StoreLevelUp): Promise<void> {
-    await store.project.db.clear();
-  }
-
   static async clearFiles(store: StoreLevelUp): Promise<void> {
     await store.file.db.clear();
   }
@@ -54,7 +50,7 @@ export class DataHelper {
     }
     const file = Project.fromProject(project).toJSON();
     await store.file.add(file.key, file, user, opts);
-    await store.project.add(project.key, project.toJSON());
+    await store.media.set(project.key, project.toJSON(), 'application/json');
   }
 
   static async addHistory(store: DataStoreType, size=25, opts?: IHttpHistoryListInit): Promise<IHttpHistory[]> {
@@ -172,7 +168,7 @@ export class DataHelper {
     }
   }
 
-  static async generateFiles(store: StoreLevelUp, owner: string, size=25): Promise<IWorkspace[]> {
+  static async generateSpaces(store: StoreLevelUp, owner: string, size=25): Promise<IWorkspace[]> {
     const data: PutBatch[] = [];
     const result: IWorkspace[] = [];
     for (let i = 0; i < size; i++) {
@@ -191,7 +187,7 @@ export class DataHelper {
 
   static async generateProjects(store: StoreLevelUp, owner: string, size=25, parent?: string): Promise<IHttpProject[]> {
     const files: PutBatch[] = [];
-    const projects: PutBatch[] = [];
+    const media: PutBatch[] = [];
     const result: IHttpProject[] = [];
     for (let i = 0; i < size; i++) {
       const name = mock.lorem.word();
@@ -207,13 +203,16 @@ export class DataHelper {
         key: project.key,
         value: JSON.stringify(file),
       });
-      projects.push({
+      media.push({
         type: 'put',
         key: project.key,
-        value: JSON.stringify(project),
+        value: JSON.stringify({
+          value: project,
+          mime: 'application/json',
+        }),
       });
     }
-    await store.project.db.batch(projects);
+    await store.media.db.batch(media);
     await store.file.db.batch(files);
 
     return result;

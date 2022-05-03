@@ -1,10 +1,16 @@
-import { WorkspaceKind, HttpProjectKind, UserKind } from '@api-client/core';
+import { WorkspaceKind, UserKind } from '@api-client/core';
 import { AltType } from './level/AbstractRevisions.js';
 
 /**
  * The key generator for the Level DB implementation of the API CLient's data store.
  */
 export class KeyGenerator {
+  /**
+   * Creates a key for a deleted object.
+   * @param kind The kind of the "File", not the contents.
+   * @param keys The ordered list of keys to include 
+   * @returns The generated key.
+   */
   static deletedKey(kind: string, ...keys: string[]): string {
     const k = this.normalizeKind(kind);
     return `~${k}~${keys.join('~')}~`;
@@ -16,10 +22,6 @@ export class KeyGenerator {
   
   static deletedUserKey(key: string): string {
     return this.deletedKey(UserKind, key);
-  }
-  
-  static deletedProjectKey(project: string): string {
-    return this.deletedKey(HttpProjectKind, project);
   }
 
   static projectKey(space: string, project: string): string {

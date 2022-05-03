@@ -36,7 +36,7 @@
         "test/**/*.ts"
       ],
       "rules": {
-        "no-console": "off",
+        "no-console": "warn",
         "no-unused-expressions": "off",
         "no-plusplus": "off",
         "no-param-reassing": "off",

@@ -1,7 +1,7 @@
 {
   "name": "@api-client/net-store",
   "description": "The API CLient's HTTP data store with interfaces for authorization and a persistence layers.",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "license": "Apache-2.0",
   "type": "module",
   "main": "build/index.js",
@@ -27,7 +27,7 @@
     "node": ">=15.4"
   },
   "dependencies": {
-    "@api-client/core": "^0.6.0",
+    "@api-client/core": "^0.6.6",
     "@api-client/json": "^0.1.1",
     "@koa/cors": "^3.3.0",
     "@koa/router": "^10.1.1",

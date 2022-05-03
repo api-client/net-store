@@ -1,4 +1,4 @@
-import { IUser } from '@api-client/core';
+import { IUser, ProjectKind } from '@api-client/core';
 import { SubStore } from '../SubStore.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import DefaultUser from '../../authentication/DefaultUser.js';
@@ -65,7 +65,7 @@ export class Bin extends SubStore implements IBinStore {
     if (spaceDeleted) {
       return true;
     }
-    const key = KeyGenerator.deletedProjectKey(project);
+    const key = KeyGenerator.deletedKey(ProjectKind, project);
     return this.isDeleted(key);
   }
 

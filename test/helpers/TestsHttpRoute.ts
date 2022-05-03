@@ -30,7 +30,7 @@ export class TestsHttpRoute extends BaseRoute {
     router.delete('/test/reset/history', this.handleDataResetHistory.bind(this));
     router.delete('/test/reset/shared', this.handleDataResetShared.bind(this));
     router.delete('/test/reset/permissions', this.handleDataResetPermissions.bind(this));
-    router.post('/test/generate/files', this.handleDataGenerateFiles.bind(this));
+    router.post('/test/generate/spaces', this.handleDataGenerateSpaces.bind(this));
     // router.post('/test/generate/projects/:parent', this.handleDataGenerateProjects.bind(this));
     router.post('/test/generate/revisions/pr/:project', this.handleDataGenerateProjectRevisions.bind(this));
     router.post('/test/generate/users', this.generateUsers.bind(this));
@@ -66,7 +66,7 @@ export class TestsHttpRoute extends BaseRoute {
 
   protected async handleDataResetProjects(ctx: ParameterizedContext): Promise<void> {
     try {
-      await this.testStore.clearProjects();
+      await this.testStore.clearFileMedia();
       ctx.status = 204;
     } catch (cause) {
       this.errorResponse(ctx, cause);
@@ -122,7 +122,7 @@ export class TestsHttpRoute extends BaseRoute {
     }
   }
 
-  protected async handleDataGenerateFiles(ctx: ParameterizedContext): Promise<void> {
+  protected async handleDataGenerateSpaces(ctx: ParameterizedContext): Promise<void> {
     const { size='25', owner } = ctx.query;
     const sizeParam = Number(size);
     let ownerParam = owner;

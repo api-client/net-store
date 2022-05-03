@@ -25,7 +25,7 @@ export default class SharedHttpRoute extends BaseRoute {
       const user = this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
       const kinds = this.listKinds(ctx);
-      const result = await this.store.shared.list(kinds, user, options);
+      const result = await this.store.shared.list(user, kinds, options);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;

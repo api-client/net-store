@@ -9,22 +9,22 @@ import { StorePersistence } from './StorePersistence.js';
 import { Sessions } from './level/Session.js';
 import { User } from './level/User.js';
 import { Revisions } from './level/Revisions.js';
-import { Project } from './level/Project.js';
 import { PermissionStore } from './level/PermissionStore.js';
 import { History } from './level/History.js';
 import { Bin } from './level/Bin.js';
 import { Shared } from './level/Shared.js';
 import { Files } from './level/Files.js';
+import { Media } from './level/Media.js';
 
 const sessionSymbol = Symbol('session');
 const historySymbol = Symbol('history');
 const userSymbol = Symbol('user');
 const binSymbol = Symbol('bin');
 const revisionsSymbol = Symbol('revisions');
-const projectSymbol = Symbol('project');
 const fileSymbol = Symbol('file');
 const permissionSymbol = Symbol('permission');
 const sharedSymbol = Symbol('shared');
+const mediaSymbol = Symbol('media');
 
 export type DataStoreType = LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
 
@@ -105,24 +105,26 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [projectSymbol]: Project;
+  [fileSymbol]: Files;
+
   /**
-   * A store that keeps user project objects.
+   * File metadata store.
    */
-  get project(): Project {
-    const ref = this[projectSymbol];
+  get file(): Files {
+    const ref = this[fileSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
     }
     return ref;
   }
 
-  [fileSymbol]: Files;
+  [mediaSymbol]: Media;
+
   /**
-   * A store that keeps user file objects.
+   * The contents of a File.
    */
-  get file(): Files {
-    const ref = this[fileSymbol];
+  get media(): Media {
+    const ref = this[mediaSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
     }
@@ -183,11 +185,11 @@ export class StoreLevelUp extends StorePersistence {
     const revisions = sub<string, any>(db, 'revisions') as DataStoreType;
     this[revisionsSymbol] = new Revisions(this, revisions);
 
-    const projects = sub<Bytes, Bytes>(db, 'projects') as DataStoreType;
-    this[projectSymbol] = new Project(this, projects);
-
     const files = sub<Bytes, Bytes>(db, 'files') as DataStoreType;
     this[fileSymbol] = new Files(this, files);
+
+    const media = sub<Bytes, Bytes>(db, 'media') as DataStoreType;
+    this[mediaSymbol] = new Media(this, media);
 
     const permissions = sub<Bytes, Bytes>(db, 'permissions') as DataStoreType;
     this[permissionSymbol] = new PermissionStore(this, permissions);
@@ -205,8 +207,8 @@ export class StoreLevelUp extends StorePersistence {
     await this.user.cleanup();
     await this.bin.cleanup();
     await this.revisions.cleanup();
-    await this.project.cleanup();
     await this.file.cleanup();
+    await this.media.cleanup();
     await this.permission.cleanup();
     await this.shared.cleanup();
     await this.db?.close();

@@ -574,8 +574,8 @@ export class History extends SubStore implements IHistoryStore {
     } else if (type === 'project') {
       this.validateStateId(state);
       await this.parent.file.checkAccess('reader', state.id, user);
-      // it the read won't throw an error then the project exists in the space.
-      await this.parent.project.read(state.id);
+      // if the read won't throw an error then the project exists in the space and is not deleted.
+      await this.parent.media.read(state.id);
       const it = this.getIteratorOptions(state.id, user, state.user);
       info = await this.listStoreDataKeys(this.project, it, state);
     } else if (type === 'request') {

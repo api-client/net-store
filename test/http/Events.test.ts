@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import { 
   Workspace, AccessOperation, HttpProject, IUser, StoreSdk, IFile, IWorkspace,
   IHttpProject, RevisionKind, HttpProjectKind, ProjectMock, HttpHistoryKind,
-  IHttpHistoryBulkAdd, IPatchInfo, IAccessPatchInfo,
+  IHttpHistoryBulkAdd, IPatchInfo, IAccessPatchInfo, Project,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import HttpHelper from '../helpers/HttpHelper.js';
@@ -81,7 +81,7 @@ describe('Events', () => {
     it('handles meta create', async () => {
       // create a space for user 1.
       s1 = Workspace.fromName('s1', user1.key).toJSON();
-      await sdk.file.create(s1);
+      await sdk.file.createMeta(s1);
 
       assert.isTrue(app1.hasFile(s1.key), 'app1 has the created space file');
       assert.isFalse(app2.hasFiles(), 'app2 has no files');
@@ -113,7 +113,8 @@ describe('Events', () => {
     it('handles media create', async () => {
       // add a project 1 to the s1 space
       p1 = HttpProject.fromName('p1').toJSON();
-      await sdk.file.create(p1, { parent: s1.key });
+      const pf1 = Project.fromProject(p1).toJSON();
+      await sdk.file.create(pf1, p1, { parent: s1.key });
 
       assert.isFalse(app1.hasFile(p1.key), 'app1 has the created project file (still in the root)');
       assert.isFalse(app2.hasFiles(), 'app2 has no files');
@@ -177,7 +178,7 @@ describe('Events', () => {
     it('handles space create when in the parent space', async () => {
       // create a sub-space in space 1
       s2 = Workspace.fromName('s2', user1.key).toJSON();
-      await sdk.file.create(s2, { parent: s1.key });
+      await sdk.file.createMeta(s2, { parent: s1.key });
       assert.isTrue(app1.hasFile(s2.key), 'app1 has the created sub-space file');
       assert.isTrue(app2.hasFile(s2.key), 'app2 has the created sub-space file');
       assert.isFalse(app3.hasFiles(), 'app3 has no files');
@@ -190,7 +191,8 @@ describe('Events', () => {
       await app2.setupSpace(s2.key);
 
       p2 = HttpProject.fromName('p2').toJSON();
-      await sdk.file.create(p2, { parent: s2.key });
+      const pf2 = Project.fromProject(p2).toJSON();
+      await sdk.file.create(pf2, p2, { parent: s2.key });
 
       assert.isFalse(app1.hasFile(p2.key), 'app1 has no file which is not in the same space');
       assert.isTrue(app2.hasFile(p2.key), 'app2 has the project file');
@@ -205,7 +207,7 @@ describe('Events', () => {
     it('shared target receives an event event when in a different space', async () => {
       // user 1 creates a space in the root and shares it with user 2 while the user 2 in in space 1.
       s3 = Workspace.fromName('s3', user1.key).toJSON();
-      await sdk.file.create(s3);
+      await sdk.file.createMeta(s3);
 
       const records: AccessOperation[] = [{
         op: 'add',
@@ -293,7 +295,8 @@ describe('Events', () => {
       app3 = new UserFileApp(user3, user3Token, baseUri, baseUriWs);
       
       p1 = HttpProject.fromName('p1').toJSON();
-      await sdk.file.create(p1);
+      const pf1 = Project.fromProject(p1).toJSON();
+      await sdk.file.create(pf1, p1);
 
       const records: AccessOperation[] = [{
         op: 'add',
@@ -416,10 +419,11 @@ describe('Events', () => {
       app3 = new UserFileApp(user3, user3Token, baseUri, baseUriWs);
 
       s1 = Workspace.fromName('s1', user1.key).toJSON();
-      await sdk.file.create(s1);
+      await sdk.file.createMeta(s1);
       
       p1 = HttpProject.fromName('p1').toJSON();
-      await sdk.file.create(p1, { parent: s1.key });
+      const pf1 = Project.fromProject(p1).toJSON();
+      await sdk.file.create(pf1, p1, { parent: s1.key });
 
       const records: AccessOperation[] = [{
         op: 'add',

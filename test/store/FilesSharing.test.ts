@@ -157,14 +157,14 @@ describe('Unit tests', () => {
         });
 
         it('lists the files shared with the user', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2);
+          const list = await store.shared.list(user2);
           assert.typeOf(list.cursor, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data');
           assert.lengthOf(list.data, 35, 'has the default list size');
         });
 
         it('lists files only shared with the user', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 100 });
+          const list = await store.shared.list(user2, [], { limit: 100 });
           assert.lengthOf(list.data, 40, 'has the default list size');
         });
 
@@ -185,7 +185,7 @@ describe('Unit tests', () => {
           };
           await store.file.patchAccess(file.key, info, user1);
 
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 100 });
+          const list = await store.shared.list(user2, [], { limit: 100 });
           assert.lengthOf(list.data, 40, 'has all records');
         });
 
@@ -205,42 +205,42 @@ describe('Unit tests', () => {
             } as AccessOperation],
           };
           await store.file.patchAccess(file.key, info, user1);
-          const list = await store.shared.list([WorkspaceKind], user3, { parent });
+          const list = await store.shared.list(user3, [WorkspaceKind], { parent });
           assert.lengthOf(list.data, 1, 'has all parent records');
         });
 
         it('respects the limit parameter', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 4 });
+          const list = await store.shared.list(user2, [WorkspaceKind], { limit: 4 });
           assert.typeOf(list.cursor, 'string', 'has the cursor');
           assert.typeOf(list.data, 'array', 'has the data');
           assert.lengthOf(list.data, 4, 'has the default list size');
         });
 
         it('respects the page cursor', async () => {
-          const list1 = await store.shared.list([WorkspaceKind], user2, { limit: 2 });
+          const list1 = await store.shared.list(user2, [WorkspaceKind], { limit: 2 });
           assert.lengthOf(list1.data, 2, 'original list has 2 items');
-          const list2 = await store.shared.list([WorkspaceKind], user2, { cursor: list1.cursor });
+          const list2 = await store.shared.list(user2, [WorkspaceKind], { cursor: list1.cursor });
           assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
           assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
           assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
         });
 
         it('adds the permissions list', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const list = await store.shared.list(user2, [WorkspaceKind], { limit: 1 });
           const [file] = list.data;
           assert.typeOf(file.permissions, 'array');
           assert.lengthOf(file.permissions, 1);
         });
 
         it('adds the capabilities map', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const list = await store.shared.list(user2, [WorkspaceKind], { limit: 1 });
           const [file] = list.data;
           const c = file.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities');
         });
 
         it('sets the byMe values', async () => {
-          const list = await store.shared.list([WorkspaceKind], user2, { limit: 1 });
+          const list = await store.shared.list(user2, [WorkspaceKind], { limit: 1 });
           const [file] = list.data;
           assert.isFalse(file.lastModified.byMe);
         });
@@ -266,7 +266,7 @@ describe('Unit tests', () => {
           await store.permission.db.clear();
           await store.shared.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
         });
 
         it('removes the access to the file', async () => {
@@ -390,7 +390,7 @@ describe('Unit tests', () => {
         after(async () => {
           await store.user.db.clear();
           await store.file.db.clear();
-          await store.project.db.clear();
+          await store.media.db.clear();
           await store.shared.db.clear();
         });
 

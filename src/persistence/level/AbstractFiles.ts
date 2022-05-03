@@ -43,11 +43,11 @@ export interface IFilesStore {
    * Note, on the root level this only lists the files for the owner of the file. Use `share` store to list shared files.
    * It is allowed to list files in a shared parent using this method.
    * 
-   * @param kinds The list of file kinds to query for. Spaces are ***always** included.
    * @param user The current user making the query.
+   * @param kinds The list of file kinds to query for. Spaces are **always** included. When not set it returns all files.
    * @param options List query options.
    */
-  list(kinds: string[], user: IUser, options?: IListOptions): Promise<IListResponse<IFile>>;
+  list(user: IUser, kinds?: string[], options?: IListOptions): Promise<IListResponse<IFile>>;
   /**
    * Adds a file to the files.
    * 

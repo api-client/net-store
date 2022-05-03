@@ -15,8 +15,8 @@ export class TestStore extends StoreLevelUp {
     await this.file.db.clear();
   }
 
-  async clearProjects(): Promise<void> {
-    await this.project.db.clear();
+  async clearFileMedia(): Promise<void> {
+    await this.media.db.clear();
   }
 
   async clearRevisions(): Promise<void> {
@@ -28,7 +28,7 @@ export class TestStore extends StoreLevelUp {
   }
 
   async generateSpaces(owner: string, size=25): Promise<IWorkspace[]> {
-    return DataHelper.generateFiles(this, owner, size);
+    return DataHelper.generateSpaces(this, owner, size);
   }
 
   // async generateProjects(spaceKey: string, size=25): Promise<IHttpProject[]> {
