@@ -48,7 +48,7 @@ export default class HistoryHttpRoute extends BaseRoute {
       }
       const keys = await this.store.history.bulkAdd(body, user);
       ctx.body = {
-        data: keys,
+        items: keys,
       };
       ctx.type = this.jsonType;
       ctx.status = 200;
@@ -64,7 +64,7 @@ export default class HistoryHttpRoute extends BaseRoute {
       const options = this.collectHistoryListingParameters(ctx);
       const result = await this.store.history.list(user, options);
       ctx.body = result;
-      ctx.type = 'application/json';
+      ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {
       this.logger.error(cause);
@@ -76,8 +76,8 @@ export default class HistoryHttpRoute extends BaseRoute {
     const id = ctx.params.id as string;
     try {
       const user = this.getUserOrThrow(ctx);
-      const data = await this.store.history.read(id, user);
-      ctx.body = data;
+      const info = await this.store.history.read(id, user);
+      ctx.body = info;
       ctx.type = this.jsonType;
       ctx.status = 200;
     } catch (cause) {

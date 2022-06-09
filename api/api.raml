@@ -1,0 +1,457 @@
+#%RAML 1.0
+
+title: API Cloud store
+description: |
+  This API describes communication with the API Cloud's data store which is a www service.
+  This API does not define a base URI because the service meant to be installed locally in the network and the actual location vary.
+
+version: v1
+
+mediaType: 
+  - application/json
+
+uses:
+  AppTypes: ./libraries/AppTypes.raml
+  Backend: ./libraries/Backend.raml
+  Users: ./libraries/Users.raml
+  Files: ./libraries/Files.raml
+  App: ./libraries/App.raml
+
+securitySchemes:
+  StoreAuth:
+    type: x-bearer
+    description: |
+      The store does not offer authentication mechanisms. It relies on the OpenID Connect protocol
+      to authenticate the user. 
+
+      The client first creates an unauthenticated session in the store. This unauthenticated token only
+      allows to initialize the authentication protocol. When the user authenticates and authorizes the 
+      application then the previously generated token refers to the user data (the actual token does not change
+      but the session data behind it does). From this time the client can use the token with other calls.
+    describedBy:
+      headers:
+        Authorization: 
+          type: string
+          description: |
+            The value is the previously received session token in format of: `Bearer {token value}`.
+      responses:
+        401:
+          description: When the user is not authenticated. Initialize a session and begin the authentication flow.
+        403:
+          description: The user is not authorized to access the resource.
+
+resourceTypes:
+  collection:
+    description: This endpoint allows to create and list resources
+    get:
+      description: Lists <<resourcePathName>>
+      responses: 
+        200:
+          body:
+            type: object
+            properties:
+              cursor: 
+                type: string
+                required: false
+                description: The cursor to use with the next query. Not set when no more results.
+              data:
+                type: <<typeName>>[]
+                description: The list of objects returned from the store.
+
+traits:
+  Paginated:
+    queryParameters:
+      cursor?: string
+      query?: string
+      queryField?: string[]
+      parent?: string[]
+      limit?: number
+    responses:
+      200:
+        description: |
+          Paginated response containing a single page of the result.
+          By default one page of the results contains 25 items. You can extend it by setting a
+          `limit` query parameter in your request.
+          When changing parameters while using the `nextPageToken` the `nextPageToken` will be ignored
+          and new query will be performed. Queries with `nextPageToken` should contain the same set
+          of parameters as the first request.
+        body:
+          application/json:
+            type: object
+            properties:
+              items:
+                type: array
+                required: true
+                description: Contains a list of objects for this method.
+                items: <<type>>
+              cursor:
+                type: string
+                required: true
+                example: CiAKGjBpNDd2Nmp2Zml2cXRwYjBpOXA
+                description: |
+                  The next page token is a web safe encoded cursor to the next entry in the database.
+                  Use it in the next request to obtain next page of the results.
+              
+/store:
+  get:
+    responses:
+      200:
+        body:
+          type: Backend.BackendInfo
+/sessions:
+  post:
+    responses:
+      200:
+        headers:
+          expires: string
+        body:
+          plain/text:
+            description: The response is the generated token.
+            
+  delete:
+    securedBy:
+      - StoreAuth
+    description: Removes the session from the store. Previously issued token becomes invalid.
+  
+  /renew:
+    post:
+    securedBy:
+      - StoreAuth
+    description: Re-creates the session. Used when the previous token expired or is about to expire.
+
+/users:
+  get:
+    is: [Paginated: { type: Users.User }]
+    securedBy:
+      - StoreAuth
+  /me:
+    get:
+      responses:
+        200:
+          description: The response is the user object as stored after the last authentication through the OIDC.
+        401:
+          description: The user is not authenticated or the session expired.
+  /{key}:
+    uriParameters:
+      key:
+        type: string
+        description: The user key to read.
+    securedBy:
+      - StoreAuth
+    get:
+      securedBy:
+        - StoreAuth
+      responses:
+        200:
+          body:
+            type: Users.User
+/files:
+  securedBy:
+    - StoreAuth
+  get:
+    description: |
+      Lists files metadata from the store.
+      The file metadata is the description of the file contents. The actual contents can be read by making 
+      a GET request to the file and adding the `alt` parameter set to `media` value.
+    is: [Paginated: { type: Files.File }]
+  post:
+    description: 
+      Creates a file meta. After creating file meta it is possible to add file contents (the media).
+    queryParameters:
+      alt:
+        type: string
+        required: false
+        enum:
+          - meta
+        default: meta
+    headers:
+      content-type: 
+        type: string
+        description: The content-type of the file is stored with the file and used again when reading the file
+    body:
+      type: Files.File
+    responses:
+      204:
+        description: The file was created
+        headers:
+          location: 
+            description: The location to the file.
+  /batch:
+    description: Reads file in a batch operation
+    post:
+      body:
+        type: string[]
+        description: The body is the list of file ids to read.
+      responses:
+        200:
+          body:
+            application/json:
+              type: object
+              properties:
+                data:
+                  type: array
+                  required: true
+                  description: Contains a list of objects for this method.
+                  items: Files.File[]
+  /{key}:
+    uriParameters:
+      key:
+        type: string
+        description: The key of the file. It is returned when listing files or when creating a file.
+    get:
+      description: 
+        Reads a file meta or media. Depending on the alt the body contains the file meta or media.
+      queryParameters:
+        alt:
+          type: string
+          required: false
+          enum:
+            - meta
+            - media
+          default: meta
+      responses:
+        200:
+          body:
+            type: Files.File | any
+            description: For `meta` alt parameter this returns the `File` definition. Otherwise it returns contents of the file.
+        404:
+          description: The file does not exist.
+    patch:
+      description: 
+        Patches the file's meta or media
+      queryParameters:
+        alt:
+          type: string
+          required: false
+          enum:
+            - meta
+            - media
+          default: meta
+      body:
+        type: any
+        description: The JSON patch.
+      responses:
+        200:
+          body:
+            type: any
+            description: The reversible JSON patch info.
+    delete:
+      responses:
+        204:
+          description: When deleted the file.
+    put:
+      description: |
+        Uploads the media of the file. It is not allowed to use this for the `meta` alt parameter.
+        This operation required defining `alt=media` query parameter
+      queryParameters:
+        alt:
+          type: string
+          required: true
+          enum:
+            - media
+          default: media
+      body:
+        type: any
+        description: |
+          The file contents (the media).
+    /users:
+      get:
+        description: Lists file users
+        is: [Paginated: { type: Users.User }]
+      patch:
+        description: Patches file access
+        body:
+          type: any[]
+          description: |
+            This is a modified version of a JSON patch that described file access.
+        responses:
+          204:
+            description: The file access was patched.
+    /revisions:
+      get:
+        description: Lists revisions of a file.
+        is: [Paginated: { type: any }]
+        queryParameters:
+          alt:
+            type: string
+            required: false
+            enum:
+              - media
+            default: media
+          
+/history:
+  securedBy:
+    - StoreAuth
+  get:
+  post:
+
+  /batch:
+    /create:
+      post:
+    /delete:
+      post:
+  /{key}:
+    get:
+    delete:
+
+/shared:
+  securedBy:
+    - StoreAuth
+  get:
+
+/app/{appId}:
+  securedBy:
+    - StoreAuth
+  uriParameters:
+    appId:
+      type: string
+      description: The application id that created the request.
+  description: |
+    These endpoints are only relevant for specifc apps and not generally accessible to the suite.
+
+  /requests:
+    description: |
+      The app requests keeps the HTTP request data that are not part of any projects, etc. These are stand-alone HTTP request definitions.
+    get:
+      description: |
+        Lists HTTP requests created by a specific application.
+      is: [Paginated: { type: AppTypes.AppRequest }]
+    post:
+      description: 
+        Creates an HTTP request entry for an application
+      body:
+        type: AppTypes.AppRequest
+      responses:
+        200:
+          description: The entry was created in the store
+          headers:
+            location: 
+              description: The location to the file.
+          body:
+            type: AppTypes.AppRequest
+            description: The same request object with updated store-side properties.
+    /batch:
+      /create:
+        post:
+          description: Creates a number of HTTP requests in a batch operation.
+          body:
+            type: App.AppRequestBatchUpdate
+          responses:
+            200:
+              body:
+                type: App.AppRequestBatchUpdateResult
+      /read:
+        post:
+          description: Reads a number of requests in a batch operation
+          body:
+            type: AppTypes.BatchRead
+          responses:
+            200:
+              body:
+                type: App.AppRequestBatchReadResult
+      /delete:
+        post:
+          description: Deletes app requests in a batch operation.
+          body:
+            type: AppTypes.BatchDelete
+          responses:
+            200:
+              body:
+                type: AppTypes.BatchDeleteResult
+      /undelete:
+        post:
+          description: Undeletes app requests in a batch operation.
+          body:
+            type: AppTypes.BatchUndelete
+          responses:
+            200:
+              body:
+                type: App.AppRequestRevertResponse
+    /{key}:
+      uriParameters:
+        key:
+          type: string
+          description: The key of the request
+      get:
+        description: Reads a single request item. It is unnecessary to provide the app id when requesting a specific request but only the owner can read it.
+        responses:
+          200:
+            body:
+              type: AppTypes.AppRequest
+      delete:
+        description: Deletes a single request item. It is unnecessary to provide the app id when requesting a specific request but only the owner can delete it.
+        responses:
+          204:
+            description: The entry was deleted in the store
+  /projects:
+    get:
+      description: |
+        Lists projects creates in HTTP Client.
+      is: [Paginated: { type: AppTypes.AppProject }]
+    post:
+      description: 
+        Creates an AppProject entry for an application
+      body:
+        type: AppTypes.AppProject
+      responses:
+        200:
+          description: The entry was created in the store
+          headers:
+            location: 
+              description: The location to the file.
+          body:
+            type: AppTypes.AppProject
+            description: The same project object with updated store-side properties.
+    /batch:
+      /create:
+        post:
+          description: Creates a number of App projects in a batch operation.
+          body:
+            type: App.AppProjectBatchUpdate
+          responses:
+            200:
+              body:
+                type: App.AppProjectBatchUpdateResult
+      /read:
+        post:
+          description: Reads a number of App projects in a batch operation
+          body:
+            type: AppTypes.BatchRead
+          responses:
+            200:
+              body:
+                type: App.AppProjectBatchReadResult
+      /delete:
+        post:
+          description: Deletes App projects in a batch operation.
+          body:
+            type: AppTypes.BatchDelete
+          responses:
+            200:
+              body:
+                type: AppTypes.BatchDeleteResult
+      /undelete:
+        post:
+          description: Undeletes App projects in a batch operation.
+          body:
+            type: AppTypes.BatchUndelete
+          responses:
+            200:
+              body:
+                type: App.AppProjectRevertResponse
+    /{key}:
+      uriParameters:
+        key:
+          type: string
+          description: The key of the project
+      get:
+        description: Reads a single project item. It is unnecessary to provide the app id when requesting a specific request but only the owner can read it.
+        responses:
+          200:
+            body:
+              type: AppTypes.AppProject
+      delete:
+        description: Deletes a single project item. It is unnecessary to provide the app id when requesting a specific request but only the owner can delete it.
+        responses:
+          204:
+            description: The entry was deleted in the store

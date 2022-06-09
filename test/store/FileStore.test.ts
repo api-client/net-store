@@ -111,7 +111,7 @@ describe('Unit tests', () => {
           assert.deepEqual(result.key, JSON.parse(raw as string).key);
         });
 
-        it('informs the WS client', async () => {
+        it('informs WS clients', async () => {
           const s1 = Workspace.fromName('s1');
           const spy = sinon.spy(Clients, 'notify');
           let result: any;
@@ -1299,10 +1299,10 @@ describe('Unit tests', () => {
         it('lists spaces and projects for the owner', async () => {
           const list = await store.file.list(user1);
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 35, 'has the default list size');
-          const projectKind = list.data.find(i => i.kind === ProjectKind);
-          const spaceKind = list.data.find(i => i.kind === WorkspaceKind);
+          assert.typeOf(list.items, 'array', 'has the data array');
+          assert.lengthOf(list.items, 35, 'has the default list size');
+          const projectKind = list.items.find(i => i.kind === ProjectKind);
+          const spaceKind = list.items.find(i => i.kind === WorkspaceKind);
           assert.ok(projectKind, 'has a project kind');
           assert.ok(spaceKind, 'has a workspace kind');
         });
@@ -1310,27 +1310,27 @@ describe('Unit tests', () => {
         it('supports the limit parameter', async () => {
           const list = await store.file.list(user1, [], { limit: 4 });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 4, 'has the set list size');
+          assert.typeOf(list.items, 'array', 'has the data array');
+          assert.lengthOf(list.items, 4, 'has the set list size');
         });
 
         it('paginates to the next page', async () => {
           const list1 = await store.file.list(user1, [ProjectKind], { limit: 2 });
           const list2 = await store.file.list(user1, [ProjectKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-          assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-          assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+          assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+          assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+          assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
         });
 
         it('reaches the end of pagination', async () => {
           const list1 = await store.file.list(user1, [ProjectKind], { limit: 35 });
           const list2 = await store.file.list(user1, [ProjectKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 5, 'has only remaining entires');
+          assert.lengthOf(list2.items, 5, 'has only remaining entires');
         });
 
         it('does not include not listed kinds', async () => {
           const list = await store.file.list(user1, ['unknown']);
-          assert.lengthOf(list.data, 20, 'has no root space'); // only projects
+          assert.lengthOf(list.items, 20, 'has no root space'); // only projects
         });
 
         it('returns empty result when no sub-files', async () => {
@@ -1338,8 +1338,8 @@ describe('Unit tests', () => {
           await store.file.add(s1.key, s1.toJSON(), user1);
           const list = await store.file.list(user1, [ProjectKind], { parent: s1.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 0, 'has no results');
+          assert.typeOf(list.items, 'array', 'has the data array');
+          assert.lengthOf(list.items, 0, 'has no results');
         });
 
         it('lists only files of a parent', async () => {
@@ -1356,9 +1356,9 @@ describe('Unit tests', () => {
 
           const list = await store.file.list(user1, [ProjectKind], { parent: parent.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 2, 'has all spaces');
-          const readIds = [list.data[0].key, list.data[1].key];
+          assert.typeOf(list.items, 'array', 'has the data array');
+          assert.lengthOf(list.items, 2, 'has all spaces');
+          const readIds = [list.items[0].key, list.items[1].key];
           assert.include(readIds, s1.key);
           assert.include(readIds, s2.key);
         });
@@ -1377,9 +1377,9 @@ describe('Unit tests', () => {
 
           const list = await store.file.list(user1, [ProjectKind], { parent: s1.key });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 2, 'has all spaces');
-          const readIds = [list.data[0].key, list.data[1].key];
+          assert.typeOf(list.items, 'array', 'has the data array');
+          assert.lengthOf(list.items, 2, 'has all spaces');
+          const readIds = [list.items[0].key, list.items[1].key];
           assert.include(readIds, s3.key);
           assert.include(readIds, s4.key);
         });
@@ -1404,14 +1404,14 @@ describe('Unit tests', () => {
           } as AccessOperation]);
 
           const list = await store.file.list(user2, [ProjectKind]);
-          assert.lengthOf(list.data, 0, 'has no root space');
+          assert.lengthOf(list.items, 0, 'has no root space');
         });
 
         it('modifies the "lastModified.byMe"', async () => {
           const parent = Workspace.fromName('parent');
           await store.file.add(parent.key, parent.toJSON(), user1);
           const list = await store.file.list(user1, ['test']);
-          const item = list.data.find(i => i.key === parent.key) as IFile;
+          const item = list.items.find(i => i.key === parent.key) as IFile;
           assert.ok(item, 'has the owner item');
           assert.isTrue(item.lastModified.byMe, 'owner item is modified by the owner');
         });
@@ -1428,7 +1428,7 @@ describe('Unit tests', () => {
           } as AccessOperation]);
 
           const list = await store.file.list(user1, ['test']);
-          const item = list.data.find(i => i.key === parent.key) as IFile;
+          const item = list.items.find(i => i.key === parent.key) as IFile;
           assert.ok(item, 'has the owner item');
           assert.lengthOf(item.permissions, 1);
         });
@@ -1453,12 +1453,12 @@ describe('Unit tests', () => {
           } as AccessOperation]);
 
           const list = await store.file.list(user2, ['test'], { parent: parent.key });
-          assert.lengthOf(list.data, 2);
+          assert.lengthOf(list.items, 2);
         });
 
         it('sets files capabilities for the owner', async () => {
           const list = await store.file.list(user1, [ProjectKind], { limit: 1 });
-          const [file] = list.data;
+          const [file] = list.items;
           const c = file.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities')
           assert.isTrue(c.canEdit);
@@ -1478,7 +1478,7 @@ describe('Unit tests', () => {
           } as AccessOperation]);
 
           const list = await store.file.list(user2, ['test'], { parent: parent.key });
-          const [file] = list.data;
+          const [file] = list.items;
           const c = file.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities')
           assert.isFalse(c.canEdit);
@@ -1904,7 +1904,7 @@ describe('Unit tests', () => {
 
         it('returns empty list when file is not shared', async () => {
           const result = await store.file.listUsers(s1.key, user1);
-          assert.deepEqual(result.data, []);
+          assert.deepEqual(result.items, []);
         });
 
         it('lists users with the "user" permission', async () => {
@@ -1932,7 +1932,7 @@ describe('Unit tests', () => {
           const cp = { ...user2 };
           delete cp.provider;
           // Note, this will fail when adding full support to groups.
-          assert.deepEqual(result.data, [cp]);
+          assert.deepEqual(result.items, [cp]);
         });
       });
 

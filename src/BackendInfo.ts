@@ -6,6 +6,12 @@ export class BackendInfo {
     auth: { path: '/auth/login' },
     hosting: { port: 0 },
     mode: 'single-user',
+    capabilities: [
+      'files',
+      'http-history',
+      'app-history',
+      'app-projects',
+    ],
   };
 
   toJSON(): IBackendInfo {
@@ -33,6 +39,8 @@ export class BackendInfo {
       if (authentication.type === 'oidc') {
         info.auth.redirect = (authentication.config as IOidcConfiguration).issuerUri;
       }
+      info.capabilities.push('authorization');
+      info.capabilities.push('authentication');
     }
   }
 }

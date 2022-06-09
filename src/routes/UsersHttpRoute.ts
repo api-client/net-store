@@ -48,7 +48,7 @@ export default class UsersHttpRoute extends BaseRoute {
       this.getUserOrThrow(ctx);
       const options = this.collectListingParameters(ctx);
       const result = await this.store.user.list(options);
-      result.data = this.cleanUpUsers(result.data as IUser[]);
+      result.items = this.cleanUpUsers(result.items as IUser[]);
       ctx.body = result;
       ctx.type = 'application/json';
       ctx.status = 200;

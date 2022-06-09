@@ -1,0 +1,88 @@
+#%RAML 1.0 Library
+
+types:
+  AuthConfig:
+    type: object
+    description: Client authentication configuration
+    properties:
+      path:
+        type: string
+        description: |
+          The path to the authentication endpoint.
+          This is always populated whether the store is in the single- or multi-user mode.
+      redirect:
+        type: string
+        required: false
+        description:  When configured, the OAuth2 redirect URI.
+      type:
+        type: string
+        required: false
+        description: When configured the type of the authentication protocol.
+  
+  HostingConfig:
+    type: object
+    description: The information about hosting.
+    properties:
+      prefix:
+        type: string
+        required: false
+        description: Optional, the store base path when set on the configuration.
+      host:
+        type: string
+        required: false
+        description: |
+          When configured with the host information, this is the public host name of the store.
+          When using udp to discover the store in the local network, this is the ip address of the machine the store
+          is running on.
+      socket:
+        type: string
+        required: false
+        description: The socket path, if the server was initialized on a socket.
+      port:
+        type: number
+        required: false
+        description: The port number the store operates on, if the store was initialized on a port.
+
+  BackendInfo:
+    type: object
+    properties:
+      mode:
+        type: string
+        default: single-user
+        enum:
+          - single-user
+          - multi-user
+        description: |
+          The model the store is on.
+           
+          The `single-user` mode is the default mode where external user authentication is not required
+          (but clients must use the auth token issued by the session endpoint).
+           
+          In the `multi-user` model the authentication configuration is required and the user must 
+          authenticate through an external identity provider (by default Open ID Connect is supported).
+          After that the client has to create an authenticated session in the store service and use
+          the token with the API calls.
+      
+      capabilities:
+        type: string[]
+        description: |
+          The list of capabilities this store has.
+          This is defined by the store and clients should use values defined there to detect supported capabilities.
+           
+          Example capabilities include:
+          
+          - authorization
+          - authentication
+          - files
+          - history
+          - certificates
+          - etc.
+           
+          This could be potentially replaced by the version number of the store library but this
+          is more future-proof in case we go into a distributed architecture with the store.
+          Clients should look for a capability rather the version of the store.
+      
+      auth: AuthConfig
+
+      
+          

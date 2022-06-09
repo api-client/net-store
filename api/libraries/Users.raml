@@ -1,0 +1,67 @@
+#%RAML 1.0 Library
+
+types:
+  User:
+    type: object
+    properties:
+      kind:
+        type: string
+        default: Core#User
+      key:
+        type: string
+        description: The data store key of the user.
+      name:
+        type: string
+        description: The display name of the user.
+      tags:
+        type: string[]
+        required: false
+        description: A general purpose tags field.
+      locale:
+        type: string
+        required: false
+        description:  Optional user locale information.
+      deleted:
+        type: boolean
+        required: false
+        description: Whether the user is deleted from the system.
+      deletedTime:
+        type: number
+        required: false
+        description: The timestamp of when the user was deleted.
+      deletingUser:
+        type: string
+        required: false
+        description: The id of the user that deleted the user.
+      email:
+        type: Email[]
+        required: false
+        description: When available the email of the user.
+      picture:
+        type: UserPicture
+        required: false
+        description: When available the email of the user.
+
+  UserPicture:
+    type: object
+    properties:
+      url:
+        type: string
+        description: When available, the URL to the user's picture image.
+        required: false
+      data:
+        type: string
+        description: Alternative to the `url`. When set it is a data URL value of the image.
+        required: false 
+
+  Email:
+    type: object
+    properties:
+      email:
+        type: string
+        description: When available the email of the user.
+      verified:
+        type: boolean
+        description: Whether the `email` was verified. Not verified emails should have limited use in the system.
+        required: false
+      

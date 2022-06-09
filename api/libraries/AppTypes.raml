@@ -1,0 +1,824 @@
+#%RAML 1.0 Library
+
+types:
+  Thing:
+    displayName: Thing
+    description: An interface describing a base metadata of a thing.
+
+    properties:
+      kind:
+        type: string
+        default: Core#Thing
+      
+      name:
+        type: string
+        required: false
+        description: The name of the thing.
+
+      displayName:
+        type: string
+        required: false
+        description: |
+          Optional value to overwrite the `name` in the UI.
+          The primary descriptive field is the `name`. The display name is only used in the presentation of the data.
+
+      description:
+        type: string
+        required: false
+        description: The description of the thing.
+
+      version:
+        type: string
+        required: false
+        description: The version number of the thing.
+  
+  MultipartBody:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+        required: false
+        default: true
+        description: Whether the parameter is enabled. Default to true.
+      name:
+        type: string
+        description: The name of the filed
+      value:
+        type: string | SafePayload
+        description: |
+          Converted value.
+          When the part value was a string this is a string.
+          When the previous value was a Blob or a Buffer, this will be a serialized payload.
+      blobText:
+        type: string
+        required: false
+        description: |
+          Aside from the `value` which is used to process the Payload, the purpose of this field to to keep
+          the entered by the user string value for the "blob" item. This is primarily handled by the UI
+          and ignored by the HTTP Engine.
+  
+  BlobMeta:
+    type: object
+    properties:
+      mime:
+        type: string
+        description: The blob's mime type.
+  
+  FileMeta:
+    type: BlobMeta
+    properties:
+      name:
+        type: string
+        description: The file name.
+
+  SafePayload:
+    type: object
+    properties:
+      type: 
+        type: string
+        enum: [string, file, blob, buffer, arraybuffer, formdata, x-www-form-urlencoded]
+        description: The type od the originating payload object.
+      data:
+        type: string | number[] | MultipartBody[]
+        description: The payload contents. The data type depends on the `type`.
+      meta:
+        required: false
+        type: BlobMeta | FileMeta
+        description: |
+          Optionally the original mime type of the payload.
+          This is used with files.
+  
+  HttpRequest:
+    type: object
+    properties:
+      kind:
+        type: string
+      url:
+        type: string
+        description: The request URL
+      method:
+        required: false
+        description: HTTP method name. Defaults to "GET".
+        default: GET
+        type: string
+      headers:
+        required: false
+        description: HTTP headers string
+        type: string
+      payload:
+        required: false
+        description: HTTP headers string
+        type: string | SafePayload
+
+  
+  Request:
+    type: object
+    displayName: Request
+    description: |
+      The definition of a request object that functions inside API Client
+      with the full configuration.
+
+    properties:
+      kind:
+        type: string
+        default: Core#Request
+
+      info:
+        type: Thing
+        description: The basic information about the request.
+
+      expects:
+        type: HttpRequest
+        description: The HTTP definition of the request.
+
+      log:
+        required: false
+        description: The execution log of the last HTTP request with a response.
+        type: RequestLog
+      
+      updated:
+        required: false
+        type: number
+        description: Timestamp when the request was last updated.
+      
+      created:
+        required: false
+        type: number
+        description: Timestamp when the request was created.
+      
+      midnight:
+        required: false
+        type: number
+        description: A timestamp of the midnight when the request object was updated
+      
+      config: 
+        type: RequestConfig
+        required: false
+        description: Request processing configuration.
+      
+      authorization: 
+        type: RequestAuthorization[]
+        required: false
+        description: Request authorization configuration
+      
+      actions: 
+        type: object
+        required: false
+        description: Actions to be performed when the request is executed. The schema is to be defined.
+      
+      clientCertificate: 
+        type: P12Certificate | PemCertificate
+        required: false
+        description: The list of certificates to use with the request.
+  
+  Certificate:
+    type: object
+    properties:
+      kind:
+        type: string
+        default: Core#Certificate
+      key:
+        type: string
+        description: The data store key to refer.
+      name:
+        type: string
+        description: The custom name of the certificate.
+      created:
+        type: number
+        required: false
+        description: |
+          The timestamp when the certificate was inserted into the data store.
+          Required when returning a result. Auto-generated when inserting, if missing.
+      type:
+        type: string
+        enum:
+          - p12
+          - pem
+        description: Certificate type. Either `p12` or `pem`.
+      cert:
+        type: CertificateData
+        description: Certificate or list of certificates to use.
+
+  CertificateData:
+    type: object
+    description: Represents a single certificate object (cert/key)
+    properties:
+      data:
+        type: string | number[]
+        description: |
+          The certificate to use.
+          The `p12` type certificate must be a Buffer. 
+          In the API communication this is always serialized to either a string or UInt8 array.
+      passphrase:
+        type: string
+        required: false
+        description: A passphrase to use to unlock the certificate.
+      type:
+        type: string
+        required: false
+        enum:
+          - buffer
+        description: |
+          The original data type of the certificate. This is only used internally by the data store
+          to move between buffers and string values stored in the store.
+          
+          Outside the internal procedure of the data store this
+          is always `undefined` and the `data` contains the original data format.
+  
+  P12Certificate:
+    type: Certificate
+    properties:
+      type:
+        default: p12
+  
+  PemCertificate:
+    type: Certificate
+    properties:
+      type:
+        default: pem
+      certKey:
+        type: CertificateData
+        description: |
+          The key for the `pem` type certificate.
+
+  RequestConfig:
+    type: object
+    properties:
+      timeout:
+        type: number
+        description: Request timeout in milliseconds. Default to no timeout.
+        required: false
+      followRedirects:
+        type: boolean
+        description: When false the request object won't follow redirects.
+        required: false
+        default: true
+      hosts:
+        type: HostRule[]
+        description: Hosts table configuration.
+        required: false
+      sentMessageLimit:
+        type: number
+        required: false
+        default: 2048
+        description: A limit of characters to include into the `sentHttpMessage` property of the request object. 0 to disable limit. Default to 2048.
+      defaultHeaders:
+        type: boolean
+        required: false
+        description: When set the request adds `accept` and `user-agent` headers if missing.
+      defaultUserAgent:
+        type: string
+        required: false
+        description: Default `user-agent` header to be used with request when `defaultHeaders` is set.
+        default: api-client
+      defaultAccept:
+        type: string
+        required: false
+        description: Default `accept` header to be used with request when `defaultHeaders` is set.
+        default: "*/*"
+      proxy:
+        type: string
+        required: false
+        description: The proxy URI to connect to when making the connection. It should contain the host and port. Default port is 80.
+      proxyUsername:
+        type: string
+        required: false
+        description: The proxy authorization username value
+      proxyPassword:
+        type: string
+        required: false
+        description: The proxy authorization password value.
+      validateCertificates:
+        type: boolean
+        required: false
+        description: Whether the processor should validate certificates.
+  
+  HostRule:
+    type: object
+    description: API Client host rule definition.
+    properties:
+      key:
+        type: string
+        description: The key of the rule.
+      kind:
+        type: string
+        default: Core#HostRule
+      from:
+        type: string
+        description: The from rule (may contain asterisks)
+      to:
+        type: string
+        description: The replacement value
+      enabled:
+        type: boolean
+        required: false
+        default: true
+        description: When false the rule is ignored
+      comment:
+        type: string
+        required: false
+        description: Optional rule description
+
+  RequestAuthorization:
+    type: object
+    description: Authorization configuration for the request.
+    properties:
+      kind:
+        default: Core#RequestAuthorization
+        type: string
+      
+      config:
+        type: any
+        description: Authorization configuration
+      
+      type:
+        type: string
+        enum:
+          - basic
+          - bearer
+          - ntlm
+          - digest
+          - oauth 2
+          - client certificate
+          - api key
+          - pass through
+          - raml custom
+          - open id
+
+      enabled:
+        type: boolean
+        description: Whether the authorization is enabled.
+      
+      valid:
+        type: boolean
+        description: |
+          Whether the authorization is reported to be valid.
+          The application should take action when the authorization is invalid but possibly allow the request.
+  
+  RequestLog:
+    type: object
+    description: Describes a request / response pair associated with a request.
+    properties:
+      kind:
+        default: Core#ResponseLog
+        type: string
+
+      request: 
+        type: SentRequest
+        required: false
+        description: Describes an HTTP request sent by the transport.
+      
+      response: 
+        type: Response | ErrorResponse
+        required: false
+        description: The last response made with this request, if any.
+      
+      redirects: 
+        type: ResponseRedirect[]
+        required: false
+        description: The list of redirects, if any.
+      
+      size: 
+        type: RequestsSize
+        required: false
+        description: Request and response size. Some HTTP clients may not give this information.
+      
+      requestId: 
+        type: string
+        required: false
+        description: Optional request ID defined on an HTTP project that triggered this log.
+
+  SentRequest:
+    type: HttpRequest
+    description: |
+      An interface describing a request made by the HTTP transport.
+      Each transport used by API Client must return this structure in the response event.
+      This is not a replacement for the editor request that also has to be returned.
+       
+      Another difference is that this headers contains a final list of headers sent to the 
+      server, including default headers, content-length, authorization, and so on.
+    properties:
+      httpMessage:
+        type: string
+        required: false
+        description: |
+          The HTTP message sent to the server (full message).
+          Some HTTP clients may not give this information.
+      startTime:
+        type: number
+        description: The timestamp when the request was started (before the connection is made)
+      endTime:
+        type: number
+        description: The timestamp of when the response ended. This is always set when the response is ready. May not be set when the request is ongoing.
+  
+  HttpResponse:
+    type: object
+    properties:
+      kind:
+        type: string
+        default: Core#HttpResponse
+      status:
+        type: number
+        description: The response status code
+      statusText:
+        type: string
+        required: false
+        description: The reason part of the status message
+      headers:
+        type: string
+        required: false
+        description: The response headers
+      payload:
+        type: string | SafePayload
+        required: false
+        description: The response message
+  
+  Response:
+    type: HttpResponse
+    description: An HTTP response object.
+    properties:
+      timings:
+        type: RequestTime
+        required: false
+        description: The request timings. Some HTTP clients may not give this information.
+      loadingTime:
+        type: number
+        description: The total loading time (from sending the request to receive the last byte)
+  
+  ErrorResponse:
+    type: HttpResponse
+    properties:
+      error:
+        type: string | SerializedError
+        description: An error associated with the response
+  
+  SerializedError:
+    type: object
+    properties:
+      message: string 
+      stack?: string
+      code?: string | number
+  
+  RequestTime:
+    type: object
+    description: Schema definition for API Client request timings. This is mostly consistent with HAR timings.
+    properties:
+      kind:
+        type: string
+        default: Core#RequestTime
+      connect: number
+      receive: number
+      send: number
+      wait: number
+      blocked: number
+      dns: number
+      ssl?: number
+
+  RequestsSize:
+    type: object
+    properties:
+      kind:
+        type: string
+        default: Core#ResponseSize
+      request: 
+        type: number
+        description: The size of the request in bytes
+      response: 
+        type: number
+        description: The size of the response in bytes
+  
+  ResponseRedirect:
+    type: object
+    properties:
+      kind:
+        type: string
+        default: Core#HttpResponseRedirect
+      response: 
+        type: HttpResponse
+        description: Redirection response
+      timings: 
+        type: RequestTime
+        required: false
+        description: Redirection timings, if available.
+      startTime:
+        type: number
+        description: The timestamp when the request was started (before the connection is made)
+      endTime:
+        type: number
+        description: The timestamp of when the response ended.
+      url:
+        type: string
+        description: The URL the request was redirected to
+
+  AppRequest:
+    displayName: App request
+    description: |
+      An App request is an HTTP request that has been generated by an application that is 
+      not related to a concept of project.
+      You can think of it as a stand-alone request definition in an application.
+      In HttpClient this represents a history entry. Another application can use it to stor a request data
+      without any additional structure.
+    type: Request
+    properties:
+      kind:
+        type: string
+        default: Core#AppRequest
+        
+      key:
+        type: string
+        description: |
+          The identifier of the request.
+          The key is related to the `created` property. It should be the `new Date(created).toJSON()` value.
+        example: 2022-05-30T23:13:35.339Z
+
+      app:
+        type: string
+        description: The application id that created this request.
+
+      type: 
+        type: string
+        required: false
+        description: |
+          May be used internally by the application that generated this entry to distinguish between different types of requests.
+
+  AppProjectRequest:
+    type: Request
+    properties:
+      kind:
+        type: string
+        default: Core#AppProjectRequest
+      key:
+        type: string
+
+  AppProjectItem:
+    properties:
+      kind:
+        type: string
+        enum: 
+          - Core#AppProjectRequest
+          - Core#AppProjectFolder
+          - Core#Environment
+      key:
+        type: string
+  
+  AppProjectDefinitions:
+    properties:
+      folders: 
+        type: AppProjectParent[]
+        required: false
+        description: The list of all folders defined in the project.
+      requests:
+        type: AppProjectRequest[]
+        required: false
+        description: The list of all requests defined in the project.
+      environments:
+        type: Environment[]
+        required: false
+        description: The list of environments defined in the project.
+      certificates:
+        type: array
+        items: P12Certificate | PemCertificate
+        required: false
+        description: The list of certificates defined in the project.
+
+  AppProject:
+    type: AppProjectParent
+    properties:
+      definitions: AppProjectDefinitions
+
+  AppProjectParent:
+    properties:
+      key:
+        type: string
+      kind:
+        type: string
+        enum: 
+          - Core#AppProject
+          - Core#AppProjectFolder
+      info:
+        type: Thing
+        description: Folder meta
+      
+      items: AppProjectItem[]
+
+      updated:
+        type: number
+        required: false
+        description: Timestamp when the project was last updated.
+      created:
+        type: number
+        required: false
+        description: Timestamp when the project was created.
+
+  Environment:
+    properties:
+      key:
+        type: string
+      kind:
+        type: string
+        default: Core#Environment
+        enum: 
+          - Core#Environment
+      info:
+        type: Thing
+        description: Folder meta
+      server:
+        type: Server
+        required: false
+        description: |
+          The server's definition for the environment.
+          When a server is defined for the environment then all request that have no 
+          absolute URL will inherit this server configuration.
+      variables:
+        type: Property[]
+        description: |
+          he variables added to this project.
+          It overrides application defined variables.
+      encapsulated:
+        type: boolean
+        required: false
+        description: |
+          When set this configuration does not allow to be extended by the parent object's environment configuration.
+          By default an environment can be extended by the parent object's values.
+
+  Server:
+    properties:
+      kind:
+        type: string
+        default: Core#Server
+        enum: 
+          - Core#Server
+      uri:
+        type: string
+        description: |
+          The base URI of the server.
+          
+          Note, the URL can contain URI templates (e.g. `http://{host}.api.com/v1`)
+          In this case the variable is replaced with the system or project variables.
+      protocol:
+        type: string
+        required: false
+        description: Usually included in the `uri`. When the `uri` is missing a protocol this is then used.
+      basePath:
+        type: string
+        required: false
+        description: The base path for the server. It starts with the `/`. When set, it is appended to the `uri` value.
+      description:
+        type: string
+        required: false
+        description: Optional description of the server.
+
+  Property:
+    properties:
+      kind:
+        type: string
+        default: Core#Property
+        enum: 
+          - Core#Property
+      name:
+        type: string
+        description: Property name
+      value:
+        type: any
+        description: Property value
+      type:
+        type: string
+        description: Property data type
+      enabled:
+        type: boolean
+        required: false
+        description: Whether the property is enabled. If not set it is assumed the property is enabled.
+      default:
+        type: any
+        required: false
+        description: The default value for the property
+      enum:
+        type: any
+        required: false
+        description: Enum values for the property
+      description:
+        type: string
+        required: false
+        description: The description of the property
+      required:
+        type: boolean
+        required: false
+        description: Whether the value id required to be provided. This is used with validation.
+      repeated:
+        type: boolean
+        required: false
+        description: When set to `true` it represents a property that is an array.
+
+  BatchRead:
+    description: Describes a batch read operation body.
+    properties:
+      items:
+        type: string[]
+        description: The keys of the items to read. The response has the ordered list of results.
+
+  BatchReadResult:
+    description: Describes a result of the batch read operation body.
+    properties:
+      items:
+        type: array
+        items: any | nil
+        description: |
+          The ordered list of read entities.
+          Each element can be null/undefined when the item cannot be read.
+          
+          The batch operation does not return specific errors. Use the direct read operation
+          for the detailed error.
+  
+  BatchUpdate:
+    description: Describes a batch update/create operation body.
+    properties:
+      items:
+        type: array
+        items: any
+        description: The items to add or update in a batch operation.
+      parent:
+        type: string
+        required: false
+        description: The optional key of the parent object of the created/updated items.
+  
+  BatchUpdateResult:
+    description: Describes a result of the batch update/create operation body.
+    properties:
+      items:
+        type: array
+        items: any
+        description: The ordered list of create/update result for each item.
+      parent:
+        type: string
+        required: false
+        description: The optional key of the parent object of the created/updated items.
+
+  BatchDelete:
+    description: Describes a batch delete operation body.
+    properties:
+      items:
+        type: string[]
+        description: The list of keys of items to delete.
+      parent:
+        type: string
+        required: false
+        description: The optional key of the parent object of the deleted items. Not used by the store but reported back through the events.
+
+  BatchDeleteResult:
+    description: Describes the result of the batch delete operation.
+    properties:
+      items:
+        type: array
+        items: DeleteRecord | nil
+        description: |
+          The ordered list of delete result for each item.
+           
+          The batch operation does not return specific errors. Use the direct delete operation
+          for the detailed error.
+
+  DeleteRecord:
+    properties:
+      key: 
+        type: string
+        description: The key of the removed object.
+      parent:
+        type: string
+        required: false
+        description: The key of the parent object, if applicable.
+
+  BatchUndelete:
+    description: Describes the batch undelete operation body.
+    properties:
+      items:
+        type: string[]
+        description: The list of keys of the items to undelete.
+      parent:
+        type: string
+        required: false
+        description: The optional key of the parent object of the deleted items.
+
+  RevertResult:
+    properties:
+      key: 
+        type: string
+        description: The key of the changed object.
+      parent:
+        type: string
+        required: false
+        description: Optionally, when relevant, the key of the parent of the changed object.
+      kind:
+        type: string
+        required: false
+        description: The kind of the changed item, if available. This is the same as `item.kind`.
+      item:
+        type: any
+        description: The updated object.
+
+  RevertResponse:
+    properties:
+      items:
+        type: array
+        items: RevertResult | nil
+        description: The list of restored items.
+
+  

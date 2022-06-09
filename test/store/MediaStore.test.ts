@@ -416,8 +416,8 @@ describe('Unit tests', () => {
           };
           await store.media.applyPatch(project.key, project.kind, info, user);
           const list = await store.revisions.list(project.key, user);
-          const { data } = list;
-          assert.lengthOf(data, 1, 'has the revision');
+          const { items } = list;
+          assert.lengthOf(items, 1, 'has the revision');
         });
 
         it('informs the WS client', async () => {

@@ -72,7 +72,7 @@ describe('http', () => {
           const list = await sdk.history.list({ type: 'user' });
 
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 1, 'has the created item');
+          assert.lengthOf(list.items, 1, 'has the created item');
         });
   
         it('lists the application history', async () => {
@@ -85,9 +85,9 @@ describe('http', () => {
 
           const list = await sdk.history.list({ type: 'app', id: 'test-app' });
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 1, 'has the created item');
+          assert.lengthOf(list.items, 1, 'has the created item');
           
-          const [h1] = list.data as IHttpHistory[];
+          const [h1] = list.items as IHttpHistory[];
           assert.equal(h1.app, 'test-app', 'has the app history');
         });
 
@@ -111,7 +111,7 @@ describe('http', () => {
           const list = await sdk.history.list({ type: 'project', id: pid });
 
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 2, 'has the created item');
+          assert.lengthOf(list.items, 2, 'has the created item');
         });
 
         it('lists the project request history', async () => {
@@ -134,7 +134,7 @@ describe('http', () => {
           const list = await sdk.history.list({ type: 'request', id: 'request1', project: pid });
 
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 1, 'has the created item');
+          assert.lengthOf(list.items, 1, 'has the created item');
         });
   
         it('uses the page token', async () => {
@@ -143,7 +143,7 @@ describe('http', () => {
           await sdk.history.create(item);
           const list1 = await sdk.history.list({ type: 'user' });
           const list2 = await sdk.history.list({ type: 'user', cursor: list1.cursor });
-          assert.lengthOf(list2.data, 0);
+          assert.lengthOf(list2.items, 0);
         });
       });
     });
@@ -400,7 +400,7 @@ describe('http', () => {
           const list = await sdk.history.list({ type: 'user' });
 
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 1, 'has the created item');
+          assert.lengthOf(list.items, 1, 'has the created item');
         });
   
         it('lists the application history', async () => {
@@ -412,8 +412,8 @@ describe('http', () => {
           await sdk.history.create(item2);
           const list = await sdk.history.list({ type: 'app', id: 'test-app' });
           assert.typeOf(list.cursor, 'string', 'has the cursor');
-          assert.lengthOf(list.data, 1, 'has the created item');
-          const [h1] = list.data as IHttpHistory[];
+          assert.lengthOf(list.items, 1, 'has the created item');
+          const [h1] = list.items as IHttpHistory[];
           assert.equal(h1.app, 'test-app', 'has the app history');
         });
   
@@ -423,7 +423,7 @@ describe('http', () => {
           await sdk.history.create(item);
           const list1 = await sdk.history.list({ type: 'user' });
           const list2 = await sdk.history.list({ type: 'user', cursor: list1.cursor });
-          assert.lengthOf(list2.data, 0);
+          assert.lengthOf(list2.items, 0);
         });
       });
     });

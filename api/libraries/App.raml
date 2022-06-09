@@ -1,0 +1,74 @@
+#%RAML 1.0 Library
+
+uses:
+  AppTypes: ./AppTypes.raml
+
+types:
+  AppRequestBatchUpdate:
+    type: AppTypes.BatchUpdate
+    properties:
+      items:
+        type: array
+        items: AppTypes.AppRequest
+        description: The items to add or update in a batch operation.
+
+  AppRequestBatchUpdateResult:
+    type: AppTypes.BatchUpdateResult
+    properties:
+      items: 
+        type: array
+        items: AppTypes.AppRequest
+
+  AppRequestBatchReadResult:
+    type: AppTypes.BatchReadResult
+    properties:
+      items:
+        type: array
+        items: AppTypes.AppRequest | nil
+
+  AppRequestRevertResult:
+    type: AppTypes.RevertResult
+    properties:
+      item: AppTypes.AppRequest
+
+  AppRequestRevertResponse:
+    type: AppTypes.RevertResponse
+    properties:
+      items:
+        type: array
+        items: AppRequestRevertResult | nil
+  
+  AppProjectBatchUpdate:
+    type: AppTypes.BatchUpdate
+    properties:
+      items:
+        type: array
+        items: AppTypes.AppProject
+        description: The items to add or update in a batch operation.
+
+  AppProjectBatchUpdateResult:
+    type: AppTypes.BatchUpdateResult
+    properties:
+      items: 
+        type: array
+        items: AppTypes.AppProject
+
+  AppProjectBatchReadResult:
+    type: AppTypes.BatchReadResult
+    properties:
+      items:
+        type: array
+        items: AppTypes.AppProject | nil
+
+  AppProjectRevertResult:
+    type: AppTypes.RevertResult
+    properties:
+      item: AppTypes.AppProject
+
+  AppProjectRevertResponse:
+    type: AppTypes.RevertResponse
+    properties:
+      items:
+        type: array
+        items: AppProjectRevertResult | nil
+      

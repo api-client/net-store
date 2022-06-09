@@ -530,7 +530,7 @@ export class History extends SubStore implements IHistoryStore {
     }
     const { limit = this.parent.defaultLimit } = state;
     const result: IListResponse = {
-      data: [],
+      items: [],
     };
     let remaining = limit;
     let lastKey = undefined;
@@ -540,7 +540,7 @@ export class History extends SubStore implements IHistoryStore {
       if ((doc as any)._deleted) {
         continue;
       }
-      result.data.push(doc);
+      result.items.push(doc);
       lastKey = key;
       remaining -= 1;
       if (remaining === 0) {
@@ -593,7 +593,7 @@ export class History extends SubStore implements IHistoryStore {
       throw new Error(`Unknown query type: ${type}`);
     }
     const result: IListResponse = {
-      data: [],
+      items: [],
     };
     if (!info.keys.length) {
       return result;
@@ -601,7 +601,7 @@ export class History extends SubStore implements IHistoryStore {
     result.cursor = await this.parent.cursor.encodeHistoryCursor(state, info.lastKey);
     const read = await this.data.getMany(info.keys);
     try {
-      result.data = read.map((item) => this.parent.decodeDocument(item));
+      result.items = read.map((item) => this.parent.decodeDocument(item));
     } catch (e) {
       this.parent.logger.debug('Query data dump', info);
       this.parent.logger.error(e);
@@ -728,7 +728,7 @@ export class History extends SubStore implements IHistoryStore {
     const { limit = this.parent.defaultLimit } = state;
     const hasTypeQuery = !!type && type !== 'user' && !!typeId;
     const result: IListResponse = {
-      data: [],
+      items: [],
     };
     let remaining = limit;
     let lastKey = undefined;
@@ -747,7 +747,7 @@ export class History extends SubStore implements IHistoryStore {
       if (!this.filter(key, doc, options.query)) {
         continue;
       }
-      result.data.push(doc);
+      result.items.push(doc);
       lastKey = key;
       remaining -= 1;
       if (remaining === 0) {

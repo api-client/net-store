@@ -109,7 +109,7 @@ export class Shared extends SubStore implements ISharedStore {
     }
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse<IFile> = {
-      data: [],
+      items: [],
       cursor,
     };
     const files = await this.parent.file.db.getMany(ids);
@@ -125,7 +125,7 @@ export class Shared extends SubStore implements ISharedStore {
       file.permissions = await this.parent.permission.list(file.permissionIds);
       file.capabilities = File.createFileCapabilities(file, role);
       File.updateByMeMeta(file, user.key);
-      result.data.push(file);
+      result.items.push(file);
     }
     return result;
   }

@@ -10,6 +10,7 @@ import { IPermissionStore } from './level/AbstractPermission.js';
 import { IRevisionsStore } from './level/AbstractRevisions.js';
 import { ISessionStore } from './level/AbstractSessions.js';
 import { IUserStore } from './level/AbstractUser.js';
+import { IAppStore } from './level/AbstractApp';
 
 /**
  * An abstract class that creates an interface to implement any storage layer
@@ -30,6 +31,7 @@ export abstract class StorePersistence {
   abstract get shared(): ISharedStore;
   abstract get file(): IFilesStore;
   abstract get media(): IAbstractMedia;
+  abstract get app(): IAppStore;
 
   /**
    * Initializes the data store. I.E., opens the connection, creates a filesystem, etc.

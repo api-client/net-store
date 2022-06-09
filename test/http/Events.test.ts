@@ -526,7 +526,6 @@ describe('Events', () => {
         log: [log1, log2],
       };
       const [id1, id2] = await sdk.history.createBulk(item);
-
       assert.lengthOf(app1.messages, 2, 'app1 receives 2 events');
       const [event1, event2] = app1.messages;
       assert.ok(event1, 'app1 has event #1');

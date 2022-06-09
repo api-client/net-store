@@ -117,7 +117,7 @@ export class Files extends SubStore implements IFilesStore {
     }
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse<IFile> = {
-      data,
+      items: data,
       cursor,
     };
     return result;
@@ -199,17 +199,17 @@ export class Files extends SubStore implements IFilesStore {
   async readBulk(keys: string[], user: IUser): Promise<IListResponse<IFile|undefined>> {
     const raw = await this.db.getMany(keys);
     const result: IListResponse<IFile|undefined> = {
-      data: [],
+      items: [],
     };
     for (const item of raw) {
       if (!item) {
-        result.data.push(undefined);
+        result.items.push(undefined);
         continue;
       }
       const file = this.parent.decodeDocument(item) as IFile;
       const role = await this.readFileAccess(file.key, user.key);
       if (!role) {
-        result.data.push(undefined);
+        result.items.push(undefined);
         continue;
       }
       if (file.permissionIds.length) {
@@ -219,7 +219,7 @@ export class Files extends SubStore implements IFilesStore {
       }
       file.capabilities = File.createFileCapabilities(file, role);
       File.updateByMeMeta(file, user.key);
-      result.data.push(file);
+      result.items.push(file);
     }
     return result;
   }

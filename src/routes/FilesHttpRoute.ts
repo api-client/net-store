@@ -21,8 +21,8 @@ export default class FilesRoute extends BaseRoute {
     // create a file on root or a space.
     router.post(filesPath, this.filesCreateHandler.bind(this));
 
-    // read in bulk (its post to )
-    const bulkPath = RouteBuilder.filesBulk();
+    // read in bulk
+    const bulkPath = RouteBuilder.filesBatch();
     router.post(bulkPath, this.bulkRead.bind(this));
 
     const filePath = RouteBuilder.file(':file');
@@ -348,7 +348,7 @@ export default class FilesRoute extends BaseRoute {
         throw new ApiError(`Operation not allowed in a single-user mode.`, 400);
       }
       const result = await this.store.file.listUsers(file, user);
-      result.data = this.cleanUpUsers(result.data as IUser[]);
+      result.items = this.cleanUpUsers(result.items as IUser[]);
       ctx.body = result;
       ctx.type = this.jsonType;
       ctx.status = 200;

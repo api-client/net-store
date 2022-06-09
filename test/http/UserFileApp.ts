@@ -90,7 +90,7 @@ export class UserFileApp {
     this.reset();
     this.parent = parent;
     const files = await this.sdk.file.list([ProjectKind], { limit: 100, parent });
-    this.files = files.data;
+    this.files = files.items;
   }
 
   hasMessages(): boolean {

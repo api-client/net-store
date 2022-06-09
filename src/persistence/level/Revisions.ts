@@ -106,7 +106,7 @@ export class Revisions extends SubStore implements IRevisionsStore {
     // data.sort(({ created: a = 0 }, { created: b = 0 }) => b - a);
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse<IRevision> = {
-      data,
+      items: data,
       cursor,
     };
     return result;

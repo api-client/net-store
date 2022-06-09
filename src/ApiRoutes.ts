@@ -17,6 +17,8 @@ import UsersHttpRoute from './routes/UsersHttpRoute.js';
 import HistoryHttpRoute from './routes/HistoryHttpRoute.js';
 import SharedHttpRoute from './routes/SharedHttpRoute.js';
 import HistoryWsRoute from './routes/HistoryWsRoute.js';
+import AppRoute from './routes/AppRoute.js';
+import AppWsRoute from './routes/AppWsRoute.js';
 
 export class ApiRoutes {
   protected routes: BaseRoute[] = [];
@@ -56,6 +58,7 @@ export class ApiRoutes {
     this.routes.push(new HistoryHttpRoute(init));
     this.routes.push(new UsersHttpRoute(init));
     this.routes.push(new SharedHttpRoute(init));
+    this.routes.push(new AppRoute(init));
     customRoutes.forEach((custom) => {
       const ctr = custom as new(init: ISpaceConfiguration) => BaseRoute;
       this.routes.push(new ctr(init));
@@ -108,7 +111,6 @@ export class ApiRoutes {
     if (route) {
       return route;
     }
-    
     if (url === spacesRoute) {
       const route = new SpacesWsRoute(init);
       this.addWsRoute(route, url);
@@ -117,6 +119,15 @@ export class ApiRoutes {
     const v4reg = '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[89AB][0-9A-F]{3}-[0-9A-F]{12}(?:\\?alt=.*)';
     if (this.buildRouteRegexp(RouteBuilder.file(v4reg)).test(url)) {
       const route = new FileWsRoute(init);
+      this.addWsRoute(route, url);
+      return route;
+    }
+    if (this.buildRouteRegexp(RouteBuilder.app(v4reg) + `/[requests|projects](${v4reg})?`).test(url)) {
+      // /app/{appId}/requests
+      // /app/{appId}/requests/{key}
+      // /app/{appId}/projects
+      // /app/{appId}/projects/{key}
+      const route = new AppWsRoute(init);
       this.addWsRoute(route, url);
       return route;
     }

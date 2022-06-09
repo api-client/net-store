@@ -67,7 +67,7 @@ export class User extends SubStore implements IUserStore {
       return value;
     });
     const result: IListResponse<IUser | undefined> = {
-      data,
+      items: data,
     };
     return result;
   }
@@ -112,7 +112,7 @@ export class User extends SubStore implements IUserStore {
     }
     const cursor = await this.parent.cursor.encodeCursor(state, lastKey || state.lastKey);
     const result: IListResponse<IUser> = {
-      data,
+      items: data,
       cursor,
     };
     return result;

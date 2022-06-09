@@ -74,24 +74,24 @@ describe('http', () => {
 
         it('lists all users', async () => {
           const list = await sdk.user.list(undefined, { token: user1Token });
-          assert.lengthOf(list.data, 2, 'has both users');
+          assert.lengthOf(list.items, 2, 'has both users');
           assert.typeOf(list.cursor, 'string', 'has the page cursor');
 
-          const hasProvider = list.data.some(i => !!i.provider);
-          assert.isFalse(hasProvider, 'data has no "provider".')
+          const hasProvider = list.items.some(i => !!i.provider);
+          assert.isFalse(hasProvider, 'items has no "provider".')
         });
 
         it('queries for the user by name', async () => {
           const q = user2.name.split(' ')[0];
           const list = await sdk.user.list({ query: q }, { token: user1Token });
-          assert.lengthOf(list.data, 1, 'has the query user')
+          assert.lengthOf(list.items, 1, 'has the query user')
         });
 
         it('queries for the user by email', async () => {
           const email = user2.email as any[];
           const q = (email[0].email as string).split('@')[0];
           const list = await sdk.user.list({ query: q }, { token: user1Token });
-          assert.lengthOf(list.data, 1, 'has the query user')
+          assert.lengthOf(list.items, 1, 'has the query user')
         });
       });
 

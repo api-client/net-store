@@ -334,31 +334,31 @@ describe('Unit tests', () => {
           it('lists all requests to the limit', async () => {
             const list = await store.history.list(DefaultUser, { type: 'user' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 35, 'has the default list size');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 35, 'has the default list size');
           });
 
           it('lists all requests with the limit', async () => {
             const list = await store.history.list(DefaultUser, { limit: 4, type: 'user' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 4, 'has the default list size');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 4, 'has the default list size');
           });
 
           it('paginates to the next page', async () => {
             const list1 = await store.history.list(DefaultUser, { limit: 2, type: 'user' });
-            assert.lengthOf(list1.data, 2, 'original list has 2 items');
+            assert.lengthOf(list1.items, 2, 'original list has 2 items');
             const list2 = await store.history.list(DefaultUser, { cursor: list1.cursor, type: 'user', });
-            assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-            assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-            assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+            assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+            assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+            assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
           });
 
           it('reaches the end of pagination', async () => {
             const list1 = await store.history.list(DefaultUser, { limit: 35, type: 'user' });
-            assert.lengthOf(list1.data, 35, 'original list has 35 items');
+            assert.lengthOf(list1.items, 35, 'original list has 35 items');
             const list2 = await store.history.list(DefaultUser, { cursor: list1.cursor, type: 'user', });
-            assert.lengthOf(list2.data, 5, 'has only the remaining entires');
+            assert.lengthOf(list2.items, 5, 'has only the remaining entires');
           });
         });
 
@@ -396,9 +396,9 @@ describe('Unit tests', () => {
           it('lists all requests to the limit', async () => {
             const list = await store.history.list(user1, { type: 'space', id: space1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 35, 'has the default list size');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 35, 'has the default list size');
+            const data = list.items as IHttpHistory[];
             const hasInvalid = data.some(i => i.space !== space1Id);
             assert.isFalse(hasInvalid, 'has no other items')
           });
@@ -406,29 +406,29 @@ describe('Unit tests', () => {
           it('respects the limit', async () => {
             const list = await store.history.list(user1, { limit: 4, type: 'space', id: space1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 4, 'has the default list size');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 4, 'has the default list size');
           });
 
           it('paginates to the next page', async () => {
             const list1 = await store.history.list(user1, { limit: 2, type: 'space', id: space1Id });
-            assert.lengthOf(list1.data, 2, 'original list has 2 items');
+            assert.lengthOf(list1.items, 2, 'original list has 2 items');
             const list2 = await store.history.list(user1, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-            assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-            assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+            assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+            assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+            assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
           });
 
           it('reaches the end of pagination', async () => {
             const list1 = await store.history.list(user1, { limit: 35, type: 'space', id: space1Id });
-            assert.lengthOf(list1.data, 35, 'original list has 35 items');
+            assert.lengthOf(list1.items, 35, 'original list has 35 items');
             const list2 = await store.history.list(user1, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 5, 'has only the remaining entires');
+            assert.lengthOf(list2.items, 5, 'has only the remaining entires');
           });
 
           it('reads for the user only data', async () => {
             const list1 = await store.history.list(user1, { limit: 35, type: 'space', id: space1Id, user: true, });
-            assert.lengthOf(list1.data, 20, 'has 20 items');
+            assert.lengthOf(list1.items, 20, 'has 20 items');
           });
 
           it('throws when accessing a space without a read access', async () => {
@@ -493,9 +493,9 @@ describe('Unit tests', () => {
           it('lists all requests to the limit', async () => {
             const list = await store.history.list(user1, { type: 'project', id: project1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 35, 'has the default list size');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 35, 'has the default list size');
+            const data = list.items as IHttpHistory[];
             const hasInvalid = data.some(i => i.project !== project1Id);
             assert.isFalse(hasInvalid, 'has no other items')
           });
@@ -503,29 +503,29 @@ describe('Unit tests', () => {
           it('respects the limit', async () => {
             const list = await store.history.list(user1, { limit: 4, type: 'project', id: project1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 4, 'has the default list size');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 4, 'has the default list size');
           });
 
           it('paginates to the next page', async () => {
             const list1 = await store.history.list(user1, { limit: 2, type: 'project', id: project1Id });
-            assert.lengthOf(list1.data, 2, 'original list has 2 items');
+            assert.lengthOf(list1.items, 2, 'original list has 2 items');
             const list2 = await store.history.list(user1, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-            assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-            assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+            assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+            assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+            assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
           });
 
           it('reaches the end of pagination', async () => {
             const list1 = await store.history.list(user1, { limit: 35, type: 'project', id: project1Id });
-            assert.lengthOf(list1.data, 35, 'original list has 35 items');
+            assert.lengthOf(list1.items, 35, 'original list has 35 items');
             const list2 = await store.history.list(user1, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 5, 'has only the remaining entires');
+            assert.lengthOf(list2.items, 5, 'has only the remaining entires');
           });
 
           it('reads for the user only data', async () => {
             const list1 = await store.history.list(user1, { limit: 35, type: 'project', id: project1Id, user: true });
-            assert.lengthOf(list1.data, 20, 'has 20 items');
+            assert.lengthOf(list1.items, 20, 'has 20 items');
           });
 
           it('throws when accessing a project without a read access', async () => {
@@ -595,9 +595,9 @@ describe('Unit tests', () => {
           it('lists all requests to the limit', async () => {
             const list = await store.history.list(user, { type: 'request', id: requestId, project: project1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 35, 'has the default list size');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 35, 'has the default list size');
+            const data = list.items as IHttpHistory[];
             const hasInvalid = data.some(i => i.request !== requestId);
             assert.isFalse(hasInvalid, 'has no other items')
           });
@@ -605,29 +605,29 @@ describe('Unit tests', () => {
           it('respects the limit', async () => {
             const list = await store.history.list(user, { limit: 4, type: 'request', id: requestId, project: project1Id });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 4, 'has the default list size');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 4, 'has the default list size');
           });
 
           it('paginates to the next page', async () => {
             const list1 = await store.history.list(user, { limit: 2, type: 'request', id: requestId, project: project1Id });
-            assert.lengthOf(list1.data, 2, 'original list has 2 items');
+            assert.lengthOf(list1.items, 2, 'original list has 2 items');
             const list2 = await store.history.list(user, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-            assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-            assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+            assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+            assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+            assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
           });
 
           it('reaches the end of pagination', async () => {
             const list1 = await store.history.list(user, { limit: 35, type: 'request', id: requestId, project: project1Id });
-            assert.lengthOf(list1.data, 35, 'original list has 35 items');
+            assert.lengthOf(list1.items, 35, 'original list has 35 items');
             const list2 = await store.history.list(user, { cursor: list1.cursor, });
-            assert.lengthOf(list2.data, 5, 'has only the remaining entires');
+            assert.lengthOf(list2.items, 5, 'has only the remaining entires');
           });
 
           it('reads for the user only data', async () => {
             const list1 = await store.history.list(user, { limit: 35, type: 'request', id: requestId, project: project1Id, user: true, });
-            assert.lengthOf(list1.data, 20, 'has 20 items');
+            assert.lengthOf(list1.items, 20, 'has 20 items');
           });
         });
 
@@ -703,17 +703,17 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: '/v1/api/uCh7liOX' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 2, 'have found both requests');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 2, 'have found both requests');
           });
 
           it('lists requests for the base URI', async () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'https://sub.api.com/v1/api/uCh7liOX' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[0]);
           });
 
@@ -721,9 +721,9 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: '12345token' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[0]);
           });
 
@@ -731,9 +731,9 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'myToken1234' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[0]);
           });
 
@@ -741,9 +741,9 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: '987654token' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[0]);
           });
 
@@ -751,19 +751,19 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'iAmThePassword' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[1]);
           });
 
-          it('lists requests for a matched request payload.data as string', async () => {
+          it('lists requests for a matched request payload.items as string', async () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'AlsoAPassword' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[2]);
           });
 
@@ -771,19 +771,19 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'access_token U9ajTl0g' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[1]);
           });
 
-          it('lists requests for a matched request payload.data as string', async () => {
+          it('lists requests for a matched request payload.items as string', async () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'access token opa0m3ST' });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[2]);
           });
 
@@ -791,35 +791,35 @@ describe('Unit tests', () => {
             // @ts-ignore
             const list = await store.history.list(user, { query: 'my-special-header: 3TOhwXSB', user: true });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[3]);
           });
 
           it('lists only records for a request', async () => {
             const list = await store.history.list(user, { query: 'LBTV9zMj', type: 'request', id: requestId, project: projectId });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[4]);
           });
 
           it('lists only records for an space', async () => {
             const list = await store.history.list(user, { query: 'LBTV9zMj', type: 'space', id: spaceId });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 1, 'have found both requests');
-            const data = list.data as IHttpHistory[];
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 1, 'have found both requests');
+            const data = list.items as IHttpHistory[];
             assert.deepEqual(data[0], c1[5]);
           });
 
           it('lists only records for a project', async () => {
             const list = await store.history.list(user, { query: 'LBTV9zMj', type: 'project', id: projectId });
             assert.typeOf(list.cursor, 'string', 'has the cursor');
-            assert.typeOf(list.data, 'array', 'has the data');
-            assert.lengthOf(list.data, 2, 'have found both requests');
+            assert.typeOf(list.items, 'array', 'has the data');
+            assert.lengthOf(list.items, 2, 'have found both requests');
           });
         });
       });

@@ -657,9 +657,9 @@ describe('http', () => {
         it('lists space users', async () => {
           const list = await sdk.file.listUsers(spaces[0].key, { token: user1Token });
           assert.isUndefined(list.cursor, 'has no cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 2, 'has all users');
-          const [u1, u2] = list.data as IUser[];
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 2, 'has all users');
+          const [u1, u2] = list.items as IUser[];
           assert.equal(u1.key, user2Id, 'has the user #1');
           assert.equal(u2.key, user4Id, 'has the user #2');
         });
@@ -667,8 +667,8 @@ describe('http', () => {
         it('returns an empty list when no added users', async () => {
           const list = await sdk.file.listUsers(spaces[2].key, { token: user1Token });
           assert.isUndefined(list.cursor, 'has no cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 0, 'has no users');
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 0, 'has no users');
         });
       });
     });

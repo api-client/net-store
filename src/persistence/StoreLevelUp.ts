@@ -15,6 +15,7 @@ import { Bin } from './level/Bin.js';
 import { Shared } from './level/Shared.js';
 import { Files } from './level/Files.js';
 import { Media } from './level/Media.js';
+import { App } from './level/App.js';
 
 const sessionSymbol = Symbol('session');
 const historySymbol = Symbol('history');
@@ -25,6 +26,7 @@ const fileSymbol = Symbol('file');
 const permissionSymbol = Symbol('permission');
 const sharedSymbol = Symbol('shared');
 const mediaSymbol = Symbol('media');
+const appSymbol = Symbol('app');
 
 export type DataStoreType = LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>;
 
@@ -38,7 +40,8 @@ export class StoreLevelUp extends StorePersistence {
   dbPath: string;
   db?: LevelUp<LevelDown, LevelDownIterator>;
 
-  [historySymbol]: History;
+  [historySymbol]?: History;
+
   /**
    * History store.
    */
@@ -50,7 +53,8 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [sessionSymbol]: Sessions;
+  [sessionSymbol]?: Sessions;
+
   /**
    * Session store.
    */
@@ -62,7 +66,8 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [userSymbol]: User;
+  [userSymbol]?: User;
+
   /**
    * User store.
    */
@@ -74,7 +79,8 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [binSymbol]: Bin;
+  [binSymbol]?: Bin;
+
   /**
    * A store that keeps track of deleted items. It has a reference to the deleted item
    * with additional metadata like when the object was deleted and by whom.
@@ -93,7 +99,8 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [revisionsSymbol]: Revisions;
+  [revisionsSymbol]?: Revisions;
+
   /**
    * A store that keeps revisions of patched objects.
    */
@@ -105,7 +112,7 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [fileSymbol]: Files;
+  [fileSymbol]?: Files;
 
   /**
    * File metadata store.
@@ -118,7 +125,7 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [mediaSymbol]: Media;
+  [mediaSymbol]?: Media;
 
   /**
    * The contents of a File.
@@ -131,7 +138,8 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [permissionSymbol]: PermissionStore;
+  [permissionSymbol]?: PermissionStore;
+
   /**
    * A store for store permissions.
    */
@@ -143,12 +151,23 @@ export class StoreLevelUp extends StorePersistence {
     return ref;
   }
 
-  [sharedSymbol]: Shared;
+  [sharedSymbol]?: Shared;
+  
   /**
    * A store that references shared objects with the current user.
    */
   get shared(): Shared {
     const ref = this[sharedSymbol];
+    if (!ref) {
+      throw new Error(`Store not initialized.`);
+    }
+    return ref;
+  }
+
+  [appSymbol]?: App;
+
+  get app(): App {
+    const ref = this[appSymbol];
     if (!ref) {
       throw new Error(`Store not initialized.`);
     }
@@ -196,6 +215,9 @@ export class StoreLevelUp extends StorePersistence {
 
     const shared = sub<Bytes, Bytes>(db, 'shared') as DataStoreType;
     this[sharedSymbol] = new Shared(this, shared);
+
+    const app = sub<Bytes, Bytes>(db, 'app') as DataStoreType;
+    this[appSymbol] = new App(this, app);
   }
 
   /**

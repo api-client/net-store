@@ -1,0 +1,314 @@
+#%RAML 1.0 Library
+
+uses:
+  AppTypes: ./AppTypes.raml
+
+types:
+  StoredFile:
+    type: object
+    properties:
+      kind:
+        type: string
+        description: 
+          The kind of the file stored in the contents.
+      key:
+        type: string
+        description: 
+          The identifier of the entity
+      info: AppTypes.Thing
+
+      parents:
+        type: string[]
+        description: |
+          The list of parents of the object. It is an ordered list of parents
+          from the top (first element) to the lowest parent in the tree (last element).
+           
+          After creating the object, this property cannot be manipulated directly by the client. 
+          Should be treated as opaque value.
+
+      permissionIds:
+        type: string[]
+        description: |
+          The list of permissions to this file object.
+           
+          This property cannot be manipulated directly by the client. Should be treated as 
+          opaque value.
+
+      deleted:
+        type: boolean
+        required: false
+        description: Whether the file object is deleted.
+      
+      deletedInfo:
+        type: Deletion
+        required: false
+        description: The information about the delete information. Always set when the `delete` is true.
+      
+      owner:
+        type: string
+        description: The owner of this object. The id of the User object.
+      
+      lastModified:
+        type: Modification
+        description: The last modification made to this file.
+      
+      labels:
+        type: string[]
+        required: false
+        description: An arbitrary list of labels applied to the file.
+      
+      capabilities:
+        type: Capabilities
+        description: |
+          This is populated when reading a file from the store.
+          A list of actions the user can perform on the file.
+           
+          This is a readonly field and it is ignored when creating / updating the file.
+      
+      iconColor:
+        type: string
+        required: false
+        description: |
+          The color of the icon to render for this file in the file explorer.
+          This should be a hex format, e.g.: #c00 for red.
+
+  File:
+    type: StoredFile
+    properties:
+      permissions: 
+        type: Permission[]
+        description: |
+          Populated by the server when reading the file. The list of permissions to the object.
+           
+          This property cannot be manipulated directly by the client. Should be treated as 
+          opaque value.
+           
+          Data store implementation note, this is not stored in the store but it is populated
+          when reading the object.
+
+  BasePermission:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - user
+          - group
+          - anyone
+        description: |  
+          The type of the permission. 
+           
+          - `user` can access the file by a specific user
+          - `group` can access the file by a group of users
+          - `anyone` the object can be searched by anyone who has access to the store.
+           
+          Note, the `anyone` object does not mean that the end-user sees the file when 
+          listing objects in the store. It means the file can be searched for.
+      owner:
+        type: string
+        required: false
+        description: |  
+          The id of the owner of the permission.
+          The value depends on the `type`. For the `user` type it is the user id.
+          The `group` means the group id. It is not set when the role is `anyone`.
+      
+      role:
+        type: string
+        enum:
+          - owner
+          - reader
+          - commenter
+          - writer
+        description: |  
+          The role granted by this permission.
+
+      displayName:
+        type: string
+        required: false
+        description: |  
+          The "pretty" name to render with the permission.
+           
+          - `user` type - user's full name
+          - `group` type - the name of the group
+          - `anyone` type - no render name
+
+      expirationTime:
+        type: number
+        required: false
+        description: |  
+          Optional expiration date of the permission. This is the timestamp when the permission expires.
+          When creating / updating the permission the expiration date must:
+           
+          - be used on a user or a group
+          - the time must be in the future
+
+      addingUser:
+        type: string
+        required: false
+        description: |  
+          The store id of the user that added this permission.
+
+      deleted:
+        type: boolean
+        required: false
+        description: |  
+          Whether the permission object is deleted.
+
+      deletedTime:
+        type: number
+        required: false
+        description: |  
+          The timestamp of when the permission was deleted.
+
+      deletingUser:
+        type: string
+        required: false
+        description: |  
+          The id of the user that has deleted the permission.
+
+  Permission:
+    type: BasePermission
+    properties:
+      key: 
+        type: string
+        description: |
+          The data store key of the permission.
+          This property is generated by the store and is not writable.
+      kind:
+        type: string
+        default: Core#Permission
+  
+  Capabilities:
+    type: object
+    properties:
+      canEdit: 
+        type: boolean
+        description: |
+          Whether the user can edit the current file.
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+      canComment: 
+        type: boolean
+        description: |
+          Whether the user can comment on the current file.
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+      
+      canShare: 
+        type: boolean
+        description: |
+          Whether the user can share the current file.
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+      
+      canCopy: 
+        type: boolean
+        required: false
+        description: |
+          Whether the user can make a copy of the file.
+           
+          Note, this is reserved for future use an currently not supported by the store.
+           
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+
+      canReadRevisions: 
+        type: boolean
+        required: false
+        description: |
+          Whether the user can read revisions of the file.
+          
+          Note, this is reserved for future use an currently not supported by the store.
+           
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+      
+      canAddChildren: 
+        type: boolean
+        description: |
+          Whether the user can add children to the file.
+          This can be `true` only for user spaces.
+      
+      canDelete: 
+        type: boolean
+        description: |
+          Whether the user can permanently delete the file.
+           
+          The permission to edit can be inherited from a containing space so not visible
+          in the file's permissions.
+          
+      canListChildren: 
+        type: boolean
+        description: |
+          Only set for user spaces. Otherwise it is always `false`.
+          Whether the user can list children of the user space.
+      
+      canRename: 
+        type: boolean
+        description: |
+          Whether the user can rename the file.
+      
+      canTrash: 
+        type: boolean
+        description: |
+          Whether the user can move the file to trash.
+      
+      canUntrash: 
+        type: boolean
+        description: |
+          Whether the user can move the file back from trash.
+      
+      canReadMedia: 
+        type: boolean
+        description: |
+          Whether the user can read media for the file.
+          This is always `false` for a user space which has no media.
+  
+  Modification:
+    type: object
+    properties:
+      user: 
+        type: string
+        description: |
+          The key of the user modifying the record.
+      name: 
+        type: string
+        required: false
+        description: |
+          User name modifying the record. May not be set when there's no actual user.
+      byMe: 
+        type: boolean
+        description: |
+          Whether the modification was performed by the requesting the data user.
+          
+          Note for store implementers, this field should not be stored and populated every time the 
+          record is requested.
+      time: 
+        type: number
+        description: |
+          A timestamp when the object was modified.
+  
+  Deletion:
+    type: object
+    properties:
+      time: 
+        type: number
+        description: |
+          The timestamp of when the entity was deleted.
+      user: 
+        type: string
+        description: |
+          The id of the user that has deleted the entity.
+      name: 
+        type: string
+        required: false
+        description: |
+          User name deleting the entity. May not be set when there's no actual user.
+      byMe: 
+        type: boolean
+        description: |
+          Whether the deletion was performed by the requesting the data user.
+           
+          Note for store implementers, this field should not be stored and populated every time the 
+          record is requested.
+      

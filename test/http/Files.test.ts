@@ -168,9 +168,9 @@ describe('http', () => {
         it('returns results and the page token', async () => {
           const list = await sdk.file.list([WorkspaceKind]);
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 35, 'has the default list size');
-          const item = list.data[0] as IWorkspace;
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 35, 'has the default list size');
+          const item = list.items[0] as IWorkspace;
           assert.equal(item.kind, WorkspaceKind, 'has the space object');
           assert.typeOf(item.owner, 'string', 'has an owner');
           assert.notEqual(item.owner, 'default', 'has other than the default owner');
@@ -179,22 +179,22 @@ describe('http', () => {
         it('supports the limit parameter', async () => {
           const list = await sdk.file.list([WorkspaceKind], { limit: 4 });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 4, 'has the default list size');
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 4, 'has the default list size');
         });
 
         it('paginates to the next page', async () => {
           const list1 = await sdk.file.list([WorkspaceKind], { limit: 2 });
           const list2 = await sdk.file.list([WorkspaceKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-          assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-          assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+          assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+          assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+          assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
         });
 
         it('reaches the end of pagination', async () => {
           const list1 = await sdk.file.list([WorkspaceKind], { limit: 35 });
           const list2 = await sdk.file.list([WorkspaceKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 5, 'has only remaining entires');
+          assert.lengthOf(list2.items, 5, 'has only remaining entires');
         });
       });
 
@@ -266,9 +266,9 @@ describe('http', () => {
 
           const list = await sdk.file.list([WorkspaceKind], {}, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 1, 'has all spaces');
-          assert.equal(list.data[0].key, parentSpace);
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 1, 'has all spaces');
+          assert.equal(list.items[0].key, parentSpace);
         });
 
         it('lists only spaces of a parent', async () => {
@@ -283,9 +283,9 @@ describe('http', () => {
 
           const list = await sdk.file.list([WorkspaceKind], { parent: parentSpace }, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 2, 'has all spaces');
-          const readIds = [list.data[0].key, list.data[1].key];
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 2, 'has all spaces');
+          const readIds = [list.items[0].key, list.items[1].key];
           assert.include(readIds, s1.key);
           assert.include(readIds, s2.key);
         });
@@ -302,9 +302,9 @@ describe('http', () => {
 
           const list = await sdk.file.list([WorkspaceKind], { parent: s1.key }, { token: user1Token });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 2, 'has all spaces');
-          const readIds = [list.data[0].key, list.data[1].key];
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 2, 'has all spaces');
+          const readIds = [list.items[0].key, list.items[1].key];
           assert.include(readIds, s3.key);
           assert.include(readIds, s4.key);
         });
@@ -334,7 +334,7 @@ describe('http', () => {
           await sdk.file.patchUsers(parentSpace, info, { token: user1Token });
           
           const list = await sdk.file.list([WorkspaceKind], {}, { token: user2Token });
-          assert.lengthOf(list.data, 0, 'has no root space');
+          assert.lengthOf(list.items, 0, 'has no root space');
         });
       });
 
@@ -365,9 +365,9 @@ describe('http', () => {
           const [f1, f2, f3, f4] = generated;
           const ids = [f2.key, f1.key, f4.key, f3.key];
           const result = await sdk.file.readBulk(ids);
-          assert.typeOf(result.data, 'array', 'has the data');
-          assert.lengthOf(result.data, 4, 'has all files');
-          const [r1, r2, r3, r4] = result.data;
+          assert.typeOf(result.items, 'array', 'has the items');
+          assert.lengthOf(result.items, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.items;
           assert.equal(r1!.key, f2.key);
           assert.equal(r2!.key, f1.key);
           assert.equal(r3!.key, f4.key);
@@ -378,9 +378,9 @@ describe('http', () => {
           const [, f2, f3] = generated;
           const ids = [f2.key, 'f1', 'f4', f3.key];
           const result = await sdk.file.readBulk(ids);
-          assert.typeOf(result.data, 'array', 'has the data');
-          assert.lengthOf(result.data, 4, 'has all files');
-          const [r1, r2, r3, r4] = result.data;
+          assert.typeOf(result.items, 'array', 'has the items');
+          assert.lengthOf(result.items, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.items;
           assert.equal(r1!.key, f2.key);
           assert.notOk(r2);
           assert.notOk(r3);
@@ -392,9 +392,9 @@ describe('http', () => {
           const [f1, f4] = other;
           const ids = [f2.key, f1.key, f4.key, f3.key];
           const result = await sdk.file.readBulk(ids);
-          assert.typeOf(result.data, 'array', 'has the data');
-          assert.lengthOf(result.data, 4, 'has all files');
-          const [r1, r2, r3, r4] = result.data;
+          assert.typeOf(result.items, 'array', 'has the items');
+          assert.lengthOf(result.items, 4, 'has all files');
+          const [r1, r2, r3, r4] = result.items;
           assert.equal(r1!.key, f2.key);
           assert.notOk(r2);
           assert.notOk(r3);
@@ -405,7 +405,7 @@ describe('http', () => {
           const [f1] = generated;
           const ids = [f1.key];
           const result = await sdk.file.readBulk(ids);
-          const [file] = result.data;
+          const [file] = result.items;
           const c = file!.capabilities as ICapabilities;
           assert.typeOf(c, 'object', 'has capabilities');
           assert.isTrue(c.canEdit);
@@ -515,9 +515,9 @@ describe('http', () => {
         it('returns results and the page token', async () => {
           const list = await sdk.file.list([WorkspaceKind]);
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 35, 'has the default list size');
-          const item = list.data[0] as IWorkspace;
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 35, 'has the default list size');
+          const item = list.items[0] as IWorkspace;
           assert.equal(item.kind, WorkspaceKind, 'has the space object');
           assert.equal(item.owner, 'default', 'has the default owner');
         });
@@ -525,9 +525,9 @@ describe('http', () => {
         it('supports the limit parameter', async () => {
           const list = await sdk.file.list([WorkspaceKind], { limit: 4 });
           assert.typeOf(list.cursor as string, 'string', 'has the cursor');
-          assert.typeOf(list.data, 'array', 'has the data array');
-          assert.lengthOf(list.data, 4, 'has the default list size');
-          const item = list.data[0] as IWorkspace;
+          assert.typeOf(list.items, 'array', 'has the items array');
+          assert.lengthOf(list.items, 4, 'has the default list size');
+          const item = list.items[0] as IWorkspace;
           assert.equal(item.kind, WorkspaceKind, 'has the space object');
           assert.equal(item.owner, 'default', 'has the default owner');
         });
@@ -535,15 +535,15 @@ describe('http', () => {
         it('paginates to the next page', async () => {
           const list1 = await sdk.file.list([WorkspaceKind], { limit: 2 });
           const list2 = await sdk.file.list([WorkspaceKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 2, 'uses the page cursor limit param');
-          assert.notDeepEqual(list1.data[0], list2.data[0], 'arrays are not equal');
-          assert.notDeepEqual(list1.data[1], list2.data[0], 'has the next element');
+          assert.lengthOf(list2.items, 2, 'uses the page cursor limit param');
+          assert.notDeepEqual(list1.items[0], list2.items[0], 'arrays are not equal');
+          assert.notDeepEqual(list1.items[1], list2.items[0], 'has the next element');
         });
   
         it('reaches the end of pagination', async () => {
           const list1 = await sdk.file.list([WorkspaceKind], { limit: 35 });
           const list2 = await sdk.file.list([WorkspaceKind], { cursor: list1.cursor });
-          assert.lengthOf(list2.data, 5, 'has only remaining entires');
+          assert.lengthOf(list2.items, 5, 'has only remaining entires');
         });
       });
     });

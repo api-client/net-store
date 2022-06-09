@@ -60,4 +60,20 @@ export class KeyGenerator {
   static normalizeKind(kind: string): string {
     return kind.toLowerCase().replace('#', '');
   }
+
+  static appUserProjects(user: string, appId: string): string {
+    return `project~${user}~${appId}~`;
+  }
+
+  static appUserRequests(user: string, appId: string): string {
+    return `request~${user}~${appId}~`;
+  }
+
+  static appProject(appId: string, projectId: string, user: string): string {
+    return `${this.appUserProjects(user, appId)}${projectId}~`;
+  }
+
+  static appRequest(appId: string, requestId: string, user: string): string {
+    return `${this.appUserRequests(user, appId)}${requestId}~`;
+  }
 }
