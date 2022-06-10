@@ -283,7 +283,7 @@ describe('Unit tests', () => {
             await store.app.projects.create(p2, appId1, user2);
             p3 = mock.app.appProject({ foldersSize: 0, noRequests: true });
             await store.app.projects.create(p3, appId2, user1);
-          })
+          });
 
           it('deletes the requested record', async () => {
             await store.app.projects.delete(p1.key, appId1, user1);

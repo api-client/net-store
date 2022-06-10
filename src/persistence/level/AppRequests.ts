@@ -273,7 +273,7 @@ export class AppRequests extends SubStore implements IAppRequestStore {
     // inform clients the media is created (collection)
     const filter: IClientFilterOptions = {
       users: [user.key],
-      url: RouteBuilder.appProjects(appId),
+      url: RouteBuilder.appRequests(appId),
     };
     result.items.forEach((item) => {
       if (!item) {

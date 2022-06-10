@@ -1,6 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import { ParameterizedContext } from 'koa';
-import { RouteBuilder, ApiError, IAppProject, IAppRequest, IBatchUpdate } from '@api-client/core';
+import { RouteBuilder, ApiError, IAppProject, IAppRequest, IBatchUpdate, IPatchInfo } from '@api-client/core';
 import { BaseRoute } from './BaseRoute.js';
 import { IApplicationState } from '../definitions.js';
 
@@ -31,6 +31,7 @@ export default class AppRoute extends BaseRoute {
     router.post(projects, this.createProjectRoute.bind(this));
     router.get(projectItem, this.projectReadRoute.bind(this));
     router.delete(projectItem, this.projectDeleteRoute.bind(this));
+    router.patch(projectItem, this.projectPatchRoute.bind(this));
     router.post(projectBatchCreate, this.projectBatchCreateRoute.bind(this));
     router.post(projectBatchRead, this.projectBatchReadRoute.bind(this));
     router.post(projectBatchDelete, this.projectBatchDeleteRoute.bind(this));
@@ -40,6 +41,7 @@ export default class AppRoute extends BaseRoute {
     router.post(requests, this.createRequestRoute.bind(this));
     router.get(requestItem, this.requestReadRoute.bind(this));
     router.delete(requestItem, this.requestDeleteRoute.bind(this));
+    router.patch(requestItem, this.requestPatchRoute.bind(this));
     router.post(requestsBatchCreate, this.requestBatchCreateRoute.bind(this));
     router.post(requestsBatchRead, this.requestBatchReadRoute.bind(this));
     router.post(requestsBatchDelete, this.requestBatchDeleteRoute.bind(this));
@@ -158,6 +160,36 @@ export default class AppRoute extends BaseRoute {
     try {
       const user = this.getUserOrThrow(ctx);
       const result = await this.store.app.requests.delete(key, appId, user);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async projectPatchRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const appId = ctx.params.appId as string;
+    const key = ctx.params.key as string;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const patch = await this.readJsonBody(ctx.request) as IPatchInfo;
+      const result = await this.store.app.projects.patch(key, appId, patch, user);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async requestPatchRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const appId = ctx.params.appId as string;
+    const key = ctx.params.key as string;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const patch = await this.readJsonBody(ctx.request) as IPatchInfo;
+      const result = await this.store.app.requests.patch(key, appId, patch, user);
       ctx.body = result;
       ctx.type = this.jsonType;
       ctx.status = 200;

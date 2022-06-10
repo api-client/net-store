@@ -1,13 +1,14 @@
 import { 
   IHttpHistory, ProjectMock, IHttpHistoryListInit, IWorkspace, Workspace,
   IRevision, HttpProjectKind, Project, HttpProject,
-  Permission, PermissionRole, PermissionType, IUser, IHttpProject,
+  Permission, PermissionRole, PermissionType, IUser, IHttpProject, IAppProject, IAppRequest
 } from '@api-client/core';
 import { PutBatch } from 'abstract-leveldown';
 import { DataStoreType, StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import { ISharedLink } from '../../src/persistence/level/AbstractShared.js';
 import { KeyGenerator } from '../../src/persistence/KeyGenerator.js';
 import { IFileAddOptions } from '../../src/persistence/level/AbstractFiles.js';
+import { IAppProjectInit, IAppRequestInit } from '@api-client/core/build/src/mocking/lib/App.js';
 
 const mock = new ProjectMock();
 
@@ -318,5 +319,17 @@ export class DataHelper {
     }
     await store.user.db.batch(data);
     return result;
+  }
+
+  static async generateAppProjects(store: StoreLevelUp, app: string, user: IUser, size?: number, init?: IAppProjectInit): Promise<IAppProject[]> {
+    const projects = mock.app.appProjects(size, init);
+    await store.app.projects.createBatch(projects, app, user);
+    return projects;
+  }
+
+  static async generateAppRequests(store: StoreLevelUp, app: string, user: IUser, size?: number, init?: IAppRequestInit): Promise<IAppRequest[]> {
+    const requests = mock.app.appRequests(size, init);
+    await store.app.requests.createBatch(requests, app, user);
+    return requests;
   }
 }

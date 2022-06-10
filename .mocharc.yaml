@@ -2,8 +2,8 @@ extension:
   - ts
 spec: 
   - test/**/*.test.ts
-  # - test/store/AppProjects.test.ts
-  # - test/store/AppRequests.test.ts
+  # - test/http/AppProjects.test.ts
+  # - test/http/AppRequests.test.ts
 require: 
   - ts-node/register
   - source-map-support/register.js
