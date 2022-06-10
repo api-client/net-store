@@ -1,6 +1,8 @@
-import { IAppProject, IListOptions, IListResponse, IBatchUpdateResult, IBatchReadResult, IBatchDeleteResult, IRevertResponse, IDeleteRecord, ApiError, IRevertResult, IUser, IPatchRevision, IPatchInfo, RouteBuilder, IBackendEvent, AppProjectKind } from '@api-client/core';
+/* eslint-disable import/no-named-as-default-member */
+import { IAppProject, IListOptions, IListResponse, IBatchUpdateResult, IBatchReadResult, IBatchDeleteResult, IRevertResponse, IDeleteRecord, ApiError, IRevertResult, IUser, IPatchRevision, IPatchInfo, RouteBuilder, IBackendEvent, AppProjectKind, IQueryResponse } from '@api-client/core';
 import { Patch } from '@api-client/json';
 import { PutBatch, AbstractIteratorOptions } from 'abstract-leveldown';
+import FlexSearch from 'flexsearch';
 import { validatePatch } from '../../lib/Patch.js';
 import { KeyGenerator } from '../KeyGenerator.js';
 import { SubStore } from '../SubStore.js';
@@ -8,11 +10,69 @@ import { IGetOptions, IStoredEntity } from './AbstractApp.js';
 import { IAppProjectStore } from './AbstractAppProject.js';
 import Clients, { IClientFilterOptions } from '../../routes/WsClients.js';
 
+interface IndexedDocument {
+  doc: IAppProject;
+  meta: {
+    /**
+     * The key of the document (not the data store key)
+     */
+    id: string;
+    /**
+     * this **always** contains the app id and user key.
+     */
+    tag: string[];
+  }
+}
+
 /**
  * The AppProjects stores application projects. 
  * These are not shared with others and kept only for a specific type of application and user.
  */
 export class AppProjects extends SubStore implements IAppProjectStore {
+  index?: FlexSearch.Document<IndexedDocument, false>;
+  indexStarted = false;
+
+  async warmup(): Promise<void> {
+    this.resetIndex();
+  }
+
+  resetIndex(): void {
+    const indexes: string[] = [
+      'doc:info:name',
+      'doc:info:displayName',
+      'doc:info:description',
+
+      'doc:definitions[]:folders[]:info:name',
+      'doc:definitions[]:folders[]:info:displayName',
+      'doc:definitions[]:folders[]:info:description',
+
+      'doc:definitions[]:requests[]:info:name',
+      'doc:definitions[]:requests[]:info:displayName',
+      'doc:definitions[]:requests[]:info:description',
+      'doc:definitions[]:requests[]:expects:url',
+      'doc:definitions[]:requests[]:expects:headers',
+
+      'doc:definitions[]:environments[]:info:name',
+      'doc:definitions[]:environments[]:info:displayName',
+      'doc:definitions[]:environments[]:info:description',
+
+      'doc:definitions[]:environments[]:server:uri',
+      'doc:definitions[]:environments[]:variables[]:name',
+    ];
+    this.index = new FlexSearch.Document<IndexedDocument, false>({
+      document: {
+        id: 'meta:id',
+        tag: 'meta:tag',
+        index: indexes,
+        store: false,
+      },
+      charset: 'latin:extra',
+      tokenize: 'reverse',
+      resolution: 9,
+    });
+    this.indexStarted = false;
+  }
+
   async cleanup(): Promise<void> {
     await this.db.close();
   }
@@ -32,7 +92,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
     }
     const key = KeyGenerator.appProject(appId, value.key, user.key);
     const entity: IStoredEntity = {
-      meta: {},
+      meta: {
+        appId,
+        user: user.key,
+      },
       data: value,
     };
     await this.db.put(key, this.parent.encodeDocument(entity));
@@ -50,6 +113,9 @@ export class AppProjects extends SubStore implements IAppProjectStore {
       id: value.key,
     };
     Clients.notify(event, filter);
+    if (this.indexStarted && this.index) {
+      this.index.add({ doc: value, meta: { id: value.key, tag: [appId, user.key] } });
+    }
     return value;
   }
 
@@ -117,7 +183,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
         value.updated = value.created;
       }
       const media: IStoredEntity<IAppProject> = {
-        meta: {},
+        meta: {
+          appId,
+          user: user.key,
+        },
         data: value,
       };
       data.push({
@@ -143,6 +212,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
         id: value.key,
       };
       Clients.notify(event, filter);
+
+      if (this.indexStarted && this.index) {
+        this.index.add({ doc: value, meta: { id: value.key, tag: [appId, user.key] } });
+      }
     });
 
     return result;
@@ -231,6 +304,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
       Clients.notify(event, { ...filter, url: mediaUrl });
       // Disconnect clients connected to the contents.
       Clients.closeByUrl(mediaUrl);
+
+      if (this.indexStarted && this.index) {
+        this.index.remove(key);
+      }
     });
 
     return result;
@@ -277,7 +354,7 @@ export class AppProjects extends SubStore implements IAppProjectStore {
       url: RouteBuilder.appProjects(appId),
     };
     result.items.forEach((item) => {
-      if (!item) {
+      if (!item || !item.item) {
         return;
       }
       const event: IBackendEvent = {
@@ -288,6 +365,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
         id: item.key,
       };
       Clients.notify(event, filter);
+
+      if (this.indexStarted && this.index) {
+        this.index.add({ doc: item.item, meta: { id: item.key, tag: [appId, user.key] }  });
+      }
     });
 
     return result;
@@ -345,7 +426,10 @@ export class AppProjects extends SubStore implements IAppProjectStore {
     Clients.notify(event, { ...filter, url: RouteBuilder.appProjectItem(appId, key) });
     // Disconnect clients connected to the contents.
     Clients.closeByUrl(RouteBuilder.appProjectItem(appId, key));
-
+    if (this.indexStarted && this.index) {
+      this.index.remove(key);
+    }
+    
     const result: IDeleteRecord = {
       key,
     };
@@ -399,5 +483,90 @@ export class AppProjects extends SubStore implements IAppProjectStore {
       url: RouteBuilder.appProjectItem(appId, key),
     };
     Clients.notify(event, filter);
+
+    if (this.indexStarted && this.index) {
+      this.index.update({ doc: value, meta: { id: key, tag: [appId, user.key] } });
+    }
+  }
+
+  async query(appId: string, user: IUser, options: IListOptions): Promise<IQueryResponse<IAppProject>> {
+    const { query, limit = this.parent.defaultLimit } = options;
+    const { index } = this;
+    if (!query || !index) {
+      return { items: [] };
+    }
+
+    if (!this.indexStarted) {
+      await this.indexAll();
+      this.indexStarted = true;
+    }
+    
+    const searchResult = index.search(query, {
+      tag: [appId, user.key],
+      limit,
+    });
+
+    const ids: string[] = [];
+    searchResult.forEach((indexGroup) => {
+      const { result } = indexGroup;
+      result.forEach((key) => {
+        const dbKey = KeyGenerator.appProject(appId, key as string, user.key);
+        if (!ids.includes(dbKey)) {
+          ids.push(dbKey);
+        }
+      });
+    });
+    if (!ids.length) {
+      return { items: [] };
+    }
+
+    const rawDocs = await this.db.getMany(ids);
+    const docs: Record<string, IAppProject> = {};
+    rawDocs.forEach((doc) => {
+      if (!doc) {
+        return;
+      }
+      const media = this.parent.decodeDocument(doc) as IStoredEntity<IAppProject>;
+      docs[media.data.key] = media.data;
+    });
+    const result: IQueryResponse<IAppProject> = {
+      items: [],
+    };
+
+    searchResult.forEach((indexGroup) => {
+      const { result: indexes, field } = indexGroup;
+      indexes.forEach((rawId) => {
+        const id = rawId as string;
+        const existing = result.items.find(i => i.doc.key === id);
+        if (existing) {
+          existing.index.push(field);
+        } else {
+          const doc = docs[id];
+          if (doc) {
+            result.items.push({
+              doc,
+              index: [field],
+            });
+          }
+        }
+      });
+    });
+    return result;
+  }
+
+  private async indexAll(): Promise<void> {
+    const { index } = this;
+    if (!index) {
+      return;
+    }
+    const iterator = this.db.iterator({ keys: false });
+    // @ts-ignore
+    for await (const [, value] of iterator) {
+      const media = this.parent.decodeDocument(value) as IStoredEntity<IAppProject>;
+      if (media.meta.deleted) {
+        continue;
+      }
+      index.add({ doc: media.data, meta: { id: media.data.key, tag: [media.meta.appId, media.meta.user] } });
+    }
   }
 }

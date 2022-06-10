@@ -1,4 +1,4 @@
-import { IAppProject, IBatchReadResult, IListResponse, IListOptions, IBatchUpdateResult, IBatchDeleteResult, IRevertResponse, IDeleteRecord, IUser, IPatchInfo, IPatchRevision } from '@api-client/core';
+import { IAppProject, IBatchReadResult, IListResponse, IListOptions, IBatchUpdateResult, IBatchDeleteResult, IRevertResponse, IDeleteRecord, IUser, IPatchInfo, IPatchRevision, IQueryResponse } from '@api-client/core';
 import { IGetOptions } from './AbstractApp.js';
 
 export interface IAppProjectStore {
@@ -83,4 +83,19 @@ export interface IAppProjectStore {
    * @returns The JSON patch to revert the change using the `@api-client/json` library
    */
   patch(key: string, appId: string, value: IPatchInfo, user: IUser): Promise<IPatchRevision>;
+
+  /**
+   * Queries the projects store.
+   * 
+   * @param appId The application id.
+   * @param user The current user
+   * @param options The list options with required `query` property.
+   */
+  query(appId: string, user: IUser, options: IListOptions): Promise<IQueryResponse<IAppProject>>;
+
+  /**
+   * Resets the query index. After calling this function the full-index is empty
+   * and the application will re-query the entires store when performing the next query.
+   */
+  resetIndex(): void;
 }

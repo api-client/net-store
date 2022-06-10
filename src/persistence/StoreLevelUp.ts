@@ -218,6 +218,24 @@ export class StoreLevelUp extends StorePersistence {
 
     const app = sub<Bytes, Bytes>(db, 'app') as DataStoreType;
     this[appSymbol] = new App(this, app);
+
+    await this.warmup();
+  }
+
+  /**
+   * Starts-up the models.
+   */
+  async warmup(): Promise<void> {
+    await this.session.warmup();
+    await this.history.warmup();
+    await this.user.warmup();
+    await this.bin.warmup();
+    await this.revisions.warmup();
+    await this.file.warmup();
+    await this.media.warmup();
+    await this.permission.warmup();
+    await this.shared.warmup();
+    await this.app.warmup();
   }
 
   /**
@@ -233,6 +251,7 @@ export class StoreLevelUp extends StorePersistence {
     await this.media.cleanup();
     await this.permission.cleanup();
     await this.shared.cleanup();
+    await this.app.cleanup();
     await this.db?.close();
   }
 }

@@ -4,7 +4,8 @@ import path from 'path';
 import sinon from 'sinon';
 import { JsonPatch } from '@api-client/json';
 import { 
-  DefaultLogger, ProjectMock, AppRequest, AppRequestKind, ApiError, IAppRequest, IDeleteRecord, IRevertResult, IPatchInfo, IBackendEvent, RouteBuilder, IPatchRevision, IBatchUpdateResult,
+  DefaultLogger, ProjectMock, AppRequest, AppRequestKind, ApiError, IAppRequest, IDeleteRecord, IRevertResult, 
+  IPatchInfo, IBackendEvent, RouteBuilder, IPatchRevision, IBatchUpdateResult, IQueryResult, Headers,
 } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
@@ -974,6 +975,154 @@ describe('Unit tests', () => {
             assert.deepEqual(e2.data, data1[1]);
             assert.equal(f2.url, RouteBuilder.appRequests(appId1));
             assert.deepEqual(f2.users, [user1.key]);
+          });
+        });
+
+        describe('query()', () => {
+          const user1 = mock.user.user();
+          const user2 = mock.user.user();
+          const appId1 = 'x1b2e3';
+          const appId2 = 't2a3f7';
+
+          let data1: IAppRequest[];
+          let data2: IAppRequest[];
+          let data3: IAppRequest[];
+
+          before(async () => {
+            await store.user.add(user1.key, user1);
+            await store.user.add(user2.key, user2);
+
+            data1 = mock.app.appRequests(40, { app: appId1, isoKey: true });
+            await store.app.requests.createBatch(data1, appId1, user1);
+            data2 = mock.app.appRequests(10, { app: appId1, isoKey: true });
+            await store.app.requests.createBatch(data2, appId1, user2);
+            data3 = mock.app.appRequests(10, { app: appId2, isoKey: true });
+            await store.app.requests.createBatch(data3, appId2, user1);
+          });
+  
+          after(async () => {
+            await store.app.requests.db.clear();
+            await store.user.db.clear();
+          });
+
+          it('searches for a request name', async () => {
+            const p = mock.app.appRequest();
+            p.info.name = 'testAppRequest';
+            await store.app.requests.create(p, appId1, user1);
+            const result = await store.app.requests.query(appId1, user1, { query: 'testAppRequest' });
+
+            assert.typeOf(result, 'object', 'returns an object');
+            assert.typeOf(result.items, 'array', 'has the items');
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const [qr] = result.items;
+            assert.include(qr.index, 'doc:info:name', 'finds request in the name');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          // 
+          // The index is already created!
+          // Call store.app.requests.resetIndex() to reset.
+          // 
+
+          it('adds to the index when adding a new document', async () => {
+            const p = mock.app.appRequest();
+            p.info.name = 'anotherAppRequest';
+            await store.app.requests.create(p, appId1, user1);
+
+            const result = await store.app.requests.query(appId1, user1, { query: 'anotherAppRequest' });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
+            assert.include(qr.index, 'doc:info:name', 'finds request in the name');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          it('removes from the index when removing a document', async () => {
+            const p = mock.app.appRequest();
+            p.info.name = 'deletedAppRequest';
+            await store.app.requests.create(p, appId1, user1);
+            await store.app.requests.delete(p.key, appId1, user1);
+
+            const result = await store.app.requests.query(appId1, user1, { query: 'deletedAppRequest' });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
+          });
+
+          it('does not return other users data', async () => {
+            const p = data2[0];
+            const result = await store.app.requests.query(appId1, user1, { query: p.info.name });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
+          });
+
+          it('does not return other app data', async () => {
+            const p = data3[0];
+            const result = await store.app.requests.query(appId1, user1, { query: p.info.name });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
+          });
+
+          it('queries for a description', async () => {
+            const p = mock.app.appRequest();
+            p.info.description = 'This request makes a query to the /test/api endpoint.';
+            await store.app.requests.create(p, appId1, user1);
+
+            const result = await store.app.requests.query(appId1, user1, { query: 'to the /test/api' });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
+            assert.include(qr.index, 'doc:info:description', 'has the index');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          it('queries for a displayName', async () => {
+            const p = mock.app.appRequest();
+            p.info.displayName = 'This request makes a query to the /test/api endpoint.';
+            await store.app.requests.create(p, appId1, user1);
+
+            const result = await store.app.requests.query(appId1, user1, { query: 'to the /test/api' });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
+            assert.include(qr.index, 'doc:info:displayName', 'has the index');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          it('queries for a request URL', async () => {
+            const r = data1[0];
+
+            const result = await store.app.requests.query(appId1, user1, { query: r.expects.url });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === r.key) as IQueryResult<IAppRequest>;
+            assert.include(qr.index, 'doc:expects:url', 'has the index');
+            assert.deepEqual(qr.doc, r, 'returns the document');
+          });
+
+          it('queries for a request headers', async () => {
+            const r = data1.find(i => !!i.expects.headers);
+            // it is a very low probability that for 40 generated request they all have no headers.
+            if (!r) {
+              return;
+            }
+            const headers = new Headers(r.expects.headers);
+            const key = headers.keys().next().value;
+            const value = headers.get(key);
+            const result = await store.app.requests.query(appId1, user1, { query: value });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === r.key) as IQueryResult<IAppRequest>;
+            assert.include(qr.index, 'doc:expects:headers', 'has the index');
+            assert.deepEqual(qr.doc, r, 'returns the document');
+          });
+
+          it('returns multiple indexes', async () => {
+            const p = mock.app.appRequest();
+            p.info.name = 'This request makes a query to the /test/api endpoint.';
+            p.info.description = 'This request makes a query to the /test/api endpoint.';
+            p.info.displayName = 'This request makes a query to the /test/api endpoint.';
+            await store.app.requests.create(p, appId1, user1);
+
+            const result = await store.app.requests.query(appId1, user1, { query: 'to the /test/api' });
+            assert.isAtLeast(result.items.length, 1, 'has the request');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
+            assert.deepEqual(qr.index, ['doc:info:name', 'doc:info:displayName', 'doc:info:description'], 'has the index');
+            assert.deepEqual(qr.doc, p, 'returns the document');
           });
         });
       });

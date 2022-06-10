@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member */
 import chai, { assert } from 'chai';
 import { 
-  RouteBuilder, StoreSdk, AppProject, AppProjectKind, IAppProject, ProjectMock, IPatchInfo, IDeleteRecord, IRevertResult,
+  RouteBuilder, StoreSdk, AppProject, AppProjectKind, IAppProject, ProjectMock, IPatchInfo, IDeleteRecord, IRevertResult, IQueryResult,
 } from '@api-client/core';
 import { JsonPatch } from '@api-client/json';
 import chaiAsPromised from 'chai-as-promised';
@@ -629,6 +629,70 @@ describe('http', () => {
         assert.isNull(log2);
       });
     });
+
+    describe('/app/{appId}/query/projects', () => {
+      describe('GET', () => {
+        let user1Token: string;
+        let user2Token: string;
+        const appId1 = 'x1b2e3';
+        const appId2 = 't2a3f7';
+
+        let data1: IAppProject[];
+        let data2: IAppProject[];
+        let data3: IAppProject[];
+  
+        before(async () => {
+          user1Token = await http.createUserToken(baseUri);
+          user2Token = await http.createUserToken(baseUri);
+          const r1 = await http.post(`${baseUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: user1Token });
+          const r2 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId1}`, { token: user2Token });
+          const r3 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: user1Token });
+  
+          sdk.token = user1Token;
+
+          data1 = JSON.parse(r1.body as string) as IAppProject[];
+          data2 = JSON.parse(r2.body as string) as IAppProject[];
+          data3 = JSON.parse(r3.body as string) as IAppProject[];
+        });
+  
+        after(async () => {
+          await http.delete(`${baseUri}/test/reset/app/projects`);
+          await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/sessions`);
+        });
+
+        // 
+        // Note, the detailed tests are performed in the unit tests.
+        // These tests the API communication only.
+        // 
+
+        it('searches for a project', async () => {
+          const p = data1[0];
+          const result = await sdk.app.projects.query(appId1, { query: p.info.name });
+
+          assert.typeOf(result, 'object', 'returns an object');
+          assert.typeOf(result.items, 'array', 'has the items');
+          assert.isAtLeast(result.items.length, 1, 'has the project');
+          const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+          assert.include(qr.index, 'doc:info:name', 'has the index');
+          assert.deepEqual(qr.doc, p, 'returns the document');
+        });
+
+        it('does not return other users data', async () => {
+          const p = data2[0];
+          const result = await sdk.app.projects.query(appId1, { query: p.info.name });
+          const qr = result.items.find(i => i.doc.key === p.key);
+          assert.isUndefined(qr);
+        });
+
+        it('does not return other app data', async () => {
+          const p = data3[0];
+          const result = await sdk.app.projects.query(appId1, { query: p.info.name });
+          const qr = result.items.find(i => i.doc.key === p.key);
+          assert.isUndefined(qr);
+        });
+      });
+    });
   });
 
   describe('Single-user', () => {
@@ -1159,6 +1223,55 @@ describe('http', () => {
         const [log1, log2] = result.items as IRevertResult<IAppProject>[];
         assert.deepEqual(log1, { key: data1[0].key, kind: data1[0].kind, item: data1[0] });
         assert.isNull(log2);
+      });
+    });
+
+    describe('/app/{appId}/query/projects', () => {
+      describe('GET', () => {
+        const appId1 = 'x1b2e3';
+        const appId2 = 't2a3f7';
+
+        let data1: IAppProject[];
+        let data3: IAppProject[];
+  
+        before(async () => {
+          sdk.token = await http.createUserToken(baseUri);
+          const r1 = await http.post(`${baseUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: sdk.token });
+          const r3 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: sdk.token });
+
+          data1 = JSON.parse(r1.body as string) as IAppProject[];
+          data3 = JSON.parse(r3.body as string) as IAppProject[];
+        });
+  
+        after(async () => {
+          await http.delete(`${baseUri}/test/reset/app/projects`);
+          await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/sessions`);
+        });
+
+        // 
+        // Note, the detailed tests are performed in the unit tests.
+        // These tests the API communication only.
+        // 
+
+        it('searches for a project', async () => {
+          const p = data1[0];
+          const result = await sdk.app.projects.query(appId1, { query: p.info.name });
+
+          assert.typeOf(result, 'object', 'returns an object');
+          assert.typeOf(result.items, 'array', 'has the items');
+          assert.isAtLeast(result.items.length, 1, 'has the project');
+          const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+          assert.include(qr.index, 'doc:info:name', 'has the index');
+          assert.deepEqual(qr.doc, p, 'returns the document');
+        });
+
+        it('does not return other app data', async () => {
+          const p = data3[0];
+          const result = await sdk.app.projects.query(appId1, { query: p.info.name });
+          const qr = result.items.find(i => i.doc.key === p.key);
+          assert.isUndefined(qr);
+        });
       });
     });
   });

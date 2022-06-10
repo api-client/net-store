@@ -52,7 +52,7 @@ export abstract class BaseRoute extends ApiRoute {
   }
   
   protected collectListingParameters(ctx: ParameterizedContext): IListOptions {
-    const { cursor, limit, query, queryField, parent } = ctx.query;
+    const { cursor, limit, query, queryField, parent, since } = ctx.query;
     const options: IListOptions = {};
     if (typeof cursor === 'string' && cursor) {
       options.cursor = cursor;
@@ -81,6 +81,12 @@ export abstract class BaseRoute extends ApiRoute {
     }
     if (typeof parent === 'string') {
       options.parent = parent;
+    }
+    if (typeof since === 'string') {
+      const typed = Number(since);
+      if (Number.isInteger(typed)) {
+        options.since = typed;
+      }
     }
     return options;
   }

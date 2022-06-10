@@ -26,6 +26,9 @@ export default class AppRoute extends BaseRoute {
     const requestsBatchDelete = RouteBuilder.appRequestsBatchDelete(':appId');
     const requestsBatchUndelete = RouteBuilder.appRequestsBatchUndelete(':appId');
     const requestItem = RouteBuilder.appRequestItem(':appId', ':key');
+    const appQuery = RouteBuilder.appQuery(':appId');
+    const appQueryRequests = RouteBuilder.appQueryRequests(':appId');
+    const appQueryProjects = RouteBuilder.appQueryProjects(':appId');
 
     router.get(projects, this.listProjectsRoute.bind(this));
     router.post(projects, this.createProjectRoute.bind(this));
@@ -46,6 +49,10 @@ export default class AppRoute extends BaseRoute {
     router.post(requestsBatchRead, this.requestBatchReadRoute.bind(this));
     router.post(requestsBatchDelete, this.requestBatchDeleteRoute.bind(this));
     router.post(requestsBatchUndelete, this.requestBatchUndeleteRoute.bind(this));
+
+    router.get(appQuery, this.queryAppRoute.bind(this));
+    router.get(appQueryRequests, this.queryAppRequestsRoute.bind(this));
+    router.get(appQueryProjects, this.queryAppProjectsRoute.bind(this));
   }
 
   protected async listProjectsRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
@@ -326,6 +333,48 @@ export default class AppRoute extends BaseRoute {
         throw new ApiError('Invalid batch request undelete list in the request.', 400);
       }
       const result = await this.store.app.requests.undeleteBatch(body, appId, user);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async queryAppRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const appId = ctx.params.appId as string;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const options = this.collectListingParameters(ctx);
+      const result = await this.store.app.query(appId, user, options);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async queryAppRequestsRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const appId = ctx.params.appId as string;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const options = this.collectListingParameters(ctx);
+      const result = await this.store.app.requests.query(appId, user, options);
+      ctx.body = result;
+      ctx.type = this.jsonType;
+      ctx.status = 200;
+    } catch (cause) {
+      this.errorResponse(ctx, cause);
+    }
+  }
+
+  protected async queryAppProjectsRoute(ctx: ParameterizedContext<IApplicationState>): Promise<void> {
+    const appId = ctx.params.appId as string;
+    try {
+      const user = this.getUserOrThrow(ctx);
+      const options = this.collectListingParameters(ctx);
+      const result = await this.store.app.projects.query(appId, user, options);
       ctx.body = result;
       ctx.type = this.jsonType;
       ctx.status = 200;

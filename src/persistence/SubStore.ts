@@ -10,6 +10,13 @@ export abstract class SubStore {
    */
   constructor(protected parent: StoreLevelUp, public db: LevelUp<AbstractLevelDOWN<Bytes, Bytes>, LevelDownIterator>) {}
   /**
+   * A logic to be implemented when the model starts-up.
+   * It is optional to implement but always called.
+   */
+  async warmup(): Promise<void> {
+    // 
+  }
+  /**
    * Cleans up before shut down.
    */
   abstract cleanup(): Promise<void>;

@@ -1,10 +1,10 @@
 import { assert } from 'chai';
 import fs from 'fs/promises';
 import path from 'path';
-import { JsonPatch } from '@api-client/json';
+import { JsonPatch, Patch } from '@api-client/json';
 import sinon from 'sinon';
 import { 
-  DefaultLogger, ProjectMock, AppProject, AppProjectKind, ApiError, IAppProject, IDeleteRecord, IRevertResult, IPatchInfo, IBackendEvent, RouteBuilder, IPatchRevision, IBatchUpdateResult,
+  DefaultLogger, ProjectMock, AppProject, AppProjectKind, ApiError, IAppProject, IDeleteRecord, IRevertResult, IPatchInfo, IBackendEvent, RouteBuilder, IPatchRevision, IBatchUpdateResult, IQueryResult,
 } from '@api-client/core';
 import { StoreLevelUp } from '../../src/persistence/StoreLevelUp.js';
 import Clients, { IClientFilterOptions } from '../../src/routes/WsClients.js';
@@ -974,6 +974,145 @@ describe('Unit tests', () => {
             assert.deepEqual(e2.data, data1[1]);
             assert.equal(f2.url, RouteBuilder.appProjects(appId1));
             assert.deepEqual(f2.users, [user1.key]);
+          });
+        });
+
+        describe('query()', () => {
+          const user1 = mock.user.user();
+          const user2 = mock.user.user();
+          const appId1 = 'x1b2e3';
+          const appId2 = 't2a3f7';
+
+          let data1: IAppProject[];
+          let data2: IAppProject[];
+          let data3: IAppProject[];
+
+          before(async () => {
+            await store.user.add(user1.key, user1);
+            await store.user.add(user2.key, user2);
+
+            data1 = mock.app.appProjects(40);
+            await store.app.projects.createBatch(data1, appId1, user1);
+            data2 = mock.app.appProjects(10);
+            await store.app.projects.createBatch(data2, appId1, user2);
+            data3 = mock.app.appProjects(10);
+            await store.app.projects.createBatch(data3, appId2, user1);
+          });
+  
+          after(async () => {
+            await store.app.projects.db.clear();
+            await store.user.db.clear();
+          });
+
+          it('searches for a project name', async () => {
+            const p = mock.app.appProject();
+            p.info.name = 'testappproject';
+            await store.app.projects.create(p, appId1, user1);
+            const result = await store.app.projects.query(appId1, user1, { query: 'testappproject' });
+
+            assert.typeOf(result, 'object', 'returns an object');
+            assert.typeOf(result.items, 'array', 'has the items');
+            assert.isAtLeast(result.items.length, 1, 'has the project');
+            const [qr] = result.items;
+            assert.include(qr.index, 'doc:info:name', 'finds project in the name');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          // 
+          // The index is already created!
+          // Call store.app.projects.resetIndex() to reset.
+          // 
+
+          it('adds to the index when adding a new document', async () => {
+            const p = mock.app.appProject();
+            p.info.name = 'anotherAppProject';
+            await store.app.projects.create(p, appId1, user1);
+
+            const result = await store.app.projects.query(appId1, user1, { query: 'anotherAppProject' });
+            assert.isAtLeast(result.items.length, 1, 'has the project');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+            assert.include(qr.index, 'doc:info:name', 'finds project in the name');
+            assert.deepEqual(qr.doc, p, 'returns the document');
+          });
+
+          it('removes from the index when removing a new document', async () => {
+            const p = mock.app.appProject();
+            p.info.name = 'deletedAppProject';
+            await store.app.projects.create(p, appId1, user1);
+            await store.app.projects.delete(p.key, appId1, user1);
+
+            const result = await store.app.projects.query(appId1, user1, { query: 'deletedAppProject' });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
+          });
+
+          it('queries for a folder name in a project', async () => {
+            const p = new AppProject(data1[0]);
+            p.addFolder('myFolderName');
+            const schema = p.toJSON();
+            const patch = Patch.diff(data1[0], schema);
+            await store.app.projects.patch(p.key, appId1, {
+              app: appId1,
+              appVersion: '1',
+              id: 'abc',
+              patch,
+            }, user1);
+            const result = await store.app.projects.query(appId1, user1, { query: 'myFolderName' });
+            assert.isAtLeast(result.items.length, 1, 'has the project');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+            assert.include(qr.index, 'doc:definitions[]:folders[]:info:name', 'has the index list');
+            assert.deepEqual(qr.doc, schema, 'returns the document');
+          });
+
+          it('queries for an environment name in a project', async () => {
+            const p = new AppProject(data1[1]);
+            p.addEnvironment('myEnvironmentName');
+            const schema = p.toJSON();
+            const patch = Patch.diff(data1[1], schema);
+            await store.app.projects.patch(p.key, appId1, {
+              app: appId1,
+              appVersion: '1',
+              id: 'abc',
+              patch,
+            }, user1);
+            const result = await store.app.projects.query(appId1, user1, { query: 'myEnvironmentName' });
+            assert.isAtLeast(result.items.length, 1, 'has the project');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+            assert.include(qr.index, 'doc:definitions[]:environments[]:info:name', 'has the index list');
+            assert.deepEqual(qr.doc, schema, 'returns the document');
+          });
+
+          it('queries for a server url name in a project', async () => {
+            const p = new AppProject(data1[2]);
+            const env = p.addEnvironment('e1');
+            env.addServer('https://superUniqueDomainName.com/v1');
+            const schema = p.toJSON();
+            const patch = Patch.diff(data1[2], schema);
+            await store.app.projects.patch(p.key, appId1, {
+              app: appId1,
+              appVersion: '1',
+              id: 'abc',
+              patch,
+            }, user1);
+            const result = await store.app.projects.query(appId1, user1, { query: 'https://superUniqueDomainName.com/v1' });
+            assert.isAtLeast(result.items.length, 1, 'has the project');
+            const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
+            assert.include(qr.index, 'doc:definitions[]:environments[]:server:uri', 'has the index list');
+            assert.deepEqual(qr.doc, schema, 'returns the document');
+          });
+
+          it('does not return other users data', async () => {
+            const p = data2[0];
+            const result = await store.app.projects.query(appId1, user1, { query: p.info.name });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
+          });
+
+          it('does not return other app data', async () => {
+            const p = data3[0];
+            const result = await store.app.projects.query(appId1, user1, { query: p.info.name });
+            const qr = result.items.find(i => i.doc.key === p.key);
+            assert.isUndefined(qr);
           });
         });
       });
