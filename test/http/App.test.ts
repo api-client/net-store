@@ -73,7 +73,7 @@ describe('http', () => {
           assert.typeOf(result.items, 'array', 'has the items');
           assert.isAtLeast(result.items.length, 1, 'has the request');
           const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
-          assert.deepEqual(qr.index, ['doc:info:name'], 'finds request in the name');
+          assert.include(qr.index, 'doc:info:name', 'finds request in the name');
           assert.deepEqual(qr.doc, p, 'returns the document');
         });
       });

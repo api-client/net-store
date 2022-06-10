@@ -49,7 +49,7 @@ describe('Unit tests', () => {
           assert.typeOf(result.items, 'array', 'has the items');
           assert.isAtLeast(result.items.length, 1, 'has the request');
           const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
-          assert.deepEqual(qr.index, ['doc:info:name'], 'finds request in the name');
+          assert.include(qr.index, 'doc:info:name', 'finds request in the name');
           assert.deepEqual(qr.doc, p, 'returns the document');
         });
 
@@ -63,7 +63,7 @@ describe('Unit tests', () => {
           assert.typeOf(result.items, 'array', 'has the items');
           assert.isAtLeast(result.items.length, 1, 'has the project');
           const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppProject>;
-          assert.deepEqual(qr.index, ['doc:info:name'], 'finds project in the name');
+          assert.include(qr.index, 'doc:info:name', 'finds project in the name');
           assert.deepEqual(qr.doc, p, 'returns the document');
         });
       });
