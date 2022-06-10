@@ -1150,7 +1150,9 @@ describe('Unit tests', () => {
             const result = await store.app.requests.query(appId1, user1, { query: 'to the /test/api' });
             assert.isAtLeast(result.items.length, 1, 'has the request');
             const qr = result.items.find(i => i.doc.key === p.key) as IQueryResult<IAppRequest>;
-            assert.deepEqual(qr.index, ['doc:info:name', 'doc:info:displayName', 'doc:info:description'], 'has the index');
+            assert.include(qr.index, 'doc:info:name', 'has the "doc:info:name" index');
+            assert.include(qr.index, 'doc:info:displayName', 'has the "doc:info:displayName" index');
+            assert.include(qr.index, 'doc:info:description', 'has the "doc:info:description" index');
             assert.deepEqual(qr.doc, p, 'returns the document');
           });
         });
