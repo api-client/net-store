@@ -146,6 +146,11 @@ export class AppProjects extends SubStore implements IAppProjectStore {
       if (media.meta.deleted) {
         continue;
       }
+      if (state.since) {
+        if (media.data.updated && media.data.updated < state.since) {
+          continue;
+        }
+      }
       result.items.push(media.data);
       lastKey = key;
       remaining -= 1;

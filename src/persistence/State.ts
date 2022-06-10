@@ -29,4 +29,10 @@ export interface IListState {
    * This is a key of the parent.
    */
   parent?: string;
+  /**
+   * Used when synchronizing data in the local store with the data stored in the net-store.
+   * The timestamp when the last synchronization was performed. The resulting array will contain only items that 
+   * have been updated since that date.
+   */
+  since?: number;
 }

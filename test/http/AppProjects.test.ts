@@ -133,6 +133,35 @@ describe('http', () => {
         });
   
       });
+
+      describe('lists since', () => {
+        const appId = 'x1b2e3';
+
+        before(async () => {
+          sdk.token = await http.createUserToken(baseUri);
+        });
+
+        after(async () => {
+          await http.delete(`${baseUri}/test/reset/app/projects`);
+          await http.delete(`${baseUri}/test/reset/users`);
+          await http.delete(`${baseUri}/test/reset/sessions`);
+        });
+  
+        it('returns empty array', async () => {
+          const now = Date.now();
+          const p1 = mock.app.appProject({ foldersSize: 0, noRequests: true });
+          p1.created = now - 1000;
+          p1.updated = now - 1000;
+          const p2 = mock.app.appProject({ foldersSize: 0, noRequests: true });
+          p2.created = now + 1000;
+          p2.updated = now + 1000;
+          await sdk.app.projects.createBatch([p1, p2], appId);
+
+          const result = await sdk.app.projects.list(appId, { since: now });
+          assert.lengthOf(result.items, 1, 'returns a single item');
+          assert.deepEqual(result.items, [p2]);
+        });
+      });
     });
 
     describe('/app/{appId}/projects/{key}', () => {

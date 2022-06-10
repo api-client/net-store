@@ -130,6 +130,11 @@ export class AppRequests extends SubStore implements IAppRequestStore {
       if (media.meta.deleted) {
         continue;
       }
+      if (state.since) {
+        if (media.data.updated && media.data.updated < state.since) {
+          continue;
+        }
+      }
       result.items.push(media.data);
       lastKey = key;
       remaining -= 1;

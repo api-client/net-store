@@ -255,6 +255,35 @@ describe('Unit tests', () => {
               assert.lengthOf(result.items, 0);
             });
           });
+
+          describe('lists since', () => {
+            const user1 = mock.user.user();
+            const appId = 'x1b2e3';
+
+            before(async () => {
+              await store.user.add(user1.key, user1);
+            });
+    
+            after(async () => {
+              await store.app.projects.db.clear();
+              await store.user.db.clear();
+            });
+      
+            it('returns empty array', async () => {
+              const now = Date.now();
+              const p1 = mock.app.appProject({ foldersSize: 0, noRequests: true });
+              p1.created = now - 1000;
+              p1.updated = now - 1000;
+              const p2 = mock.app.appProject({ foldersSize: 0, noRequests: true });
+              p2.created = now + 1000;
+              p2.updated = now + 1000;
+              await store.app.projects.createBatch([p1, p2], appId, user1);
+
+              const result = await store.app.projects.list(appId, user1, { since: now });
+              assert.lengthOf(result.items, 1, 'returns a single item');
+              assert.deepEqual(result.items, [p2])
+            });
+          });
         });
 
         describe('delete()', () => {
