@@ -11,7 +11,7 @@ import HttpHelper from '../helpers/HttpHelper.js';
 chai.use(chaiAsPromised);
 
 describe('http', () => {
-  let baseUri: string;
+  let apiUri: string;
   const http = new HttpHelper();
   const mock = new ProjectMock();
 
@@ -20,7 +20,7 @@ describe('http', () => {
 
     before(async () => {
       const cnf = await getConfig();
-      baseUri = cnf.multiUserBaseUri;
+      apiUri = cnf.multiUserBaseUri;
       sdk = new StoreSdk(cnf.multiUserBaseUri);
       sdk.silent = true;
     });
@@ -33,19 +33,19 @@ describe('http', () => {
         const appId2 = 't2a3f7';
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
-          await http.post(`${baseUri}/test/generate/app/projects?size=40&noRequests=true&app=${appId1}`, { token: user1Token });
-          await http.post(`${baseUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId1}`, { token: user2Token });
-          await http.post(`${baseUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId2}`, { token: user1Token });
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
+          await http.post(`${apiUri}/test/generate/app/projects?size=40&noRequests=true&app=${appId1}`, { token: user1Token });
+          await http.post(`${apiUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId1}`, { token: user2Token });
+          await http.post(`${apiUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId2}`, { token: user1Token });
   
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
   
         it('returns a query result for default parameters', async () => {
@@ -101,13 +101,13 @@ describe('http', () => {
         const appId1 = 'x1b2e3';
   
         before(async () => {
-          sdk.token = await http.createUserToken(baseUri);
+          sdk.token = await http.createUserToken(apiUri);
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
   
         it('returns the created record', async () => {
@@ -120,7 +120,7 @@ describe('http', () => {
   
         it('returns the location header', async () => {
           const data = AppProject.fromName('test').toJSON();
-          const result = await http.post(`${baseUri}${RouteBuilder.appProjects(appId1)}`, {
+          const result = await http.post(`${apiUri}${RouteBuilder.appProjects(appId1)}`, {
             token: sdk.token,
             body: JSON.stringify(data),
             headers: {
@@ -138,13 +138,13 @@ describe('http', () => {
         const appId = 'x1b2e3';
 
         before(async () => {
-          sdk.token = await http.createUserToken(baseUri);
+          sdk.token = await http.createUserToken(apiUri);
         });
 
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
   
         it('returns empty array', async () => {
@@ -172,8 +172,8 @@ describe('http', () => {
         let id: string;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
 
           const data = AppProject.fromName('test').toJSON();
@@ -182,9 +182,9 @@ describe('http', () => {
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         it('returns the document media', async () => {
@@ -217,15 +217,15 @@ describe('http', () => {
         let p3: IAppProject;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         beforeEach(async () => {
@@ -280,15 +280,15 @@ describe('http', () => {
         let p1: IAppProject;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         beforeEach(async () => {
@@ -388,13 +388,13 @@ describe('http', () => {
       let data: IAppProject[];
   
       before(async () => {
-        sdk.token = await http.createUserToken(baseUri);
+        sdk.token = await http.createUserToken(apiUri);
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       beforeEach(() => {
@@ -429,8 +429,8 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
-        user2Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
+        user2Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
 
         data1 = mock.app.appProjects(5, { foldersSize: 0, noRequests: true });
@@ -442,9 +442,9 @@ describe('http', () => {
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       it('reds the requested records', async () => {
@@ -506,8 +506,8 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
-        user2Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
+        user2Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
 
         data1 = mock.app.appProjects(3, { foldersSize: 0, noRequests: true });
@@ -519,9 +519,9 @@ describe('http', () => {
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       it('deletes the requested records', async () => {
@@ -580,15 +580,15 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
-        user2Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
+        user2Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {
@@ -671,11 +671,11 @@ describe('http', () => {
         let data3: IAppProject[];
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
-          const r1 = await http.post(`${baseUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: user1Token });
-          const r2 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId1}`, { token: user2Token });
-          const r3 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: user1Token });
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
+          const r1 = await http.post(`${apiUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: user1Token });
+          const r2 = await http.post(`${apiUri}/test/generate/app/projects?size=1&app=${appId1}`, { token: user2Token });
+          const r3 = await http.post(`${apiUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: user1Token });
   
           sdk.token = user1Token;
 
@@ -685,9 +685,9 @@ describe('http', () => {
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         // 
@@ -729,7 +729,7 @@ describe('http', () => {
 
     before(async () => {
       const cnf = await getConfig();
-      baseUri = cnf.singleUserBaseUri;
+      apiUri = cnf.singleUserBaseUri;
       sdk = new StoreSdk(cnf.singleUserBaseUri);
       sdk.silent = true;
     });
@@ -741,17 +741,17 @@ describe('http', () => {
         const appId2 = 't2a3f7';
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          await http.post(`${baseUri}/test/generate/app/projects?size=40&noRequests=true&app=${appId1}`, { token: user1Token });
-          await http.post(`${baseUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId2}`, { token: user1Token });
+          user1Token = await http.createUserToken(apiUri);
+          await http.post(`${apiUri}/test/generate/app/projects?size=40&noRequests=true&app=${appId1}`, { token: user1Token });
+          await http.post(`${apiUri}/test/generate/app/projects?size=10&noRequests=true&app=${appId2}`, { token: user1Token });
   
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
   
         it('returns a query result for default parameters', async () => {
@@ -798,13 +798,13 @@ describe('http', () => {
         const appId1 = 'x1b2e3';
   
         before(async () => {
-          sdk.token = await http.createUserToken(baseUri);
+          sdk.token = await http.createUserToken(apiUri);
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
   
         it('returns the created record', async () => {
@@ -817,7 +817,7 @@ describe('http', () => {
   
         it('returns the location header', async () => {
           const data = AppProject.fromName('test').toJSON();
-          const result = await http.post(`${baseUri}${RouteBuilder.appProjects(appId1)}`, {
+          const result = await http.post(`${apiUri}${RouteBuilder.appProjects(appId1)}`, {
             token: sdk.token,
             body: JSON.stringify(data),
             headers: {
@@ -840,8 +840,8 @@ describe('http', () => {
         let id: string;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
-          user2Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
+          user2Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
 
           const data = AppProject.fromName('test').toJSON();
@@ -850,9 +850,9 @@ describe('http', () => {
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         it('returns the document media', async () => {
@@ -883,14 +883,14 @@ describe('http', () => {
         let p3: IAppProject;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         beforeEach(async () => {
@@ -935,14 +935,14 @@ describe('http', () => {
         let p1: IAppProject;
   
         before(async () => {
-          user1Token = await http.createUserToken(baseUri);
+          user1Token = await http.createUserToken(apiUri);
           sdk.token = user1Token;
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         beforeEach(async () => {
@@ -1021,13 +1021,13 @@ describe('http', () => {
       let data: IAppProject[];
   
       before(async () => {
-        sdk.token = await http.createUserToken(baseUri);
+        sdk.token = await http.createUserToken(apiUri);
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       beforeEach(() => {
@@ -1060,7 +1060,7 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
 
         data1 = mock.app.appProjects(5, { foldersSize: 0, noRequests: true });
@@ -1070,9 +1070,9 @@ describe('http', () => {
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       it('reds the requested records', async () => {
@@ -1125,7 +1125,7 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
 
         data1 = mock.app.appProjects(3, { foldersSize: 0, noRequests: true });
@@ -1135,9 +1135,9 @@ describe('http', () => {
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       it('deletes the requested records', async () => {
@@ -1187,14 +1187,14 @@ describe('http', () => {
       let data3: IAppProject[];
 
       before(async () => {
-        user1Token = await http.createUserToken(baseUri);
+        user1Token = await http.createUserToken(apiUri);
         sdk.token = user1Token;
       });
 
       after(async () => {
-        await http.delete(`${baseUri}/test/reset/app/projects`);
-        await http.delete(`${baseUri}/test/reset/users`);
-        await http.delete(`${baseUri}/test/reset/sessions`);
+        await http.delete(`${apiUri}/test/reset/app/projects`);
+        await http.delete(`${apiUri}/test/reset/users`);
+        await http.delete(`${apiUri}/test/reset/sessions`);
       });
 
       beforeEach(async () => {
@@ -1264,18 +1264,18 @@ describe('http', () => {
         let data3: IAppProject[];
   
         before(async () => {
-          sdk.token = await http.createUserToken(baseUri);
-          const r1 = await http.post(`${baseUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: sdk.token });
-          const r3 = await http.post(`${baseUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: sdk.token });
+          sdk.token = await http.createUserToken(apiUri);
+          const r1 = await http.post(`${apiUri}/test/generate/app/projects?size=3&app=${appId1}`, { token: sdk.token });
+          const r3 = await http.post(`${apiUri}/test/generate/app/projects?size=1&app=${appId2}`, { token: sdk.token });
 
           data1 = JSON.parse(r1.body as string) as IAppProject[];
           data3 = JSON.parse(r3.body as string) as IAppProject[];
         });
   
         after(async () => {
-          await http.delete(`${baseUri}/test/reset/app/projects`);
-          await http.delete(`${baseUri}/test/reset/users`);
-          await http.delete(`${baseUri}/test/reset/sessions`);
+          await http.delete(`${apiUri}/test/reset/app/projects`);
+          await http.delete(`${apiUri}/test/reset/users`);
+          await http.delete(`${apiUri}/test/reset/sessions`);
         });
 
         // 

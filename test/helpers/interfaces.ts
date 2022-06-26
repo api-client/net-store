@@ -7,4 +7,8 @@ export interface SetupConfig {
   singleUserPort: number;
   multiUserPort: number;
   oauthPort: number;
+  proxyPort: number;
+  proxyBaseUri: string;
+  echoPort: number;
+  echoBaseUri: string;
 }

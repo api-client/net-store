@@ -7,14 +7,17 @@ import path from 'path';
 import { OAuth2Server, MutableResponse } from 'oauth2-mock-server';
 import { DataMock } from '@pawel-up/data-mock';
 import { DummyLogger } from '@api-client/core';
-import { Server } from '../index.js';
+import { Server, ProxyServer } from '../index.js';
 import { TestStore } from './helpers/TestStore.js';
 import { SetupConfig } from './helpers/interfaces.js';
-import { IServerConfiguration } from '../src/definitions.js';
-import { TestsHttpRoute } from './helpers/TestsHttpRoute.js'
+import { IServerConfiguration, IServerProxyConfiguration } from '../src/definitions.js';
+import { TestsHttpRoute } from './helpers/TestsHttpRoute.js';
+import { EchoServer } from './servers/EchoServer.js';
 
 let noAuthServer: Server;
 let oidcAuthServer: Server;
+let proxyServer: ProxyServer;
+let echoServer: EchoServer;
 const oauthServer = new OAuth2Server(
   'test/certs/server_key.key',
   'test/certs/server_cert.crt'
@@ -61,10 +64,14 @@ export const mochaGlobalSetup = async () => {
   const singleUserPort = await getPort();
   const multiUserPort = await getPort();
   const oauthPort = await getPort();
+  const proxyPort = await getPort();
+  const echoPort = await getPort();
   const singleUserBaseUri = `http://localhost:${singleUserPort}${prefix}`;
   const multiUserBaseUri = `http://localhost:${multiUserPort}${prefix}`;
   const singleUserWsBaseUri = `ws://localhost:${singleUserPort}${prefix}`;
   const multiUserWsBaseUri = `ws://localhost:${multiUserPort}${prefix}`;
+  const proxyBaseUri = `http://localhost:${proxyPort}${prefix}`;
+  const echoBaseUri = `http://localhost:${echoPort}/`;
 
   // OpenId server
   await oauthServer.issuer.keys.generate('RS256');
@@ -100,9 +107,25 @@ export const mochaGlobalSetup = async () => {
     },
     logger,
   };
+
+  const proxyConfig: IServerProxyConfiguration = ({
+    port: proxyPort,
+    prefix,
+    logger,
+    cors: {
+      enabled: true,
+      cors: {
+        exposeHeaders: ['location'],
+        // allowHeaders: '*',
+        allowMethods: 'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS',
+        origin: (ctx) =>  ctx.request.header.origin || '',
+      },
+    },
+  });
   
   noAuthServer = new Server(noAuthStore, singleUserConfig);
   oidcAuthServer = new Server(oidcAuthStore, multiUserConfig);
+  proxyServer = new ProxyServer(proxyConfig);
   // stores
   await noAuthStore.initialize();
   await oidcAuthStore.initialize();
@@ -113,6 +136,11 @@ export const mochaGlobalSetup = async () => {
   // OpenID Connect test server
   await oidcAuthServer.initialize(TestsHttpRoute);
   await oidcAuthServer.start();
+  // proxy server
+  await proxyServer.start();
+  // echo server for tests
+  echoServer = new EchoServer();
+  await echoServer.start(echoPort);
 
   const info: SetupConfig = {
     singleUserBaseUri,
@@ -123,6 +151,10 @@ export const mochaGlobalSetup = async () => {
     prefix,
     singleUserWsBaseUri,
     multiUserWsBaseUri,
+    proxyPort,
+    proxyBaseUri,
+    echoPort,
+    echoBaseUri,
   };
   await fs.writeFile(lockFile, JSON.stringify(info));
 };
@@ -130,6 +162,8 @@ export const mochaGlobalSetup = async () => {
 export const mochaGlobalTeardown = async () => {
   await oauthServer.stop();
   await noAuthServer.stop();
+  await proxyServer.stop();
+  await echoServer.stop();
   await noAuthServer.cleanup();
   await oidcAuthServer.stop();
   await oidcAuthServer.cleanup();

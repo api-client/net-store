@@ -22,7 +22,7 @@ In the multi-user environment clients (users) can:
 - create and share (via space sharing) HTTP projects
 - share HTTP history
 
-## Observing real-time changed
+## Observing real-time changes
 
 The server exposes several endpoints for web sockets. Clients can crate a WebSocket connection to the server to observer changes to the interesting resources:
 
@@ -51,6 +51,10 @@ See [docs/communication.md](docs/communication.md) for more details.
 ## Client authentication
 
 See [docs/authentication.md](docs/authentication.md) for more details.
+
+## Http proxy
+
+See [docs/proxy.md](docs/proxy.md) for more details.
 
 ## CLI
 
